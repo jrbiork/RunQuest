@@ -36,25 +36,32 @@ function formatPace(distKm: number, durMin: number): string {
 function CompletedResultCard({
   mission,
   run,
+  onShare,
 }: {
   mission: Mission;
   run: CompletedRun;
+  onShare: () => void;
 }) {
   const config = missionConfig[mission.type];
   const goalMet = run.goalMet;
 
   return (
     <View style={[rc.card, goalMet ? rc.cardGoal : rc.cardEarly]}>
-      {/* Status banner */}
-      <View style={[rc.banner, goalMet ? rc.bannerGoal : rc.bannerEarly]}>
-        <MaterialIcons
-          name={goalMet ? 'emoji-events' : 'check-circle'}
-          size={16}
-          color={goalMet ? '#fff' : colors.primaryDark}
-        />
-        <Text style={[rc.bannerText, goalMet ? rc.bannerTextGoal : rc.bannerTextEarly]}>
-          {goalMet ? 'Goal achieved! 🏆' : 'Completed · Finished early'}
-        </Text>
+      {/* Status banner + share button row */}
+      <View style={rc.bannerRow}>
+        <View style={[rc.banner, goalMet ? rc.bannerGoal : rc.bannerEarly]}>
+          <MaterialIcons
+            name={goalMet ? 'emoji-events' : 'check-circle'}
+            size={16}
+            color={goalMet ? '#fff' : colors.primaryDark}
+          />
+          <Text style={[rc.bannerText, goalMet ? rc.bannerTextGoal : rc.bannerTextEarly]}>
+            {goalMet ? 'Goal achieved!' : 'Completed · Finished early'}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={onShare} style={rc.shareBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialIcons name="ios-share" size={16} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Mission label + date */}
@@ -129,10 +136,11 @@ interface MissionNodeProps {
   mission: Mission;
   completedRun?: CompletedRun;
   onPress: () => void;
+  onShare?: () => void;
   isLast?: boolean;
 }
 
-export function MissionNode({ mission, completedRun, onPress, isLast = false }: MissionNodeProps) {
+export function MissionNode({ mission, completedRun, onPress, onShare, isLast = false }: MissionNodeProps) {
   const config = missionConfig[mission.type];
   const isCompleted = mission.status === 'completed';
   const isActive = mission.status === 'active';
@@ -173,7 +181,7 @@ export function MissionNode({ mission, completedRun, onPress, isLast = false }: 
       {/* Completed state — rich result card, non-interactive */}
       {isCompleted && completedRun ? (
         <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.touchable}>
-          <CompletedResultCard mission={mission} run={completedRun} />
+          <CompletedResultCard mission={mission} run={completedRun} onShare={onShare ?? (() => {})} />
         </TouchableOpacity>
       ) : (
         /* Active / upcoming / locked — standard node */
@@ -262,11 +270,21 @@ const rc = StyleSheet.create({
   } as ViewStyle,
 
   // Banner strip
+  bannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  } as ViewStyle,
   banner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  } as ViewStyle,
+  shareBtn: {
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   } as ViewStyle,
   bannerGoal: {

@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import ViewShot from 'react-native-view-shot';
 import type { Mission, CompletedRun } from '../../types';
 import { MissionNode } from './MissionNode';
 import { useUserStore } from '../../store/userStore';
+import { useMissionsStore } from '../../store/missionsStore';
 import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/theme';
+import RunShareCard from '../share/RunShareCard';
+import { shareCard } from '../../services/shareService';
 
 interface JourneyPathProps {
   missions: Mission[];
@@ -14,12 +18,15 @@ interface JourneyPathProps {
 
 export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   const runHistory = useUserStore((s) => s.runHistory);
+  const weekMissions = useMissionsStore((s) => s.weekMissions);
+
+  const shareRef = useRef<ViewShot>(null);
+  const [sharingMissionId, setSharingMissionId] = useState<string | null>(null);
 
   // Build a quick lookup: missionId → most-recent CompletedRun
   const completedRunByMission = React.useMemo(() => {
     const map = new Map<string, CompletedRun>();
     for (const run of runHistory) {
-      // Keep the latest entry for each mission
       const existing = map.get(run.missionId);
       if (!existing || run.completedAt > existing.completedAt) {
         map.set(run.missionId, run);
@@ -27,6 +34,17 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
     }
     return map;
   }, [runHistory]);
+
+  const handleShare = useCallback(async (missionId: string) => {
+    setSharingMissionId(missionId);
+    // Let the off-screen card render before capturing
+    await new Promise((r) => setTimeout(r, 80));
+    await shareCard(shareRef);
+    setSharingMissionId(null);
+  }, []);
+
+  const sharingRun = sharingMissionId ? completedRunByMission.get(sharingMissionId) : undefined;
+  const sharingMission = sharingMissionId ? weekMissions.find((m) => m.id === sharingMissionId) : undefined;
 
   if (missions.length === 0) {
     return (
@@ -62,9 +80,29 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
                 router.push({ pathname: '/run/[id]', params: { id: mission.id } });
               }
             }}
+            onShare={
+              mission.status === 'completed'
+                ? () => handleShare(mission.id)
+                : undefined
+            }
           />
         ))}
       </View>
+
+      {/* Off-screen share card — rendered only while a share is in progress */}
+      {sharingRun && sharingMission && (
+        <View style={styles.offscreen} pointerEvents="none">
+          <RunShareCard
+            ref={shareRef}
+            distanceKm={sharingRun.distanceKm}
+            durationMin={sharingRun.durationMin}
+            xpEarned={sharingRun.xpEarned}
+            streakDay={sharingRun.streakDay}
+            missionType={sharingMission.type}
+            path={sharingRun.path}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -72,6 +110,12 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
 const styles = StyleSheet.create({
   container: {
     gap: spacing.md,
+  } as ViewStyle,
+  offscreen: {
+    position: 'absolute',
+    top: 0,
+    left: -9999,
+    opacity: 0,
   } as ViewStyle,
   path: {
     gap: spacing.sm,

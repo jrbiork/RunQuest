@@ -1,10 +1,11 @@
-import { NativeModules, Platform } from 'react-native';
+import { TurboModuleRegistry, Platform } from 'react-native';
 
-// expo-notifications requires the RCTPushNotificationManager native module.
-// On iOS simulators this module can be null, causing a NativeEventEmitter crash
-// at require() time. Guard the entire import so the app degrades gracefully.
+// PushNotificationIOS.js passes TurboModuleRegistry.get('PushNotificationManager')
+// to NativeEventEmitter at module-load time. On iOS simulators this TurboModule
+// returns null, making NativeEventEmitter throw an invariant. Guard the entire
+// expo-notifications import so the app degrades gracefully on simulators.
 const notificationsAvailable =
-  Platform.OS !== 'ios' || !!NativeModules.RCTPushNotificationManager;
+  Platform.OS !== 'ios' || !!TurboModuleRegistry.get('PushNotificationManager');
 
 let Notifications: typeof import('expo-notifications') | null = null;
 if (notificationsAvailable) {
