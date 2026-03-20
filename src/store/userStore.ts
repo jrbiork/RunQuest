@@ -16,6 +16,7 @@ import {
 
 interface UserActions {
   completeOnboarding: (profile: UserProfile) => void;
+  markIntroSeen: () => void;
   completeRun: (
     missionId: string,
     missionType: Parameters<typeof calculateXpEarned>[0],
@@ -46,6 +47,7 @@ export const useUserStore = create<UserStore>()(
       // ─── Initial State ──────────────────────────────────────────────────
       profile: null,
       hasCompletedOnboarding: false,
+      hasSeenIntro: false,
       xp: 0,
       streak: 0,
       lastRunDate: null,
@@ -56,6 +58,8 @@ export const useUserStore = create<UserStore>()(
       runHistory: [],
 
       // ─── Actions ────────────────────────────────────────────────────────
+
+      markIntroSeen: () => set({ hasSeenIntro: true }),
 
       completeOnboarding: (profile: UserProfile) => {
         set({
@@ -143,6 +147,7 @@ export const useUserStore = create<UserStore>()(
         set({
           profile: null,
           hasCompletedOnboarding: false,
+          hasSeenIntro: false,
           xp: 0,
           streak: 0,
           lastRunDate: null,

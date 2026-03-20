@@ -1,46 +1,46 @@
-// Design tokens for RunQuest — bright, friendly, Duolingo-inspired energy
+// Design tokens for RunQuest: Rebuild the World — dark post-apocalyptic energy
 import { Platform } from 'react-native';
 
 export const colors = {
-  // Brand
-  primary: '#4CAF50',       // Green — main CTA, completed states
-  primaryLight: '#E8F5E9',  // Light green background
-  primaryDark: '#388E3C',
+  // Brand — teal = "life being restored"
+  primary: '#4ECCA3',
+  primaryLight: 'rgba(78,204,163,0.15)',
+  primaryDark: '#2DB88A',
 
   // Accents
-  orange: '#FF9800',        // Streak fire
-  orangeLight: '#FFF3E0',
-  purple: '#9C27B0',        // XP
-  purpleLight: '#F3E5F5',
-  blue: '#2196F3',          // Level / info
-  blueLight: '#E3F2FD',
-  red: '#F44336',           // Danger / missed streak
-  redLight: '#FFEBEE',
-  yellow: '#FFC107',        // Stars / bonus
+  orange: '#FF6B35',              // Danger / active missions
+  orangeLight: 'rgba(255,107,53,0.15)',
+  purple: '#7C4DFF',              // XP / levels
+  purpleLight: 'rgba(124,77,255,0.15)',
+  blue: '#00B4D8',                // Network / signals
+  blueLight: 'rgba(0,180,216,0.15)',
+  red: '#FF4757',                 // Critical / missed
+  redLight: 'rgba(255,71,87,0.15)',
+  yellow: '#FFD60A',              // Rewards / stars
 
   // Mission type colors
-  missionEasy: '#4CAF50',
-  missionTempo: '#FF9800',
-  missionLong: '#2196F3',
-  missionRecovery: '#26C6DA',
-  missionInterval: '#9C27B0',
+  missionEasy: '#4ECCA3',         // Grid Patrol — teal
+  missionTempo: '#FF6B35',        // Signal Rush — orange
+  missionLong: '#00B4D8',         // Supply Route — blue
+  missionRecovery: '#7C4DFF',     // Scout — purple
+  missionInterval: '#FFD60A',     // Surge — yellow
 
-  // Neutrals
-  background: '#FAFAFA',
-  surface: '#FFFFFF',
-  surfaceElevated: '#FFFFFF',
-  border: '#EEEEEE',
-  borderActive: '#4CAF50',
+  // Backgrounds
+  background: '#0A0A0F',
+  surface: '#12121C',
+  surfaceElevated: '#1C1C2C',
+  border: '#2A2A3E',
+  borderActive: '#4ECCA3',
 
   // Text
-  textPrimary: '#212121',
-  textSecondary: '#757575',
-  textTertiary: '#BDBDBD',
-  textInverse: '#FFFFFF',
+  textPrimary: '#E8E8F4',
+  textSecondary: '#8A8AA8',
+  textTertiary: '#4A4A5C',
+  textInverse: '#0A0A0F',
 
   // Tab bar
-  tabActive: '#4CAF50',
-  tabInactive: '#BDBDBD',
+  tabActive: '#4ECCA3',
+  tabInactive: '#4A4A5C',
 } as const;
 
 export const spacing = {
@@ -82,7 +82,7 @@ export const fontWeights = {
   extrabold: '800' as const,
 };
 
-// Platform-aware shadow helper: RN shadow props on iOS/Android, boxShadow on web
+// Platform-aware shadow helper — on dark surfaces we use subtle outer glow
 function makeShadow(
   y: number,
   blur: number,
@@ -102,9 +102,9 @@ function makeShadow(
 }
 
 export const shadows = {
-  sm: makeShadow(1, 6, 0.06, 2),
-  md: makeShadow(2, 12, 0.08, 4),
-  lg: makeShadow(4, 20, 0.12, 8),
+  sm: makeShadow(2, 8, 0.4, 3),
+  md: makeShadow(4, 16, 0.5, 6),
+  lg: makeShadow(8, 28, 0.6, 10),
 } as const;
 
 export const iconSizes = {
@@ -115,36 +115,36 @@ export const iconSizes = {
   xxl: 32,
 } as const;
 
-// Mission type → color and icon mapping
+// Mission type → color and icon mapping (post-apocalyptic narrative labels)
 export const missionConfig = {
   easy: {
     color: colors.missionEasy,
-    bgColor: colors.primaryLight,
-    label: 'Easy Run',
-    icon: 'directions-run',
+    bgColor: 'rgba(78,204,163,0.12)',
+    label: 'Grid Patrol',
+    icon: 'flash-on',
   },
   tempo: {
     color: colors.missionTempo,
-    bgColor: colors.orangeLight,
-    label: 'Tempo',
-    icon: 'speed',
+    bgColor: 'rgba(255,107,53,0.12)',
+    label: 'Signal Rush',
+    icon: 'wifi',
   },
   long: {
     color: colors.missionLong,
-    bgColor: colors.blueLight,
-    label: 'Long Run',
+    bgColor: 'rgba(0,180,216,0.12)',
+    label: 'Supply Route',
     icon: 'terrain',
   },
   recovery: {
     color: colors.missionRecovery,
-    bgColor: '#E0F7FA',
-    label: 'Recovery',
-    icon: 'self-improvement',
+    bgColor: 'rgba(124,77,255,0.12)',
+    label: 'Scout',
+    icon: 'explore',
   },
   interval: {
     color: colors.missionInterval,
-    bgColor: colors.purpleLight,
-    label: 'Intervals',
-    icon: 'flash-on',
+    bgColor: 'rgba(255,214,10,0.12)',
+    label: 'Surge',
+    icon: 'bolt',
   },
 } as const;

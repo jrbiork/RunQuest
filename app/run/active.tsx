@@ -30,7 +30,7 @@ import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig 
 import { formatDistance } from '../../src/utils/xpCalculator';
 import { formatElapsed, formatPace } from '../../src/utils/haversine';
 import { useGpsTracking } from '../../src/hooks/useGpsTracking';
-import { playGoalReachedSound } from '../../src/services/audioService';
+import { playGoalReachedSound, speakRunCue } from '../../src/services/audioService';
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
 
 export default function ActiveRunScreen() {
@@ -42,6 +42,9 @@ export default function ActiveRunScreen() {
     useGpsTracking();
 
   const goalReachedFired = useRef(false);
+  const milestone25Fired = useRef(false);
+  const milestone50Fired = useRef(false);
+  const milestone75Fired = useRef(false);
   const mapRef = useRef<MapView>(null);
 
   // Reanimated values for goal-reached banner
@@ -84,14 +87,29 @@ export default function ActiveRunScreen() {
     start();
   }, [start]);
 
-  // Detect goal completion
+  // Detect goal completion + milestone TTS cues
   useEffect(() => {
-    if (!mission || goalReachedFired.current || !isTracking) return;
+    if (!mission || !isTracking) return;
 
-    const distGoalHit = distanceKm >= mission.targetDistanceKm;
-    const timeGoalHit = elapsedSec >= mission.targetDurationMin * 60;
+    // Compute progress as the max of distance-ratio and time-ratio
+    const distRatio = mission.targetDistanceKm > 0 ? distanceKm / mission.targetDistanceKm : 0;
+    const timeRatio = mission.targetDurationMin > 0 ? elapsedSec / (mission.targetDurationMin * 60) : 0;
+    const progress = Math.max(distRatio, timeRatio);
 
-    if (distGoalHit || timeGoalHit) {
+    if (!milestone25Fired.current && progress >= 0.25) {
+      milestone25Fired.current = true;
+      speakRunCue('Signal weak. Keep moving, Runner.');
+    }
+    if (!milestone50Fired.current && progress >= 0.5) {
+      milestone50Fired.current = true;
+      speakRunCue('Halfway. The zone can feel you.');
+    }
+    if (!milestone75Fired.current && progress >= 0.75) {
+      milestone75Fired.current = true;
+      speakRunCue('Final stretch. Do not stop now.');
+    }
+
+    if (!goalReachedFired.current && progress >= 1.0) {
       goalReachedFired.current = true;
       triggerGoalReached(mission.title);
     }

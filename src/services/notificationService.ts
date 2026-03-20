@@ -1,11 +1,11 @@
-import { TurboModuleRegistry, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// PushNotificationIOS.js passes TurboModuleRegistry.get('PushNotificationManager')
-// to NativeEventEmitter at module-load time. On iOS simulators this TurboModule
-// returns null, making NativeEventEmitter throw an invariant. Guard the entire
-// expo-notifications import so the app degrades gracefully on simulators.
-const notificationsAvailable =
-  Platform.OS !== 'ios' || !!TurboModuleRegistry.get('PushNotificationManager');
+// expo-notifications internally loads PushNotificationIOS which passes the
+// PushNotificationManager TurboModule to NativeEventEmitter. In RN 0.83 (New
+// Architecture) that module is null on iOS simulators, causing an invariant
+// crash. Using Constants.isDevice is the reliable way to detect simulators.
+const notificationsAvailable = Constants.isDevice || Platform.OS === 'android';
 
 let Notifications: typeof import('expo-notifications') | null = null;
 if (notificationsAvailable) {

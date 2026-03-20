@@ -38,24 +38,24 @@ function formatPace(distKm: number, durMin: number): string {
 /** Map mission type to a branding accent colour. */
 function missionColor(type: MissionType): string {
   const MAP: Record<MissionType, string> = {
-    easy: '#4CAF50',
-    tempo: '#FF9800',
-    long: '#2196F3',
-    recovery: '#26C6DA',
-    interval: '#9C27B0',
+    easy: '#4ECCA3',
+    tempo: '#FF6B35',
+    long: '#00B4D8',
+    recovery: '#7C4DFF',
+    interval: '#FFD60A',
   };
-  return MAP[type] ?? '#4CAF50';
+  return MAP[type] ?? '#4ECCA3';
 }
 
 function missionLabel(type: MissionType): string {
   const MAP: Record<MissionType, string> = {
-    easy: 'Easy Run',
-    tempo: 'Tempo',
-    long: 'Long Run',
-    recovery: 'Recovery',
-    interval: 'Intervals',
+    easy: 'Grid Patrol',
+    tempo: 'Signal Rush',
+    long: 'Supply Route',
+    recovery: 'Scout',
+    interval: 'Surge',
   };
-  return MAP[type] ?? 'Run';
+  return MAP[type] ?? 'Mission';
 }
 
 /** Normalise GPS points to a [0,1] bounding box and scale to the SVG canvas. */
@@ -140,9 +140,9 @@ const RunShareCard = forwardRef<ViewShot, RunShareCardProps>(
 
           {/* Stats row */}
           <View style={sc.statsRow}>
-            <StatBlock label="Pace" value={formatPace(distanceKm, durationMin)} accent="#2196F3" />
+            <StatBlock label="Pace" value={formatPace(distanceKm, durationMin)} accent="#00B4D8" />
             <View style={sc.statsDivider} />
-            <StatBlock label="Time" value={formatDuration(durationMin)} accent="#FF9800" />
+            <StatBlock label="Time" value={formatDuration(durationMin)} accent="#FF6B35" />
           </View>
 
           {/* Route path (or placeholder) */}
@@ -160,24 +160,25 @@ const RunShareCard = forwardRef<ViewShot, RunShareCardProps>(
               </Svg>
             ) : (
               <View style={[sc.routePlaceholder, { borderColor: accent }]}>
+                <MaterialIcons name="directions-run" size={28} color={accent} />
                 <Text style={[sc.routePlaceholderText, { color: accent }]}>
-                  🏃 {missionLabel(missionType)}
+                  {missionLabel(missionType)}
                 </Text>
               </View>
             )}
           </View>
 
           {/* Footer */}
-          <View style={[sc.footer, { borderTopColor: '#EEEEEE' }]}>
+          <View style={[sc.footer, { borderTopColor: '#2A2A3E' }]}>
             <View style={sc.footerStat}>
-              <MaterialIcons name="local-fire-department" size={18} color="#FF9800" />
+              <MaterialIcons name="local-fire-department" size={18} color="#FF6B35" />
               <Text style={sc.footerText}>Day {streakDay} streak</Text>
             </View>
             <View style={sc.footerStat}>
-              <MaterialIcons name="star" size={18} color="#9C27B0" />
-              <Text style={[sc.footerText, { color: '#9C27B0' }]}>+{xpEarned} XP</Text>
+              <MaterialIcons name="star" size={18} color="#7C4DFF" />
+              <Text style={[sc.footerText, { color: '#7C4DFF' }]}>+{xpEarned} XP</Text>
             </View>
-            <Text style={sc.footerBrand}>runquest.app</Text>
+            <Text style={sc.footerBrand}>RUNQUEST</Text>
           </View>
         </View>
       </ViewShot>
@@ -198,7 +199,7 @@ const sc = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0A0A0F',
     borderTopWidth: 6,
     overflow: 'hidden',
   } as ViewStyle,
@@ -235,13 +236,13 @@ const sc = StyleSheet.create({
   heroDistance: {
     fontSize: 64,
     fontWeight: '800',
-    color: '#212121',
+    color: '#E8E8F4',
     letterSpacing: -2,
   } as TextStyle,
   heroDistLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#9E9E9E',
+    color: '#8A8AA8',
     marginTop: 4,
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -267,14 +268,14 @@ const sc = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#9E9E9E',
+    color: '#8A8AA8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   } as TextStyle,
   statsDivider: {
     width: 1,
     height: 50,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: '#2A2A3E',
     marginHorizontal: 16,
   } as ViewStyle,
 
@@ -282,7 +283,7 @@ const sc = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: ROUTE_H + 16,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#12121C',
     marginHorizontal: 0,
     paddingVertical: 8,
   } as ViewStyle,
@@ -317,11 +318,12 @@ const sc = StyleSheet.create({
   footerText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#212121',
+    color: '#E8E8F4',
   } as TextStyle,
   footerBrand: {
-    fontSize: 12,
-    color: '#BDBDBD',
-    fontWeight: '500',
+    fontSize: 11,
+    color: '#4A4A5C',
+    fontWeight: '700',
+    letterSpacing: 2,
   } as TextStyle,
 });

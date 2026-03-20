@@ -29,11 +29,11 @@ function formatDist(km: number): string {
   return `${Math.round(km * 1000)} m`;
 }
 
-// Runs → heat colour (green shade)
+// Runs → heat colour (dark teal scale)
 function heatColor(runCount: number): string {
-  if (runCount === 0) return '#EEEEEE';
-  if (runCount === 1) return '#A5D6A7';
-  return '#2E7D32';
+  if (runCount === 0) return '#1C1C2C';
+  if (runCount === 1) return 'rgba(78,204,163,0.4)';
+  return '#4ECCA3';
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -103,29 +103,21 @@ const MonthShareCard = forwardRef<ViewShot, MonthShareCardProps>(
 
           {/* Monthly totals */}
           <View style={sc.totalsRow}>
-            <TotalStat
-              value={`${stats.totalXp}`}
-              label="XP"
-              color="#9C27B0"
-            />
+            <TotalStat value={`${stats.totalXp}`} label="XP" color="#7C4DFF" />
             <View style={sc.totalsDivider} />
-            <TotalStat
-              value={`${stats.totalRuns}`}
-              label="runs"
-              color="#4CAF50"
-            />
+            <TotalStat value={`${stats.totalRuns}`} label="runs" color="#4ECCA3" />
             <View style={sc.totalsDivider} />
             <TotalStat
               value={stats.totalDistanceKm > 0 ? formatDist(stats.totalDistanceKm) : '–'}
               label="distance"
-              color="#2196F3"
+              color="#00B4D8"
             />
           </View>
 
           {/* Footer */}
           <View style={sc.footer}>
-            <Text style={sc.footerText}>Keep running. Keep growing.</Text>
-            <Text style={sc.footerBrand}>runquest.app</Text>
+            <Text style={sc.footerText}>Keep running. Rebuild the world.</Text>
+            <Text style={sc.footerBrand}>RUNQUEST</Text>
           </View>
         </View>
       </ViewShot>
@@ -165,12 +157,14 @@ const sc = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0A0A0F',
     overflow: 'hidden',
   } as ViewStyle,
 
   header: {
-    backgroundColor: '#1B5E20',
+    backgroundColor: '#12121C',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A3E',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -210,7 +204,7 @@ const sc = StyleSheet.create({
     textAlign: 'center',
     fontSize: 10,
     fontWeight: '600',
-    color: '#9E9E9E',
+    color: '#4A4A5C',
   } as TextStyle,
   grid: {
     flexDirection: 'row',
@@ -221,17 +215,17 @@ const sc = StyleSheet.create({
     width: CELL,
     height: CELL,
     borderRadius: 6,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: '#1C1C2C',
     alignItems: 'center',
     justifyContent: 'center',
   } as ViewStyle,
   cellText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#9E9E9E',
+    color: '#4A4A5C',
   } as TextStyle,
   cellTextActive: {
-    color: '#FFFFFF',
+    color: '#0A0A0F',
     fontWeight: '700',
   } as TextStyle,
 
@@ -242,14 +236,16 @@ const sc = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#12121C',
     marginHorizontal: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A3E',
   } as ViewStyle,
   totalsDivider: {
     width: 1,
     height: 48,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: '#2A2A3E',
     marginHorizontal: 12,
   } as ViewStyle,
   totalStat: {
@@ -265,7 +261,7 @@ const sc = StyleSheet.create({
   totalLabel: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#9E9E9E',
+    color: '#8A8AA8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   } as TextStyle,
@@ -277,18 +273,19 @@ const sc = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
+    borderTopColor: '#2A2A3E',
     marginTop: 'auto',
   } as ViewStyle,
   footerText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#757575',
+    color: '#8A8AA8',
     fontStyle: 'italic',
   } as TextStyle,
   footerBrand: {
-    fontSize: 12,
-    color: '#BDBDBD',
-    fontWeight: '500',
+    fontSize: 11,
+    color: '#4A4A5C',
+    fontWeight: '700',
+    letterSpacing: 2,
   } as TextStyle,
 });

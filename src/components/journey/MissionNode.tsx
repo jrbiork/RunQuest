@@ -259,7 +259,7 @@ const rc = StyleSheet.create({
     ...shadows.md,
   } as ViewStyle,
   cardGoal: {
-    backgroundColor: '#F0FFF4',
+    backgroundColor: 'rgba(78,204,163,0.08)',
     borderWidth: 2,
     borderColor: colors.primary,
   } as ViewStyle,
@@ -383,7 +383,7 @@ const rc = StyleSheet.create({
     color: colors.yellow,
   } as TextStyle,
   streakPill: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: colors.orangeLight,
     borderRadius: radii.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
