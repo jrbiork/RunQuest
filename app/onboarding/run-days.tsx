@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
 import { useOnboardingDraft } from './_layout';
@@ -33,9 +34,7 @@ export default function RunDaysScreen() {
 
   const toggleDay = (day: DayOfWeek) => {
     setSelectedDays((prev) => {
-      if (prev.includes(day)) {
-        return prev.filter((d) => d !== day);
-      }
+      if (prev.includes(day)) return prev.filter((d) => d !== day);
       return [...prev, day];
     });
   };
@@ -44,7 +43,6 @@ export default function RunDaysScreen() {
 
   const handleNext = () => {
     if (!isValid) return;
-    // Sort days in weekly order
     const ordered = ALL_DAYS.map((d) => d.value).filter((d) => selectedDays.includes(d));
     draft.current.preferredDays = ordered;
     router.push('/onboarding/pace');
@@ -54,9 +52,10 @@ export default function RunDaysScreen() {
     <OnboardingLayout
       step={4}
       totalSteps={5}
-      title="Pick your run days"
-      subtitle={`Select at least ${targetRuns} day${targetRuns > 1 ? 's' : ''}. These become your mission schedule.`}
+      title="Deployment Schedule"
+      subtitle="Active Operation Days"
       onNext={handleNext}
+      nextLabel="Lock Schedule"
       nextDisabled={!isValid}
     >
       <View style={styles.grid}>
@@ -73,24 +72,29 @@ export default function RunDaysScreen() {
                 {value}
               </Text>
               <Text style={[styles.dayFull, isSelected && styles.dayFullActive]}>
-                {full}
+                {full.toUpperCase()}
               </Text>
-              {isSelected && (
-                <View style={styles.checkDot} />
+              {isSelected ? (
+                <View style={styles.checkSquare}>
+                  <MaterialIcons name="check" size={12} color={colors.textInverse} />
+                </View>
+              ) : (
+                <View style={styles.checkEmpty} />
               )}
             </TouchableOpacity>
           );
         })}
       </View>
 
+      {/* Counter */}
       <View style={styles.counter}>
         <Text style={styles.counterText}>
           <Text style={styles.counterBold}>{selectedDays.length}</Text>
-          <Text style={styles.counterDim}> / {targetRuns} days selected</Text>
+          <Text style={styles.counterDim}> / {targetRuns} DAYS ACTIVE</Text>
         </Text>
         {selectedDays.length > targetRuns && (
           <Text style={styles.counterExtra}>
-            +{selectedDays.length - targetRuns} extra — we'll prioritize your first {targetRuns}
+            +{selectedDays.length - targetRuns} extra — first {targetRuns} days will be prioritized
           </Text>
         )}
       </View>
@@ -100,14 +104,14 @@ export default function RunDaysScreen() {
 
 const styles = StyleSheet.create({
   grid: {
-    gap: spacing.md,
+    gap: spacing.sm,
   } as ViewStyle,
   dayCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 2,
+    borderRadius: radii.md,
+    borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -115,47 +119,65 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   } as ViewStyle,
   dayCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
+    borderColor: colors.orange,
+    backgroundColor: colors.orangeLight,
   } as ViewStyle,
   dayShort: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
     color: colors.textSecondary,
     width: 36,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   dayShortActive: {
-    color: colors.primary,
+    color: colors.orange,
   } as TextStyle,
   dayFull: {
-    fontSize: fontSizes.md,
-    color: colors.textSecondary,
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
     flex: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   dayFullActive: {
-    color: colors.primaryDark,
+    color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
   } as TextStyle,
-  checkDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radii.full,
+  checkSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.sm,
     backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  checkEmpty: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   counter: {
     alignItems: 'center',
     gap: spacing.xs,
+    paddingTop: spacing.sm,
   } as ViewStyle,
   counterText: {
     fontSize: fontSizes.md,
   } as TextStyle,
   counterBold: {
     fontWeight: fontWeights.extrabold,
-    color: colors.primary,
+    color: colors.orange,
     fontSize: fontSizes.xl,
   } as TextStyle,
   counterDim: {
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontSize: fontSizes.sm,
   } as TextStyle,
   counterExtra: {
     fontSize: fontSizes.sm,

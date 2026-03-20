@@ -11,6 +11,9 @@ import { colors, spacing, radii, fontSizes, fontWeights, shadows } from '../../c
 interface OptionCardProps {
   label: string;
   description?: string;
+  /** MaterialIcons icon name — replaces legacy emoji prop */
+  icon?: string;
+  /** Legacy emoji prop — ignored, use icon instead */
   emoji?: string;
   selected: boolean;
   onPress: () => void;
@@ -20,7 +23,7 @@ interface OptionCardProps {
 export function OptionCard({
   label,
   description,
-  emoji,
+  icon,
   selected,
   onPress,
   style,
@@ -49,8 +52,17 @@ export function OptionCard({
           style,
         ]}
       >
+        {/* Left: icon block + text */}
         <View style={styles.left}>
-          {emoji && <Text style={styles.emoji}>{emoji}</Text>}
+          {icon && (
+            <View style={[styles.iconBlock, selected && styles.iconBlockSelected]}>
+              <MaterialIcons
+                name={icon as any}
+                size={20}
+                color={selected ? colors.textInverse : colors.textSecondary}
+              />
+            </View>
+          )}
           <View style={styles.textGroup}>
             <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
             {description && (
@@ -61,8 +73,9 @@ export function OptionCard({
           </View>
         </View>
 
+        {/* Right: square checkmark badge */}
         <View style={[styles.check, selected && styles.checkSelected]}>
-          {selected && <MaterialIcons name="check" size={16} color="#fff" />}
+          {selected && <MaterialIcons name="check" size={14} color={colors.textInverse} />}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -76,54 +89,75 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    padding: spacing.lg,
-    borderWidth: 2,
+    padding: spacing.md,
+    borderWidth: 1,
     borderColor: colors.border,
     ...shadows.sm,
+    gap: spacing.md,
   } as ViewStyle,
   selected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
+    borderColor: colors.orange,
+    backgroundColor: colors.orangeLight,
   } as ViewStyle,
+
   left: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
+    gap: spacing.md,
     flex: 1,
   } as ViewStyle,
-  emoji: {
-    fontSize: 26,
-  } as TextStyle,
-  textGroup: {
-    flex: 1,
-    gap: spacing.xs,
-  } as ViewStyle,
-  label: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
-    color: colors.textPrimary,
-  } as TextStyle,
-  labelSelected: {
-    color: colors.primaryDark,
-    fontWeight: fontWeights.bold,
-  } as TextStyle,
-  description: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  } as TextStyle,
-  descriptionSelected: {
-    color: colors.primaryDark,
-  } as TextStyle,
-  check: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.full,
-    borderWidth: 2,
+
+  // Icon block — stamped look
+  iconBlock: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  } as ViewStyle,
+  iconBlockSelected: {
+    backgroundColor: colors.orange,
+    borderColor: colors.orange,
+  } as ViewStyle,
+
+  textGroup: {
+    flex: 1,
+    gap: 3,
+  } as ViewStyle,
+  label: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
+  labelSelected: {
+    color: colors.textPrimary,
+  } as TextStyle,
+  description: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    lineHeight: 17,
+  } as TextStyle,
+  descriptionSelected: {
+    color: colors.textSecondary,
+  } as TextStyle,
+
+  // Square checkmark badge
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   checkSelected: {
     backgroundColor: colors.primary,

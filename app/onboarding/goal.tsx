@@ -7,36 +7,36 @@ import { useOnboardingDraft } from './_layout';
 import type { RunningGoal } from '../../src/types';
 import { spacing } from '../../src/constants/theme';
 
-const OPTIONS: { value: RunningGoal; label: string; description: string; emoji: string }[] = [
+const OPTIONS: { value: RunningGoal; label: string; description: string; icon: string }[] = [
   {
     value: 'habit',
-    label: 'Build a habit',
-    description: 'Run consistently every week and make it stick.',
-    emoji: '🔥',
+    label: 'SECURE PERIMETER',
+    description: 'Establish daily patrol routes. Build the habit.',
+    icon: 'shield',
   },
   {
     value: 'consistency',
-    label: 'Run more consistently',
-    description: 'Stop the on-again, off-again cycle for good.',
-    emoji: '📅',
+    label: 'MAINTAIN PROTOCOL',
+    description: 'Stop going dark. Keep the signal alive.',
+    icon: 'repeat',
   },
   {
     value: 'distance',
-    label: 'Improve distance',
-    description: 'Build up to running longer and further.',
-    emoji: '🗺️',
+    label: 'EXPAND NETWORK',
+    description: 'Unlock new zones. Push further each week.',
+    icon: 'map',
   },
   {
     value: 'speed',
-    label: 'Train for speed',
-    description: 'Get faster with tempo runs and intervals.',
-    emoji: '⚡',
+    label: 'SURGE PROTOCOL',
+    description: 'Run hard. React fast. Push your operational limits.',
+    icon: 'bolt',
   },
   {
     value: 'race',
-    label: 'Prepare for a race',
-    description: '5K, 10K, half marathon — get race-ready.',
-    emoji: '🏆',
+    label: 'SUPPLY RUN',
+    description: 'Deliver critical assets. Cover the distance.',
+    icon: 'local-shipping',
   },
 ];
 
@@ -56,9 +56,10 @@ export default function GoalScreen() {
     <OnboardingLayout
       step={2}
       totalSteps={5}
-      title="What's your main running goal?"
-      subtitle="This shapes the type of missions you'll get."
+      title="Objective"
+      subtitle="Primary Mandate"
       onNext={handleNext}
+      nextLabel="Select Mandate"
       nextDisabled={!selected}
     >
       <View style={styles.options}>
@@ -67,7 +68,7 @@ export default function GoalScreen() {
             key={opt.value}
             label={opt.label}
             description={opt.description}
-            emoji={opt.emoji}
+            icon={opt.icon}
             selected={selected === opt.value}
             onPress={() => setSelected(opt.value)}
           />

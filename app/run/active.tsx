@@ -20,7 +20,6 @@ import Animated, {
   withSequence,
   withTiming,
   withSpring,
-  FadeInDown,
   FadeIn,
 } from 'react-native-reanimated';
 import { useMissionsStore } from '../../src/store/missionsStore';
@@ -60,12 +59,11 @@ export default function ActiveRunScreen() {
   }));
 
   const triggerGoalReached = useCallback(async (missionTitle: string) => {
-    // Animate banner in
     bannerScale.value = withSpring(1, { damping: 12, stiffness: 180 });
     pulseOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.4, { duration: 600 }),
-        withTiming(1, { duration: 600 }),
+        withTiming(0.5, { duration: 700 }),
+        withTiming(1, { duration: 700 }),
       ),
       -1,
       false,
@@ -76,22 +74,18 @@ export default function ActiveRunScreen() {
     ]);
   }, [bannerScale, pulseOpacity]);
 
-  // Lock the run modal (disable swipe-to-dismiss) for the duration of the run
   useEffect(() => {
     setRunActive(true);
     return () => setRunActive(false);
   }, [setRunActive]);
 
-  // Start tracking as soon as the screen mounts
   useEffect(() => {
     start();
   }, [start]);
 
-  // Detect goal completion + milestone TTS cues
   useEffect(() => {
     if (!mission || !isTracking) return;
 
-    // Compute progress as the max of distance-ratio and time-ratio
     const distRatio = mission.targetDistanceKm > 0 ? distanceKm / mission.targetDistanceKm : 0;
     const timeRatio = mission.targetDurationMin > 0 ? elapsedSec / (mission.targetDurationMin * 60) : 0;
     const progress = Math.max(distRatio, timeRatio);
@@ -108,14 +102,13 @@ export default function ActiveRunScreen() {
       milestone75Fired.current = true;
       speakRunCue('Final stretch. Do not stop now.');
     }
-
     if (!goalReachedFired.current && progress >= 1.0) {
       goalReachedFired.current = true;
       triggerGoalReached(mission.title);
     }
   }, [distanceKm, elapsedSec, isTracking, mission, triggerGoalReached]);
 
-  // Pan map to follow the latest GPS point
+  // Pan map to follow latest GPS point
   useEffect(() => {
     const latest = path[path.length - 1];
     if (latest && mapRef.current) {
@@ -149,15 +142,14 @@ export default function ActiveRunScreen() {
     });
   };
 
-  // Prompt before leaving while a run is active — covers swipe-down, hardware back, etc.
   const confirmAbort = useCallback(() => {
     Alert.alert(
-      'Stop this run?',
-      'Your GPS progress will be lost.',
+      'Abandon Mission?',
+      'GPS progress will be lost. The zone stays dark.',
       [
         { text: 'Keep Running', style: 'cancel' },
         {
-          text: 'Stop Run',
+          text: 'Abort',
           style: 'destructive',
           onPress: () => {
             setRunActive(false);
@@ -169,24 +161,22 @@ export default function ActiveRunScreen() {
     );
   }, [stop]);
 
-  // Block Android hardware back button
   useEffect(() => {
     if (!isTracking) return;
-    const handler = () => {
-      confirmAbort();
-      return true; // consume the event
-    };
+    const handler = () => { confirmAbort(); return true; };
     const sub = BackHandler.addEventListener('hardwareBackPress', handler);
     return () => sub.remove();
   }, [isTracking, confirmAbort]);
+
+  // ─── Error states ─────────────────────────────────────────────────────────
 
   if (!mission) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.errorText}>Mission not found.</Text>
+          <Text style={styles.errorText}>Mission data not found.</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>Go back</Text>
+            <Text style={styles.backBtnText}>Return to base</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -198,12 +188,12 @@ export default function ActiveRunScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <MaterialIcons name="location-off" size={48} color={colors.textTertiary} />
-          <Text style={styles.permTitle}>Location Access Needed</Text>
+          <Text style={styles.permTitle}>Location Access Required</Text>
           <Text style={styles.permSub}>
-            RunQuest needs location access to track your run. Enable it in Settings.
+            RunQuest needs location access to track your sortie. Enable it in Settings.
           </Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>Go back</Text>
+            <Text style={styles.backBtnText}>Return to base</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -216,176 +206,138 @@ export default function ActiveRunScreen() {
   const overallProgress = Math.max(distanceProgress, timeProgress);
   const goalHit = goalReachedFired.current;
 
-  // Build polyline coordinates for react-native-maps
-  const polylineCoords = path.map((p) => ({
-    latitude: p.latitude,
-    longitude: p.longitude,
-  }));
-
-  const initialRegion =
-    path.length > 0
-      ? {
-          latitude: path[0]!.latitude,
-          longitude: path[0]!.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        }
-      : undefined;
+  const polylineCoords = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
+  const initialRegion = path.length > 0
+    ? { latitude: path[0]!.latitude, longitude: path[0]!.longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }
+    : undefined;
 
   return (
-    <View style={styles.container}>
-      {/* Map fills the screen */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={initialRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-        mapType="standard"
-      >
-        {polylineCoords.length > 1 && (
-          <Polyline
-            coordinates={polylineCoords}
-            strokeColor={config.color}
-            strokeWidth={5}
-            lineCap="round"
-            lineJoin="round"
-          />
-        )}
-      </MapView>
+    <SafeAreaView style={styles.safeOuter} edges={['top']}>
+      {/* ─── Mission header — pinned above the map ────────────────── */}
+      <Animated.View entering={FadeIn.duration(400)} style={[styles.header, { borderBottomColor: config.color }]}>
+        {/* Left: type pill */}
+        <View style={[styles.typePill, { borderColor: config.color }]}>
+          <MaterialIcons name={config.icon as any} size={12} color={config.color} />
+          <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
+        </View>
 
-      {/* Top header bar */}
-      <SafeAreaView style={styles.headerSafe} edges={['top']}>
-        <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
-          {/* Spacer — no close button while run is active */}
-          <View style={styles.headerEnd} />
+        {/* Center: mission title */}
+        <Text style={styles.missionTitle} numberOfLines={1}>{mission.title}</Text>
 
-          <View style={styles.headerCenter}>
-            <View style={[styles.typePill, { backgroundColor: config.color + '22' }]}>
-              <MaterialIcons name={config.icon as any} size={12} color={config.color} />
-              <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
-            </View>
-            <Text style={styles.missionTitle} numberOfLines={1}>{mission.title}</Text>
-          </View>
-
-          {/* Spacer to balance layout */}
-          <View style={styles.headerEnd} />
-        </Animated.View>
-      </SafeAreaView>
-
-      {/* Goal reached banner */}
-      <Animated.View style={[styles.goalBanner, bannerStyle]}>
-        <Animated.View style={[styles.goalBannerInner, pulseStyle]}>
-          <MaterialIcons name="celebration" size={36} color={colors.primary} />
-          <Text style={styles.goalBannerText}>Goal Reached!</Text>
-          <Text style={styles.goalBannerSub}>Keep going or finish your run</Text>
-        </Animated.View>
+        {/* Right: elapsed time badge */}
+        <View style={styles.elapsedBadge}>
+          <MaterialIcons name="timer" size={12} color={colors.textSecondary} />
+          <Text style={styles.elapsedText}>{formatElapsed(elapsedSec)}</Text>
+        </View>
       </Animated.View>
 
-      {/* Bottom stats HUD */}
-      <SafeAreaView style={styles.hudSafe} edges={['bottom']}>
-        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.hud}>
+      {/* ─── Map — takes all remaining space ──────────────────────── */}
+      <View style={styles.mapWrapper}>
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFillObject}
+          provider={PROVIDER_DEFAULT}
+          initialRegion={initialRegion}
+          showsUserLocation
+          showsMyLocationButton={false}
+          mapType="standard"
+        >
+          {polylineCoords.length > 1 && (
+            <Polyline
+              coordinates={polylineCoords}
+              strokeColor={config.color}
+              strokeWidth={5}
+              lineCap="round"
+              lineJoin="round"
+            />
+          )}
+        </MapView>
+
+        {/* Goal reached banner — floats over the map */}
+        <Animated.View style={[styles.goalBanner, bannerStyle]} pointerEvents="none">
+          <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
+            <MaterialIcons name="emoji-events" size={28} color={colors.primary} />
+            <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
+            <Text style={styles.goalBannerSub}>Keep pushing or finish the run</Text>
+          </Animated.View>
+        </Animated.View>
+      </View>
+
+      {/* ─── Bottom HUD ───────────────────────────────────────────── */}
+      <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
+        <View style={styles.hud}>
           {/* Stats row */}
           <View style={styles.statsRow}>
-            <StatTile
-              label="TIME"
-              value={formatElapsed(elapsedSec)}
-              icon="timer"
-              accent={colors.blue}
-            />
+            <StatTile label="TIME" value={formatElapsed(elapsedSec)} icon="timer" accent={colors.blue} />
             <View style={styles.statDivider} />
-            <StatTile
-              label="DISTANCE"
-              value={formatDistance(distanceKm)}
-              icon="straighten"
-              accent={config.color}
-              large
-            />
+            <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon="straighten" accent={config.color} large />
             <View style={styles.statDivider} />
-            <StatTile
-              label="PACE"
-              value={formatPace(distanceKm, elapsedSec)}
-              icon="speed"
-              accent={colors.purple}
-            />
+            <StatTile label="PACE" value={formatPace(distanceKm, elapsedSec)} icon="speed" accent={colors.ochre} />
           </View>
 
-          {/* Targets */}
-          <View style={styles.targetsRow}>
-            <Text style={styles.targetText}>
-              Target: {formatDistance(mission.targetDistanceKm)} · ~{mission.targetDurationMin} min
-            </Text>
-          </View>
-
-          {/* Progress bar */}
-          <View style={styles.progressWrap}>
+          {/* Target + progress */}
+          <View style={styles.progressSection}>
+            <View style={styles.targetRow}>
+              <Text style={styles.targetLabel}>TARGET</Text>
+              <Text style={styles.targetValue}>
+                {formatDistance(mission.targetDistanceKm)} · ~{mission.targetDurationMin} min
+              </Text>
+              <Text style={[styles.progressPercent, goalHit && styles.progressPercentDone]}>
+                {goalHit ? '✓ COMPLETE' : `${Math.round(overallProgress * 100)}%`}
+              </Text>
+            </View>
             <ProgressBar
               progress={overallProgress}
               color={goalHit ? colors.primary : config.color}
               backgroundColor={colors.border}
-              height={8}
+              height={6}
             />
-            <Text style={[styles.progressLabel, goalHit && styles.progressLabelDone]}>
-              {goalHit ? '✓ Goal complete' : `${Math.round(overallProgress * 100)}% to goal`}
-            </Text>
           </View>
 
           {/* Finish button */}
           <TouchableOpacity
-            style={[styles.finishBtn, goalHit && styles.finishBtnActive]}
+            style={[styles.finishBtn, goalHit && styles.finishBtnGoal]}
             onPress={handleFinish}
             activeOpacity={0.85}
           >
             <MaterialIcons
-              name="flag"
+              name={goalHit ? 'emoji-events' : 'flag'}
               size={20}
               color={goalHit ? colors.textInverse : colors.textSecondary}
             />
-            <Text style={[styles.finishBtnText, goalHit && styles.finishBtnTextActive]}>
-              {goalHit ? 'Finish Run' : 'Finish Early'}
+            <Text style={[styles.finishBtnText, goalHit && styles.finishBtnTextGoal]}>
+              {goalHit ? 'COMPLETE MISSION' : 'FINISH EARLY'}
             </Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 
-function StatTile({
-  label,
-  value,
-  icon,
-  accent,
-  large,
-}: {
-  label: string;
-  value: string;
-  icon: string;
-  accent: string;
-  large?: boolean;
+function StatTile({ label, value, icon, accent, large }: {
+  label: string; value: string; icon: string; accent: string; large?: boolean;
 }) {
   return (
     <View style={styles.statTile}>
-      <MaterialIcons name={icon as any} size={14} color={accent} />
-      <Text style={[styles.statValue, large && styles.statValueLarge]}>{value}</Text>
+      <MaterialIcons name={icon as any} size={13} color={accent} />
+      <Text style={[styles.statValue, large && styles.statValueLarge, { color: accent }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeOuter: {
     flex: 1,
     backgroundColor: colors.background,
-  } as ViewStyle,
-  map: {
-    ...StyleSheet.absoluteFillObject,
   } as ViewStyle,
   safe: {
     flex: 1,
     backgroundColor: colors.background,
   } as ViewStyle,
+
+  // ─── Error / permission screens ───────────────────────────────────────────
   center: {
     flex: 1,
     alignItems: 'center',
@@ -403,6 +355,8 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   permSub: {
     fontSize: fontSizes.md,
@@ -415,182 +369,221 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
   } as ViewStyle,
   backBtnText: {
     fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
+    fontWeight: fontWeights.bold,
     color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
 
-  // Header
-  headerSafe: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  } as ViewStyle,
+  // ─── Mission header bar — above the map ──────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    paddingVertical: spacing.md,
+    backgroundColor: colors.background,
+    borderBottomWidth: 2,
     gap: spacing.md,
-    ...shadows.sm,
-  } as ViewStyle,
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.full,
-    backgroundColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  } as ViewStyle,
-  headerCenter: {
-    flex: 1,
-    gap: spacing.xs,
-  } as ViewStyle,
-  headerEnd: {
-    width: 36,
   } as ViewStyle,
   typePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radii.full,
-    alignSelf: 'flex-start',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: radii.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
-    gap: 4,
+    flexShrink: 0,
   } as ViewStyle,
   typeLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   } as TextStyle,
   missionTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.bold,
+    flex: 1,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  } as TextStyle,
+  elapsedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexShrink: 0,
+  } as ViewStyle,
+  elapsedText: {
+    fontSize: 11,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    fontVariant: ['tabular-nums'],
   } as TextStyle,
 
-  // Goal banner
+  // ─── Map wrapper ──────────────────────────────────────────────────────────
+  mapWrapper: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  } as ViewStyle,
+
+  // ─── Goal reached banner (floats over map) ────────────────────────────────
   goalBanner: {
     position: 'absolute',
-    top: '40%',
-    alignSelf: 'center',
+    bottom: spacing.xxl,
+    left: spacing.xl,
+    right: spacing.xl,
+    alignItems: 'center',
     zIndex: 10,
   } as ViewStyle,
   goalBannerInner: {
     backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    paddingHorizontal: spacing.xxl,
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    gap: spacing.xs,
-    ...shadows.lg,
-  } as ViewStyle,
-  goalBannerText: {
-    fontSize: fontSizes.xxl,
-    fontWeight: fontWeights.extrabold,
-    color: colors.primary,
-  } as TextStyle,
-  goalBannerSub: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-  } as TextStyle,
-
-  // Bottom HUD
-  hudSafe: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  } as ViewStyle,
-  hud: {
-    backgroundColor: 'rgba(255,255,255,0.97)',
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    paddingTop: spacing.xl,
+    borderRadius: radii.lg,
+    borderWidth: 2,
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: spacing.md,
     ...shadows.lg,
   } as ViewStyle,
+  goalBannerTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+    color: colors.primary,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  goalBannerSub: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
 
+  // ─── Bottom HUD ───────────────────────────────────────────────────────────
+  hudOuter: {
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  } as ViewStyle,
+  hud: {
+    backgroundColor: colors.background,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
+  } as ViewStyle,
+
+  // Stats
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   } as ViewStyle,
   statDivider: {
     width: 1,
-    height: 40,
+    height: 44,
     backgroundColor: colors.border,
   } as ViewStyle,
   statTile: {
     flex: 1,
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 3,
   } as ViewStyle,
   statValue: {
-    fontSize: fontSizes.lg,
+    fontSize: fontSizes.xl,
     fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
     letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   } as TextStyle,
   statValueLarge: {
     fontSize: fontSizes.xxl,
   } as TextStyle,
   statLabel: {
-    fontSize: 10,
-    fontWeight: fontWeights.bold,
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
     color: colors.textTertiary,
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   } as TextStyle,
 
-  targetsRow: {
-    alignItems: 'center',
-  } as ViewStyle,
-  targetText: {
-    fontSize: fontSizes.xs,
-    color: colors.textTertiary,
-    fontWeight: fontWeights.medium,
-  } as TextStyle,
-
-  progressWrap: {
+  // Target + progress
+  progressSection: {
     gap: spacing.sm,
   } as ViewStyle,
-  progressLabel: {
+  targetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  targetLabel: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  targetValue: {
+    flex: 1,
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
-    fontWeight: fontWeights.semibold,
-    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
-  progressLabelDone: {
+  progressPercent: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  progressPercentDone: {
     color: colors.primary,
   } as TextStyle,
 
+  // Finish button
   finishBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.border,
-    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingVertical: spacing.lg,
     marginTop: spacing.xs,
   } as ViewStyle,
-  finishBtnActive: {
+  finishBtnGoal: {
     backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
   } as ViewStyle,
   finishBtnText: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   } as TextStyle,
-  finishBtnTextActive: {
+  finishBtnTextGoal: {
     color: colors.textInverse,
   } as TextStyle,
 });

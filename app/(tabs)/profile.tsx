@@ -17,7 +17,6 @@ import { useMissionsStore } from '../../src/store/missionsStore';
 import { useStreak } from '../../src/hooks/useStreak';
 import { Card } from '../../src/components/ui/Card';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
-import { LevelBadge } from '../../src/components/ui/LevelBadge';
 import { StreakBadge } from '../../src/components/ui/StreakBadge';
 import { Button } from '../../src/components/ui/Button';
 import {
@@ -31,24 +30,24 @@ import {
 import { getLevelInfo, formatDistance } from '../../src/utils/xpCalculator';
 
 const GOAL_LABELS: Record<string, string> = {
-  habit: 'Build a habit',
-  consistency: 'Run more consistently',
-  distance: 'Improve distance',
-  speed: 'Train for speed',
-  race: 'Prepare for a race',
+  habit: 'Secure Perimeter',
+  consistency: 'Maintain Protocol',
+  distance: 'Expand Network',
+  speed: 'Surge Protocol',
+  race: 'Supply Run',
 };
 
 const EXPERIENCE_LABELS: Record<string, string> = {
-  beginner: '🌱 Beginner',
-  intermediate: '🏃 Intermediate',
-  advanced: '⚡ Advanced',
+  beginner: 'Recruit',
+  intermediate: 'Operative',
+  advanced: 'Vanguard',
 };
 
-const LEVEL_TITLES = [
-  'Rookie Runner', 'Pavement Pounder', 'Trail Blazer', 'Momentum Builder',
-  'Endurance Seeker', 'Distance Chaser', 'Speed Demon', 'Race Ready',
-  'Iron Legs', 'Ultramarathoner', 'Running Legend', 'Elite Pacer',
-  'Marathon Master', 'Unstoppable', 'RunQuest Champion',
+const RANK_TITLES = [
+  'Field Recruit', 'Patrol Runner', 'Zone Scout', 'Network Courier',
+  'Signal Runner', 'Grid Operative', 'Sector Vanguard', 'Zone Commander',
+  'Iron Legs', 'Wasteland Ranger', 'Signal Legend', 'Grid Phantom',
+  'Marathon Survivor', 'Ghost Runner', 'RunQuest Champion',
 ];
 
 export default function ProfileScreen() {
@@ -66,18 +65,19 @@ export default function ProfileScreen() {
   const { streak, isAlive, message: streakMessage } = useStreak();
 
   const [showGoalEditor, setShowGoalEditor] = useState(false);
+  void showGoalEditor;
 
   const runsThisWeek = weeklyProgress?.runsCompleted ?? 0;
   const weekProgress = runsTarget > 0 ? Math.min(runsThisWeek / runsTarget, 1) : 0;
 
   const handleReset = () => {
     Alert.alert(
-      'Reset RunQuest',
-      'This will delete all your progress and restart onboarding. Are you sure?',
+      'Wipe Operative Data',
+      'This will delete all progress and restart onboarding. The world goes dark again.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Reset',
+          text: 'Confirm Wipe',
           style: 'destructive',
           onPress: () => {
             resetOnboarding();
@@ -88,8 +88,7 @@ export default function ProfileScreen() {
     );
   };
 
-  // Level milestones to show
-  const milestones = LEVEL_TITLES.slice(0, Math.min(levelInfo.level + 2, LEVEL_TITLES.length));
+  const milestones = RANK_TITLES.slice(0, Math.min(levelInfo.level + 2, RANK_TITLES.length));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -98,150 +97,139 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Avatar + identity */}
+        {/* ─── Operative header ─────────────────────────────────────── */}
         <View style={styles.heroSection}>
-          <View style={styles.avatar}>
-            <MaterialIcons name="directions-run" size={40} color={colors.primary} />
+          {/* Dog-tag avatar with ochre ring */}
+          <View style={styles.avatarRing}>
+            <View style={styles.avatar}>
+              <MaterialIcons name="directions-run" size={38} color={colors.primary} />
+            </View>
           </View>
           <View style={styles.identity}>
-            <View style={styles.identityRow}>
-              <LevelBadge level={levelInfo.level} size="md" />
-              <Text style={styles.levelTitle}>{levelInfo.title}</Text>
+            {/* Level badge */}
+            <View style={styles.levelBadge}>
+              <MaterialIcons name="military-tech" size={13} color={colors.ochre} />
+              <Text style={styles.levelBadgeText}>SCAVENGER LVL {levelInfo.level}</Text>
             </View>
-            <Text style={styles.xpTotal}>{xp.toLocaleString()} XP total</Text>
+            <Text style={styles.rankTitle}>{RANK_TITLES[Math.min(levelInfo.level - 1, RANK_TITLES.length - 1)]}</Text>
+            <Text style={styles.xpTotal}>{xp.toLocaleString()} XP</Text>
           </View>
         </View>
 
-        {/* XP progress bar */}
+        {/* ─── XP progress ──────────────────────────────────────────── */}
         <Card style={styles.xpCard}>
-          <View style={styles.xpCardHeader}>
-            <Text style={styles.xpCardTitle}>Level Progress</Text>
+          <SectionHeader icon="trending-up" title="Rank Progress" />
+          <View style={styles.xpCardBody}>
             <Text style={styles.xpCardSub}>
-              {levelInfo.xpInLevel} / {levelInfo.xpToNextLevel} XP → Level {levelInfo.level + 1}
+              {levelInfo.xpInLevel} / {levelInfo.xpToNextLevel} XP → LVL {levelInfo.level + 1}
             </Text>
+            <ProgressBar
+              progress={levelInfo.progress}
+              color={colors.ochre}
+              backgroundColor={colors.purpleLight}
+              height={8}
+            />
           </View>
-          <ProgressBar
-            progress={levelInfo.progress}
-            color={colors.blue}
-            backgroundColor={colors.blueLight}
-            height={10}
-          />
         </Card>
 
-        {/* Stats */}
+        {/* ─── Stats grid ───────────────────────────────────────────── */}
         <View style={styles.statsGrid}>
-          <StatBlock label="Total Runs" value={totalRuns.toString()} icon="directions-run" iconColor={colors.primary} />
-          <StatBlock label="Total Distance" value={formatDistance(totalDistanceKm)} icon="straighten" iconColor={colors.blue} />
-          <StatBlock label="Current Streak" value={`${streak}d`} icon="local-fire-department" iconColor={colors.orange} />
-          <StatBlock label="Best Streak" value={`${longestStreak}d`} icon="emoji-events" iconColor={colors.yellow} />
+          <StatBlock label="Sorties" value={totalRuns.toString()} icon="directions-run" iconColor={colors.primary} />
+          <StatBlock label="Distance" value={formatDistance(totalDistanceKm)} icon="straighten" iconColor={colors.blue} />
+          <StatBlock label="Streak" value={`${streak}d`} icon="local-fire-department" iconColor={colors.orange} />
+          <StatBlock label="Best" value={`${longestStreak}d`} icon="emoji-events" iconColor={colors.yellow} />
         </View>
 
-        {/* Streak banner */}
+        {/* ─── Streak status ─────────────────────────────────────────── */}
         <Card style={styles.streakCard}>
           <StreakBadge streak={streak} isAlive={isAlive} size="lg" showLabel />
           <Text style={styles.streakMsg}>{streakMessage}</Text>
         </Card>
 
-        {/* This week */}
+        {/* ─── Weekly sortie progress ───────────────────────────────── */}
         <Card style={styles.weekCard}>
-          <View style={styles.weekHeader}>
-            <MaterialIcons name="calendar-today" size={18} color={colors.primary} />
-            <Text style={styles.sectionTitle}>This Week</Text>
-          </View>
+          <SectionHeader icon="calendar-today" title="This Week's Sorties" />
           <View style={styles.weekStats}>
-            <Text style={styles.weekValue}>
-              <Text style={styles.weekBold}>{runsThisWeek}</Text>
-              <Text style={styles.weekDim}> / {runsTarget} runs</Text>
-            </Text>
+            <Text style={styles.weekBold}>{runsThisWeek}</Text>
+            <Text style={styles.weekDim}> / {runsTarget} sorties</Text>
           </View>
           <ProgressBar
             progress={weekProgress}
             color={colors.primary}
             backgroundColor={colors.primaryLight}
-            height={8}
+            height={6}
           />
         </Card>
 
-        {/* Profile details */}
+        {/* ─── Operative profile details ────────────────────────────── */}
         {profile && (
           <Card style={styles.profileCard}>
-            <Text style={styles.sectionTitle}>Your Profile</Text>
-            <ProfileRow
-              icon="fitness-center"
-              label="Experience"
-              value={EXPERIENCE_LABELS[profile.experienceLevel] ?? profile.experienceLevel}
-            />
-            <Divider />
-            <ProfileRow
-              icon="flag"
-              label="Goal"
-              value={GOAL_LABELS[profile.runningGoal] ?? profile.runningGoal}
-            />
-            <Divider />
-            <ProfileRow
-              icon="calendar-today"
-              label="Run Days"
-              value={profile.preferredDays.join(', ')}
-            />
-            <Divider />
-            <ProfileRow
-              icon="speed"
-              label="Pace Level"
-              value={profile.paceLevel.charAt(0).toUpperCase() + profile.paceLevel.slice(1)}
-            />
+            <SectionHeader icon="person" title="Operative File" />
+            <View style={styles.profileRows}>
+              <ProfileRow icon="fitness-center" label="Classification" value={EXPERIENCE_LABELS[profile.experienceLevel] ?? profile.experienceLevel} />
+              <Divider />
+              <ProfileRow icon="flag" label="Primary Mandate" value={GOAL_LABELS[profile.runningGoal] ?? profile.runningGoal} />
+              <Divider />
+              <ProfileRow icon="event" label="Active Days" value={profile.preferredDays.join(', ')} />
+              <Divider />
+              <ProfileRow icon="speed" label="Op Mode" value={profile.paceLevel.charAt(0).toUpperCase() + profile.paceLevel.slice(1)} />
+            </View>
           </Card>
         )}
 
-        {/* Level milestones */}
+        {/* ─── Rank milestones ──────────────────────────────────────── */}
         <Card style={styles.milestonesCard}>
-          <Text style={styles.sectionTitle}>Level Journey</Text>
-          {milestones.map((title, idx) => {
-            const lvl = idx + 1;
-            const isUnlocked = lvl <= levelInfo.level;
-            const isCurrent = lvl === levelInfo.level;
-            return (
-              <View key={lvl} style={styles.milestoneRow}>
-                <View style={[
-                  styles.milestoneDot,
-                  isUnlocked ? styles.milestoneDotDone : styles.milestoneDotLocked,
-                  isCurrent && styles.milestoneDotCurrent,
-                ]}>
-                  {isUnlocked && <MaterialIcons name="check" size={12} color="#fff" />}
-                </View>
-                <View style={styles.milestoneContent}>
-                  <Text style={[styles.milestoneLvl, !isUnlocked && styles.textLocked]}>
-                    Level {lvl}
-                  </Text>
-                  <Text style={[styles.milestoneTitle, !isUnlocked && styles.textLocked]}>
-                    {title}
-                  </Text>
-                </View>
-                {isCurrent && (
-                  <View style={styles.currentBadge}>
-                    <Text style={styles.currentBadgeText}>Current</Text>
+          <SectionHeader icon="military-tech" title="Rank Progression" />
+          <View style={styles.milestoneList}>
+            {milestones.map((title, idx) => {
+              const lvl = idx + 1;
+              const isUnlocked = lvl <= levelInfo.level;
+              const isCurrent = lvl === levelInfo.level;
+              return (
+                <View key={lvl} style={styles.milestoneRow}>
+                  <View style={[
+                    styles.milestoneDot,
+                    isUnlocked ? styles.milestoneDotDone : styles.milestoneDotLocked,
+                    isCurrent && styles.milestoneDotCurrent,
+                  ]}>
+                    {isUnlocked && <MaterialIcons name="check" size={11} color={colors.textInverse} />}
                   </View>
-                )}
-              </View>
-            );
-          })}
+                  <View style={styles.milestoneContent}>
+                    <Text style={[styles.milestoneLvl, !isUnlocked && styles.textLocked]}>
+                      LEVEL {lvl}
+                    </Text>
+                    <Text style={[styles.milestoneTitle, !isUnlocked && styles.textLocked]}>
+                      {title}
+                    </Text>
+                  </View>
+                  {isCurrent && (
+                    <View style={styles.currentBadge}>
+                      <Text style={styles.currentBadgeText}>ACTIVE</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </Card>
 
-        {/* Regenerate missions */}
+        {/* ─── Actions ─────────────────────────────────────────────── */}
         {profile && (
           <Button
             label="Regenerate This Week's Missions"
+            icon="refresh"
             onPress={() => {
               generateWeek(profile);
-              Alert.alert('Done!', "Your weekly missions have been refreshed.");
+              Alert.alert('Missions Regenerated', 'Your weekly deployment schedule has been updated.');
             }}
             variant="secondary"
             fullWidth
           />
         )}
 
-        {/* Reset */}
         <Button
-          label="Reset & Restart Onboarding"
+          label="Wipe Operative Data"
+          icon="warning"
           onPress={handleReset}
           variant="danger"
           fullWidth
@@ -252,28 +240,48 @@ export default function ProfileScreen() {
   );
 }
 
+function SectionHeader({ icon, title }: { icon: string; title: string }) {
+  return (
+    <View style={sh.row}>
+      <MaterialIcons name={icon as any} size={15} color={colors.ochre} />
+      <Text style={sh.title}>{title}</Text>
+    </View>
+  );
+}
+
+const sh = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: spacing.sm,
+  } as ViewStyle,
+  title: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  } as TextStyle,
+});
+
 function StatBlock({ label, value, icon, iconColor }: { label: string; value: string; icon: string; iconColor: string }) {
   return (
     <View style={styles.statBlock}>
-      <MaterialIcons name={icon as any} size={24} color={iconColor} />
+      <MaterialIcons name={icon as any} size={22} color={iconColor} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
-function ProfileRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
+function ProfileRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.profileRow}>
-      <MaterialIcons name={icon as any} size={18} color={colors.textSecondary} />
+      <MaterialIcons name={icon as any} size={16} color={colors.textSecondary} />
       <Text style={styles.profileLabel}>{label}</Text>
       <Text style={styles.profileValue}>{value}</Text>
     </View>
@@ -289,9 +297,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   } as ViewStyle,
-  scroll: {
-    flex: 1,
-  } as ViewStyle,
+  scroll: { flex: 1 } as ViewStyle,
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
@@ -299,56 +305,79 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   } as ViewStyle,
 
-  // Hero
+  // Operative header
   heroSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xl,
     paddingVertical: spacing.md,
   } as ViewStyle,
-  avatar: {
-    width: 72,
-    height: 72,
+  avatarRing: {
+    width: 78,
+    height: 78,
     borderRadius: radii.full,
-    backgroundColor: colors.primaryLight,
+    borderWidth: 2,
+    borderColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 3,
     ...shadows.sm,
+  } as ViewStyle,
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radii.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   } as ViewStyle,
   identity: {
     flex: 1,
     gap: spacing.sm,
   } as ViewStyle,
-  identityRow: {
+  levelBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 4,
+    backgroundColor: colors.purpleLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.ochre,
+    alignSelf: 'flex-start',
   } as ViewStyle,
-  levelTitle: {
+  levelBadgeText: {
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
+    color: colors.ochre,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  rankTitle: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   xpTotal: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
 
   // XP card
-  xpCard: {
-    gap: spacing.md,
-  } as ViewStyle,
-  xpCardHeader: {
-    gap: spacing.xs,
-  } as ViewStyle,
-  xpCardTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
-  } as TextStyle,
+  xpCard: { gap: spacing.md } as ViewStyle,
+  xpCardBody: { gap: spacing.sm } as ViewStyle,
   xpCardSub: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
 
   // Stats grid
@@ -361,6 +390,8 @@ const styles = StyleSheet.create({
     width: '47%',
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     paddingVertical: spacing.lg,
     gap: spacing.xs,
@@ -370,11 +401,14 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
   } as TextStyle,
   statLabel: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
 
   // Streak
@@ -391,48 +425,47 @@ const styles = StyleSheet.create({
   } as TextStyle,
 
   // Week card
-  weekCard: {
-    gap: spacing.md,
-  } as ViewStyle,
-  weekHeader: {
+  weekCard: { gap: spacing.md } as ViewStyle,
+  weekStats: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+    alignItems: 'baseline',
   } as ViewStyle,
-  weekStats: {} as ViewStyle,
-  weekValue: {
-    fontSize: fontSizes.md,
-  } as TextStyle,
   weekBold: {
-    fontSize: fontSizes.xl,
+    fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
   } as TextStyle,
   weekDim: {
+    fontSize: fontSizes.md,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
 
-  // Profile details card
-  profileCard: {
-    gap: spacing.sm,
-  } as ViewStyle,
+  // Profile card
+  profileCard: { gap: spacing.sm } as ViewStyle,
+  profileRows: { gap: 2 } as ViewStyle,
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
   } as ViewStyle,
   profileLabel: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
-    width: 90,
+    width: 100,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
   profileValue: {
     flex: 1,
     fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
+    fontWeight: fontWeights.bold,
     color: colors.textPrimary,
     textAlign: 'right',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
   divider: {
     height: 1,
@@ -440,9 +473,8 @@ const styles = StyleSheet.create({
   } as ViewStyle,
 
   // Milestones
-  milestonesCard: {
-    gap: spacing.md,
-  } as ViewStyle,
+  milestonesCard: { gap: spacing.md } as ViewStyle,
+  milestoneList: { gap: spacing.sm } as ViewStyle,
   milestoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -450,58 +482,48 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   } as ViewStyle,
   milestoneDot: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.full,
+    width: 22,
+    height: 22,
+    borderRadius: radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   } as ViewStyle,
-  milestoneDotDone: {
-    backgroundColor: colors.primary,
-  } as ViewStyle,
-  milestoneDotCurrent: {
-    backgroundColor: colors.primary,
-    ...shadows.sm,
-  } as ViewStyle,
-  milestoneDotLocked: {
-    backgroundColor: colors.border,
-  } as ViewStyle,
-  milestoneContent: {
-    flex: 1,
-  } as ViewStyle,
+  milestoneDotDone: { backgroundColor: colors.primary } as ViewStyle,
+  milestoneDotCurrent: { backgroundColor: colors.primary, ...shadows.sm } as ViewStyle,
+  milestoneDotLocked: { backgroundColor: colors.border } as ViewStyle,
+  milestoneContent: { flex: 1 } as ViewStyle,
   milestoneLvl: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
-    fontWeight: fontWeights.medium,
+    fontWeight: fontWeights.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   milestoneTitle: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
-  textLocked: {
-    color: colors.textTertiary,
-  } as TextStyle,
+  textLocked: { color: colors.textTertiary } as TextStyle,
   currentBadge: {
     backgroundColor: colors.primaryLight,
-    borderRadius: radii.full,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   } as ViewStyle,
   currentBadgeText: {
-    fontSize: fontSizes.xs,
+    fontSize: 9,
     color: colors.primary,
-    fontWeight: fontWeights.bold,
+    fontWeight: fontWeights.extrabold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
 
   // Buttons
-  sectionTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
-  } as TextStyle,
-  resetBtn: {
-    marginTop: spacing.sm,
-  } as ViewStyle,
+  resetBtn: { marginTop: spacing.sm } as ViewStyle,
 });

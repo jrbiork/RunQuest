@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -18,7 +19,7 @@ import { useStreak } from '../../src/hooks/useStreak';
 import { DailyMissionCard } from '../../src/components/home/DailyMissionCard';
 import { WeeklyProgressCard } from '../../src/components/home/WeeklyProgressCard';
 import { LevelProgressCard } from '../../src/components/home/LevelProgressCard';
-import { StreakBadge } from '../../src/components/ui/StreakBadge';
+import { CircularStatBadge } from '../../src/components/ui/CircularStatBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
 import {
@@ -26,30 +27,10 @@ import {
   spacing,
   fontSizes,
   fontWeights,
-  radii,
 } from '../../src/constants/theme';
 import {
-  GREETINGS_BY_TIME,
-  STREAK_MESSAGES,
   REST_DAY_MESSAGES,
 } from '../../src/constants/missions';
-import { getTimeOfDay } from '../../src/utils/dateUtils';
-
-function getGreeting(): string {
-  const tod = getTimeOfDay();
-  const msgs = GREETINGS_BY_TIME[tod];
-  return msgs[Math.floor(Math.random() * msgs.length)] as string;
-}
-
-function getStreakMessage(streak: number): string {
-  const keys = Object.keys(STREAK_MESSAGES)
-    .map(Number)
-    .filter((k) => streak >= k)
-    .sort((a, b) => b - a);
-  const key = keys[0] ?? 0;
-  const msgs = STREAK_MESSAGES[key as keyof typeof STREAK_MESSAGES] ?? STREAK_MESSAGES[0];
-  return msgs[Math.floor(Math.random() * msgs.length)] as string;
-}
 
 function getRestMessage(): string {
   return REST_DAY_MESSAGES[Math.floor(Math.random() * REST_DAY_MESSAGES.length)] as string;
@@ -60,6 +41,7 @@ export default function HomeScreen() {
   const xp = useUserStore((s) => s.xp);
   const totalRuns = useUserStore((s) => s.totalRuns);
   const longestStreak = useUserStore((s) => s.longestStreak);
+  const hasSeenIntro = useUserStore((s) => s.hasSeenIntro);
   const levelInfo = useMemo(() => getLevelInfo(xp), [xp]);
   const runsTarget = useUserStore(selectWeeklyRunsTarget);
   const distanceTarget = useUserStore(selectWeeklyDistanceTarget);
@@ -69,15 +51,26 @@ export default function HomeScreen() {
   const todaysMission = useMissionsStore(selectTodaysMission);
   const refreshMissions = useMissionsStore((s) => s.refreshIfNewWeek);
 
-  const { streak, isAlive } = useStreak();
+  const { streak } = useStreak();
 
   useEffect(() => {
+    if (!hasSeenIntro) {
+      router.replace('/intro');
+      return;
+    }
+    if (!profile) {
+      router.replace('/onboarding');
+      return;
+    }
     refreshWeekly();
-    if (profile) refreshMissions(profile);
+    refreshMissions(profile);
   }, []);
 
   const runsCompleted = weeklyProgress?.runsCompleted ?? 0;
   const distanceCompleted = weeklyProgress?.distanceCompletedKm ?? 0;
+
+  const weeklyRunProgress = runsTarget > 0 ? runsCompleted / runsTarget : 0;
+  const weeklyDistProgress = distanceTarget > 0 ? distanceCompleted / distanceTarget : 0;
 
   const handleStartRun = () => {
     if (todaysMission) {
@@ -87,6 +80,10 @@ export default function HomeScreen() {
 
   const handleViewJourney = () => {
     router.push('/(tabs)/journey');
+  };
+
+  const handleSettings = () => {
+    router.push('/(tabs)/profile');
   };
 
   return (
@@ -102,38 +99,81 @@ export default function HomeScreen() {
               refreshWeekly();
               if (profile) refreshMissions(profile);
             }}
-            tintColor={colors.primary}
+            tintColor={colors.orange}
           />
         }
       >
-        {/* Header */}
+        {/* ─── Header ─────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.streakMessage}>{getStreakMessage(streak)}</Text>
+            <Text style={styles.wordmark}>RUNQUEST</Text>
+            <View style={styles.levelBadge}>
+              <MaterialIcons name="military-tech" size={12} color={colors.ochre} />
+              <Text style={styles.levelBadgeText}>
+                LVL {levelInfo.level} SCAVENGER
+              </Text>
+            </View>
           </View>
-          <StreakBadge streak={streak} isAlive={isAlive} size="lg" />
+          <TouchableOpacity onPress={handleSettings} style={styles.settingsBtn}>
+            <MaterialIcons name="settings" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
-        {/* Today's Mission */}
-        {todaysMission ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Today's Mission</Text>
+        {/* ─── Circular Stat Badges ────────────────────────────────────── */}
+        <View style={styles.statsBadgeRow}>
+          <CircularStatBadge
+            value={streak}
+            label="Day Streak"
+            icon="local-fire-department"
+            ringColor={colors.orange}
+            progress={Math.min(streak / 30, 1)}
+            size={84}
+          />
+          <CircularStatBadge
+            value={levelInfo.level}
+            label="Level"
+            icon="military-tech"
+            ringColor={colors.ochre}
+            progress={levelInfo.progress}
+            size={84}
+          />
+          <CircularStatBadge
+            value={totalRuns}
+            label="Total Runs"
+            icon="directions-run"
+            ringColor={colors.primary}
+            progress={Math.min(totalRuns / 50, 1)}
+            size={84}
+          />
+          <CircularStatBadge
+            value={`${longestStreak}d`}
+            label="Best Streak"
+            icon="emoji-events"
+            ringColor={colors.blue}
+            progress={Math.min(longestStreak / 30, 1)}
+            size={84}
+          />
+        </View>
+
+        {/* ─── Current Quest ───────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.accentBar} />
+            <Text style={styles.sectionTitle}>Current Quest</Text>
+          </View>
+          {todaysMission ? (
             <DailyMissionCard mission={todaysMission} onStartRun={handleStartRun} />
-          </View>
-        ) : (
-          <RestDayCard onViewJourney={handleViewJourney} />
-        )}
-
-        {/* Level progress */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Level</Text>
-          <LevelProgressCard levelInfo={levelInfo} />
+          ) : (
+            <RestDayCard onViewJourney={handleViewJourney} />
+          )}
         </View>
 
-        {/* Weekly progress */}
+        {/* ─── Weekly Goal ─────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Weekly Goal</Text>
+          <View style={styles.sectionHeader}>
+            <View style={styles.accentBar} />
+            <Text style={styles.sectionTitle}>Weekly Goal</Text>
+          </View>
           <WeeklyProgressCard
             runsCompleted={runsCompleted}
             runsTarget={runsTarget}
@@ -143,11 +183,13 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Quick stats row */}
-        <View style={styles.statsRow}>
-          <StatCard label="Total Runs" value={totalRuns.toString()} icon="directions-run" iconColor={colors.primary} />
-          <StatCard label="Longest Streak" value={`${longestStreak}d`} icon="local-fire-department" iconColor={colors.orange} />
-          <StatCard label="Level" value={levelInfo.level.toString()} icon="military-tech" iconColor={colors.purple} />
+        {/* ─── Level Progress ──────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.accentBar} />
+            <Text style={styles.sectionTitle}>Rank Progress</Text>
+          </View>
+          <LevelProgressCard levelInfo={levelInfo} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -157,20 +199,10 @@ export default function HomeScreen() {
 function RestDayCard({ onViewJourney }: { onViewJourney: () => void }) {
   return (
     <Card style={styles.restCard}>
-      <MaterialIcons name="self-improvement" size={48} color={colors.textTertiary} />
+      <MaterialIcons name="self-improvement" size={44} color={colors.textTertiary} />
       <Text style={styles.restTitle}>{getRestMessage()}</Text>
-      <Text style={styles.restSub}>No mission scheduled today. Check your journey for the full week.</Text>
+      <Text style={styles.restSub}>No sortie scheduled today. Check your deployment schedule for the full week.</Text>
       <Button label="View Journey" onPress={onViewJourney} variant="secondary" size="md" style={styles.restBtn} />
-    </Card>
-  );
-}
-
-function StatCard({ label, value, icon, iconColor }: { label: string; value: string; icon: string; iconColor: string }) {
-  return (
-    <Card style={styles.statCard}>
-      <MaterialIcons name={icon as any} size={26} color={iconColor} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
     </Card>
   );
 }
@@ -185,64 +217,89 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   content: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.huge,
     gap: spacing.xs,
   } as ViewStyle,
+
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
   } as ViewStyle,
   headerLeft: {
-    flex: 1,
     gap: spacing.xs,
-    paddingRight: spacing.lg,
   } as ViewStyle,
-  greeting: {
+  wordmark: {
     fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
   } as TextStyle,
-  streakMessage: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    lineHeight: 18,
+  levelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.purpleLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: colors.ochre,
+    alignSelf: 'flex-start',
+  } as ViewStyle,
+  levelBadgeText: {
+    fontSize: 10,
+    fontWeight: fontWeights.bold,
+    color: colors.ochre,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   } as TextStyle,
+  settingsBtn: {
+    padding: spacing.sm,
+  } as ViewStyle,
+
+  // Circular stats row
+  statsBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xs,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  } as ViewStyle,
+
+  // Section layout
   section: {
     gap: spacing.md,
     paddingVertical: spacing.sm,
   } as ViewStyle,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  accentBar: {
+    width: 3,
+    height: 16,
+    backgroundColor: colors.ochre,
+    borderRadius: 2,
+  } as ViewStyle,
   sectionTitle: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
     color: colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 2,
   } as TextStyle,
-  statsRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-  } as ViewStyle,
-  statCard: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-    gap: spacing.xs,
-  } as ViewStyle,
-  statValue: {
-    fontSize: fontSizes.xl,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
-  } as TextStyle,
-  statLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  } as TextStyle,
+
+  // Rest day
   restCard: {
     alignItems: 'center',
     gap: spacing.md,
@@ -254,6 +311,8 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
   restSub: {
     fontSize: fontSizes.sm,

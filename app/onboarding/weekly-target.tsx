@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
 import { useOnboardingDraft } from './_layout';
@@ -13,7 +14,12 @@ import {
   shadows,
 } from '../../src/constants/theme';
 
-const RUN_OPTIONS = [2, 3, 4, 5];
+const RUN_OPTIONS: { value: number; sub: string }[] = [
+  { value: 2, sub: 'LIGHT' },
+  { value: 3, sub: 'STANDARD' },
+  { value: 4, sub: 'HEAVY' },
+  { value: 5, sub: 'EXTREME' },
+];
 const DISTANCE_OPTIONS = [10, 15, 20, 25, 30];
 
 export default function WeeklyTargetScreen() {
@@ -39,9 +45,10 @@ export default function WeeklyTargetScreen() {
     <OnboardingLayout
       step={3}
       totalSteps={5}
-      title="Set your weekly target"
-      subtitle="You can always adjust this later. Start achievable."
+      title="Output"
+      subtitle="Weekly Quota"
       onNext={handleNext}
+      nextLabel="Set Weekly Quota"
     >
       {/* Mode toggle */}
       <View style={styles.toggle}>
@@ -50,7 +57,7 @@ export default function WeeklyTargetScreen() {
           onPress={() => setMode('runs')}
         >
           <Text style={[styles.toggleLabel, mode === 'runs' && styles.toggleLabelActive]}>
-            Runs per week
+            SORTIES
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -58,61 +65,66 @@ export default function WeeklyTargetScreen() {
           onPress={() => setMode('distance')}
         >
           <Text style={[styles.toggleLabel, mode === 'distance' && styles.toggleLabelActive]}>
-            Distance per week
+            RANGE
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Runs selector */}
+      {/* Sorties selector */}
       {mode === 'runs' && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>How many runs per week?</Text>
+          <Text style={styles.sectionLabel}>Sorties per week</Text>
           <View style={styles.pillRow}>
-            {RUN_OPTIONS.map((n) => (
-              <TouchableOpacity
-                key={n}
-                style={[styles.pill, selectedRuns === n && styles.pillActive]}
-                onPress={() => setSelectedRuns(n)}
-              >
-                <Text style={[styles.pillLabel, selectedRuns === n && styles.pillLabelActive]}>
-                  {n}
-                </Text>
-                <Text style={[styles.pillSub, selectedRuns === n && styles.pillSubActive]}>
-                  {n === 2 ? 'Easy start' : n === 3 ? 'Recommended' : n === 4 ? 'Solid' : 'Committed'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {RUN_OPTIONS.map(({ value, sub }) => {
+              const active = selectedRuns === value;
+              return (
+                <TouchableOpacity
+                  key={value}
+                  style={[styles.pill, active && styles.pillActive]}
+                  onPress={() => setSelectedRuns(value)}
+                >
+                  <Text style={[styles.pillLabel, active && styles.pillLabelActive]}>
+                    {value}
+                  </Text>
+                  <Text style={[styles.pillSub, active && styles.pillSubActive]}>
+                    {sub}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
 
-      {/* Distance selector */}
+      {/* Range selector */}
       {mode === 'distance' && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Target distance per week?</Text>
+          <Text style={styles.sectionLabel}>Target range per week</Text>
           <View style={styles.pillRow}>
-            {DISTANCE_OPTIONS.map((km) => (
-              <TouchableOpacity
-                key={km}
-                style={[styles.pill, selectedDistance === km && styles.pillActive]}
-                onPress={() => setSelectedDistance(km)}
-              >
-                <Text style={[styles.pillLabel, selectedDistance === km && styles.pillLabelActive]}>
-                  {km}
-                </Text>
-                <Text style={[styles.pillSub, selectedDistance === km && styles.pillSubActive]}>
-                  km
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {DISTANCE_OPTIONS.map((km) => {
+              const active = selectedDistance === km;
+              return (
+                <TouchableOpacity
+                  key={km}
+                  style={[styles.pill, active && styles.pillActive]}
+                  onPress={() => setSelectedDistance(km)}
+                >
+                  <Text style={[styles.pillLabel, active && styles.pillLabelActive]}>
+                    {km}
+                  </Text>
+                  <Text style={[styles.pillSub, active && styles.pillSubActive]}>km</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
 
-      {/* Tip */}
+      {/* Field note */}
       <View style={styles.tip}>
+        <MaterialIcons name="info-outline" size={14} color={colors.orange} />
         <Text style={styles.tipText}>
-          💡 Starting smaller than you think builds lasting habits. You can always increase it.
+          FIELD NOTE: Smaller quotas build lasting operational habits. Scale up once stable.
         </Text>
       </View>
     </OnboardingLayout>
@@ -122,35 +134,43 @@ export default function WeeklyTargetScreen() {
 const styles = StyleSheet.create({
   toggle: {
     flexDirection: 'row',
-    backgroundColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 4,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 3,
   } as ViewStyle,
   toggleBtn: {
     flex: 1,
     paddingVertical: spacing.md,
-    borderRadius: radii.md,
+    borderRadius: radii.sm,
     alignItems: 'center',
   } as ViewStyle,
   toggleBtnActive: {
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.orange,
     ...shadows.sm,
   } as ViewStyle,
   toggleLabel: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
     color: colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   } as TextStyle,
   toggleLabelActive: {
-    color: colors.textPrimary,
+    color: colors.orange,
   } as TextStyle,
   section: {
     gap: spacing.lg,
   } as ViewStyle,
   sectionLabel: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   } as TextStyle,
   pillRow: {
     flexDirection: 'row',
@@ -160,16 +180,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.lg,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     backgroundColor: colors.surface,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.xs,
     ...shadows.sm,
   } as ViewStyle,
   pillActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
+    borderColor: colors.orange,
+    backgroundColor: colors.orangeLight,
   } as ViewStyle,
   pillLabel: {
     fontSize: fontSizes.xxl,
@@ -177,25 +197,37 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   } as TextStyle,
   pillLabelActive: {
-    color: colors.primaryDark,
+    color: colors.orange,
   } as TextStyle,
   pillSub: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
+    fontSize: 9,
+    color: colors.textTertiary,
     textAlign: 'center',
+    fontWeight: fontWeights.bold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   } as TextStyle,
   pillSubActive: {
-    color: colors.primaryDark,
-    fontWeight: fontWeights.semibold,
+    color: colors.orange,
+    fontWeight: fontWeights.bold,
   } as TextStyle,
   tip: {
-    backgroundColor: colors.primaryLight,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.orangeLight,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    padding: spacing.md,
   } as ViewStyle,
   tipText: {
-    fontSize: fontSizes.sm,
-    color: colors.primaryDark,
-    lineHeight: 20,
+    flex: 1,
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    fontWeight: fontWeights.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
 });

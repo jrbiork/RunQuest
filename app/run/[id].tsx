@@ -2,7 +2,6 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ViewStyle, TextSt
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { XPBadge } from '../../src/components/ui/XPBadge';
 import { Button } from '../../src/components/ui/Button';
@@ -20,9 +19,9 @@ export default function RunDetailScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>Mission not found.</Text>
+          <Text style={styles.notFoundText}>Mission data not found.</Text>
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backLink}>Go back</Text>
+            <Text style={styles.backLink}>Return to base</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -37,42 +36,42 @@ export default function RunDetailScreen() {
 
   const isCompleted = mission.status === 'completed';
 
-  const handleComplete = () => {
+  const handleStartMission = () => {
     router.push({ pathname: '/run/active', params: { id: mission.id } });
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Header gradient */}
-      <LinearGradient
-        colors={[config.color, config.color + 'DD']}
-        style={styles.heroGradient}
-      >
-        {/* Close button */}
-        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-          <MaterialIcons name="close" size={22} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.heroContent}>
-          <View style={styles.typePill}>
-            <MaterialIcons name={config.icon as any} size={14} color={config.color} />
+      {/* ─── Dark industrial header ────────────────────────────────── */}
+      <View style={[styles.hero, { borderBottomColor: config.color }]}>
+        {/* Close + type pill row */}
+        <View style={styles.heroTopRow}>
+          <View style={[styles.typePill, { borderColor: config.color }]}>
+            <MaterialIcons name={config.icon as any} size={12} color={config.color} />
             <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
           </View>
+          <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+            <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero content */}
+        <View style={styles.heroContent}>
           <Text style={styles.heroTitle}>{mission.title}</Text>
           <Text style={styles.heroSubtitle}>{mission.subtitle}</Text>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Content */}
+      {/* ─── Scrollable body ─────────────────────────────────────────── */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Stats cards */}
+        {/* Stats row */}
         <View style={styles.statsRow}>
           <StatCard icon="straighten" label="Distance" value={formatDistance(mission.targetDistanceKm)} color={config.color} />
           <StatCard icon="timer" label="Duration" value={`~${formatDuration(mission.targetDurationMin)}`} color={config.color} />
         </View>
 
-        {/* XP reward */}
-        <Card style={styles.xpCard}>
+        {/* Mission reward */}
+        <Card accentTop={colors.ochre} style={styles.xpCard}>
           <View style={styles.xpRow}>
             <View style={styles.xpLeft}>
               <Text style={styles.xpTitle}>Mission Reward</Text>
@@ -82,27 +81,32 @@ export default function RunDetailScreen() {
           </View>
         </Card>
 
-        {/* Description */}
-        <Card style={styles.descCard}>
-          <Text style={styles.descTitle}>About this mission</Text>
+        {/* Briefing */}
+        <Card accentTop={colors.border} style={styles.descCard}>
+          <Text style={styles.descTitle}>Mission Briefing</Text>
           <Text style={styles.descText}>{mission.description}</Text>
         </Card>
 
-        {/* Motivational framing */}
-        <View style={styles.motivationCard}>
-          <Text style={styles.motivationQuote}>"{motivational}"</Text>
+        {/* Intelligence / motivational framing */}
+        <View style={styles.intelCard}>
+          <View style={styles.intelHeader}>
+            <MaterialIcons name="radio" size={14} color={colors.orange} />
+            <Text style={styles.intelHeaderText}>Intel Received</Text>
+          </View>
+          <Text style={styles.intelQuote}>"{motivational}"</Text>
         </View>
 
         {/* CTA */}
         {isCompleted ? (
           <View style={styles.completedState}>
-            <MaterialIcons name="check-circle" size={28} color={colors.primary} />
-            <Text style={styles.completedText}>Mission completed!</Text>
+            <MaterialIcons name="check-circle" size={26} color={colors.primary} />
+            <Text style={styles.completedText}>Mission Completed</Text>
           </View>
         ) : (
           <Button
-            label="Start Run 🏃"
-            onPress={handleComplete}
+            label="Start Mission"
+            icon="directions-run"
+            onPress={handleStartMission}
             fullWidth
             style={styles.cta}
           />
@@ -112,20 +116,12 @@ export default function RunDetailScreen() {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  color: string;
-}) {
+function StatCard({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
   return (
-    <View style={[styles.statCard, { borderColor: color + '33' }]}>
-      <MaterialIcons name={icon as any} size={20} color={color} />
+    <View style={[styles.statCard, { borderColor: color }]}>
+      <View style={[styles.statIconBlock, { backgroundColor: color + '22' }]}>
+        <MaterialIcons name={icon as any} size={20} color={color} />
+      </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
@@ -137,60 +133,70 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   } as ViewStyle,
-  heroGradient: {
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
+
+  // Header
+  hero: {
     paddingHorizontal: spacing.xl,
-    position: 'relative',
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    borderBottomWidth: 2,
+    gap: spacing.md,
   } as ViewStyle,
-  closeBtn: {
-    alignSelf: 'flex-end',
-    width: 36,
-    height: 36,
-    borderRadius: radii.full,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+  heroTopRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  } as ViewStyle,
-  heroContent: {
-    gap: spacing.sm,
+    justifyContent: 'space-between',
   } as ViewStyle,
   typePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: radii.full,
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
     gap: 4,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
   } as ViewStyle,
   typeLabel: {
     fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
+    fontWeight: fontWeights.extrabold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   } as TextStyle,
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  heroContent: {
+    gap: spacing.sm,
+  } as ViewStyle,
   heroTitle: {
     fontSize: fontSizes.xxxl,
     fontWeight: fontWeights.extrabold,
-    color: '#fff',
+    color: colors.textPrimary,
     lineHeight: 36,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   heroSubtitle: {
     fontSize: fontSizes.md,
-    color: 'rgba(255,255,255,0.88)',
+    color: colors.textSecondary,
     lineHeight: 22,
   } as TextStyle,
-  scroll: {
-    flex: 1,
-  } as ViewStyle,
+
+  // Scroll body
+  scroll: { flex: 1 } as ViewStyle,
   scrollContent: {
     padding: spacing.xl,
     gap: spacing.lg,
     paddingBottom: spacing.huge,
   } as ViewStyle,
+
+  // Stats row
   statsRow: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -199,72 +205,98 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 2,
+    borderWidth: 1,
     alignItems: 'center',
     paddingVertical: spacing.lg,
     gap: spacing.sm,
     ...shadows.sm,
   } as ViewStyle,
+  statIconBlock: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
   statValue: {
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
   } as TextStyle,
   statLabel: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 1,
   } as TextStyle,
-  xpCard: {} as ViewStyle,
+
+  // XP card
+  xpCard: { paddingTop: spacing.xl + 3 } as ViewStyle,
   xpRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   } as ViewStyle,
-  xpLeft: {
-    gap: spacing.xs,
-  } as ViewStyle,
+  xpLeft: { gap: spacing.xs } as ViewStyle,
   xpTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   xpSub: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
   } as TextStyle,
-  descCard: {
-    gap: spacing.md,
-  } as ViewStyle,
+
+  // Briefing
+  descCard: { gap: spacing.md } as ViewStyle,
   descTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   } as TextStyle,
   descText: {
     fontSize: fontSizes.md,
     color: colors.textSecondary,
     lineHeight: 24,
   } as TextStyle,
-  motivationCard: {
-    backgroundColor: colors.primaryLight,
+
+  // Intel card
+  intelCard: {
+    backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.orange,
     padding: spacing.xl,
+    gap: spacing.md,
+  } as ViewStyle,
+  intelHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   } as ViewStyle,
-  motivationQuote: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.semibold,
-    color: colors.primaryDark,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    lineHeight: 26,
+  intelHeaderText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   } as TextStyle,
-  cta: {
-    marginTop: spacing.sm,
-  } as ViewStyle,
+  intelQuote: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  } as TextStyle,
+
+  // CTA
+  cta: { marginTop: spacing.sm } as ViewStyle,
   completedState: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -273,12 +305,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     backgroundColor: colors.primaryLight,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
   } as ViewStyle,
   completedText: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
     color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
+
+  // Not found
   notFound: {
     flex: 1,
     alignItems: 'center',
@@ -293,5 +331,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     color: colors.primary,
     fontWeight: fontWeights.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
 });

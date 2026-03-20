@@ -651,6 +651,8 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   } as TextStyle,
 
   // Month navigation
@@ -707,6 +709,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
     ...shadows.sm,
@@ -717,9 +721,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   } as ViewStyle,
   sectionTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   } as TextStyle,
   shareIconBtn: {
     width: 32,
@@ -738,9 +744,11 @@ const styles = StyleSheet.create({
   calendarDayLabel: {
     width: CELL_SIZE,
     textAlign: 'center',
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.semibold,
+    fontSize: 9,
+    fontWeight: fontWeights.bold,
     color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   calendarGrid: {
     flexDirection: 'row',

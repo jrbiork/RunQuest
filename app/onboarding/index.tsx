@@ -7,24 +7,24 @@ import { useOnboardingDraft } from './_layout';
 import type { ExperienceLevel } from '../../src/types';
 import { spacing } from '../../src/constants/theme';
 
-const OPTIONS: { value: ExperienceLevel; label: string; description: string; emoji: string }[] = [
+const OPTIONS: { value: ExperienceLevel; label: string; description: string; icon: string }[] = [
   {
     value: 'beginner',
-    label: 'Beginner',
-    description: 'Just getting started with running or returning after a break.',
-    emoji: '🌱',
+    label: 'RECRUIT',
+    description: 'Minimal experience. Focus on evasion and survival.',
+    icon: 'military-tech',
   },
   {
     value: 'intermediate',
-    label: 'Intermediate',
-    description: 'Run regularly and want to push further and faster.',
-    emoji: '🏃',
+    label: 'OPERATIVE',
+    description: 'Consistent sorties. A conditioned, reliable runner.',
+    icon: 'security',
   },
   {
     value: 'advanced',
-    label: 'Advanced',
-    description: 'Experienced runner training for performance goals.',
-    emoji: '⚡',
+    label: 'VANGUARD',
+    description: 'High-endurance asset. Elite operational status.',
+    icon: 'whatshot',
   },
 ];
 
@@ -44,9 +44,10 @@ export default function ExperienceScreen() {
     <OnboardingLayout
       step={1}
       totalSteps={5}
-      title={"What's your running experience?"}
-      subtitle="We'll build your first week of missions based on this."
+      title="Classification"
+      subtitle="Asset Assessment"
       onNext={handleNext}
+      nextLabel="Confirm Classification"
       nextDisabled={!selected}
       showBack={false}
     >
@@ -56,7 +57,7 @@ export default function ExperienceScreen() {
             key={opt.value}
             label={opt.label}
             description={opt.description}
-            emoji={opt.emoji}
+            icon={opt.icon}
             selected={selected === opt.value}
             onPress={() => setSelected(opt.value)}
           />

@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   } as TextStyle,
   missionCompleteLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    color: colors.primary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
     letterSpacing: 4,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -359,6 +359,8 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
 
   // City animation wrapper
@@ -400,14 +402,16 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   worldTitle: {
     flex: 1,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   } as TextStyle,
   worldPct: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
-    color: colors.primary,
+    color: colors.orange,
   } as TextStyle,
   worldSub: {
     fontSize: fontSizes.sm,

@@ -20,6 +20,7 @@ interface OnboardingLayoutProps {
   step: number;
   totalSteps: number;
   title: string;
+  /** Shown as an ochre "classification label" above the title */
   subtitle?: string;
   children: React.ReactNode;
   onNext: () => void;
@@ -41,6 +42,11 @@ export function OnboardingLayout({
 }: OnboardingLayoutProps) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      {/* Subtle horizontal grid lines — distressed texture */}
+      {[0.15, 0.35, 0.55, 0.75].map((frac) => (
+        <View key={frac} style={[styles.gridLine, { top: `${frac * 100}%` as any }]} pointerEvents="none" />
+      ))}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -49,26 +55,34 @@ export function OnboardingLayout({
         <View style={styles.topBar}>
           {showBack ? (
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+              <MaterialIcons name="arrow-back" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           ) : (
             <View style={styles.backBtn} />
           )}
 
-          {/* Step dots */}
-          <View style={styles.dots}>
-            {Array.from({ length: totalSteps }, (_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i < step ? styles.dotDone : i === step - 1 ? styles.dotActive : styles.dotEmpty,
-                ]}
-              />
-            ))}
+          {/* TRANSMISSION badge */}
+          <View style={styles.transmissionBadge}>
+            <MaterialIcons name="wifi" size={11} color={colors.orange} />
+            <Text style={styles.transmissionText}>
+              TRANSMISSION {step} / {totalSteps}
+            </Text>
           </View>
 
           <View style={styles.backBtn} />
+        </View>
+
+        {/* Progress dots */}
+        <View style={styles.dotsRow}>
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                i < step - 1 ? styles.dotDone : i === step - 1 ? styles.dotActive : styles.dotEmpty,
+              ]}
+            />
+          ))}
         </View>
 
         {/* Scrollable content */}
@@ -80,17 +94,16 @@ export function OnboardingLayout({
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.stepPill}>
-              <Text style={styles.stepText}>Step {step} of {totalSteps}</Text>
-            </View>
+            {subtitle && (
+              <Text style={styles.classificationLabel}>{subtitle}</Text>
+            )}
             <Text style={styles.title}>{title}</Text>
-            {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
           </View>
 
           {children}
         </ScrollView>
 
-        {/* CTA */}
+        {/* Footer CTA */}
         <View style={styles.footer}>
           <Button
             label={nextLabel}
@@ -108,10 +121,21 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
+    overflow: 'hidden',
   } as ViewStyle,
-  flex: {
-    flex: 1,
+  flex: { flex: 1 } as ViewStyle,
+
+  // Background grid texture
+  gridLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: colors.border,
+    opacity: 0.25,
   } as ViewStyle,
+
+  // Top bar
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -125,68 +149,86 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   } as ViewStyle,
-  dots: {
+
+  // Transmission badge
+  transmissionBadge: {
     flexDirection: 'row',
-    gap: spacing.sm,
     alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.purpleLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.orange,
+  } as ViewStyle,
+  transmissionText: {
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  } as TextStyle,
+
+  // Dots
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
   } as ViewStyle,
   dot: {
-    height: 8,
+    height: 4,
     borderRadius: radii.full,
   } as ViewStyle,
   dotActive: {
-    width: 24,
-    backgroundColor: colors.primary,
+    width: 20,
+    backgroundColor: colors.orange,
   } as ViewStyle,
   dotDone: {
     width: 8,
     backgroundColor: colors.primary,
-    opacity: 0.5,
   } as ViewStyle,
   dotEmpty: {
     width: 8,
     backgroundColor: colors.border,
   } as ViewStyle,
-  scroll: {
-    flex: 1,
-  } as ViewStyle,
+
+  // Scroll
+  scroll: { flex: 1 } as ViewStyle,
   scrollContent: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xxl,
     gap: spacing.xl,
   } as ViewStyle,
+
+  // Header
   header: {
-    gap: spacing.md,
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   } as ViewStyle,
-  stepPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primaryLight,
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  } as ViewStyle,
-  stepText: {
+  classificationLabel: {
     fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    color: colors.primary,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 2,
   } as TextStyle,
   title: {
     fontSize: fontSizes.xxxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     lineHeight: 36,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
-  subtitle: {
-    fontSize: fontSizes.md,
-    color: colors.textSecondary,
-    lineHeight: 22,
-  } as TextStyle,
+
+  // Footer
   footer: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
     paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   } as ViewStyle,
 });

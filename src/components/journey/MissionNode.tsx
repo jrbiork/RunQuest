@@ -20,7 +20,7 @@ function formatDuration(min: number): string {
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
   if (h > 0) return `${h}h ${m}m`;
-  return `${m} min`;
+  return `${m}min`;
 }
 
 function formatPace(distKm: number, durMin: number): string {
@@ -31,7 +31,7 @@ function formatPace(distKm: number, durMin: number): string {
   return `${m}:${String(s).padStart(2, '0')} /km`;
 }
 
-// ─── Completed result card (shown instead of the normal node content) ─────────
+// ─── Completed result card ────────────────────────────────────────────────────
 
 function CompletedResultCard({
   mission,
@@ -47,88 +47,91 @@ function CompletedResultCard({
 
   return (
     <View style={[rc.card, goalMet ? rc.cardGoal : rc.cardEarly]}>
-      {/* Status banner + share button row */}
+      {/* Status banner + share button */}
       <View style={rc.bannerRow}>
         <View style={[rc.banner, goalMet ? rc.bannerGoal : rc.bannerEarly]}>
           <MaterialIcons
             name={goalMet ? 'emoji-events' : 'check-circle'}
-            size={16}
-            color={goalMet ? '#fff' : colors.primaryDark}
+            size={14}
+            color={goalMet ? colors.textInverse : colors.primaryDark}
           />
           <Text style={[rc.bannerText, goalMet ? rc.bannerTextGoal : rc.bannerTextEarly]}>
-            {goalMet ? 'Goal achieved!' : 'Completed · Finished early'}
+            {goalMet ? 'MISSION COMPLETE' : 'FINISHED EARLY'}
           </Text>
         </View>
         <TouchableOpacity onPress={onShare} style={rc.shareBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialIcons name="ios-share" size={16} color={colors.primary} />
+          <MaterialIcons name="ios-share" size={16} color={colors.orange} />
         </TouchableOpacity>
       </View>
 
-      {/* Mission label + date */}
-      <View style={rc.headerRow}>
-        <View style={[rc.typePill, { backgroundColor: config.bgColor }]}>
-          <MaterialIcons name={config.icon as any} size={12} color={config.color} />
-          <Text style={[rc.typeText, { color: config.color }]}>{config.label}</Text>
+      <View style={rc.body}>
+        {/* Mission type + date */}
+        <View style={rc.headerRow}>
+          <View style={[rc.typePill, { borderColor: config.color }]}>
+            <MaterialIcons name={config.icon as any} size={11} color={config.color} />
+            <Text style={[rc.typeText, { color: config.color }]}>{config.label}</Text>
+          </View>
+          <Text style={rc.dateText}>{getRelativeDateLabel(mission.scheduledDate)}</Text>
         </View>
-        <Text style={rc.dateText}>{getRelativeDateLabel(mission.scheduledDate)}</Text>
-      </View>
 
-      <Text style={rc.missionTitle}>{mission.title}</Text>
+        <Text style={rc.missionTitle}>{mission.title}</Text>
 
-      {/* Actual stats grid */}
-      <View style={rc.statsGrid}>
-        <StatChip
-          icon="straighten"
-          value={formatDistance(run.distanceKm)}
-          label="Distance"
-          color={colors.blue}
-        />
-        <StatChip
-          icon="timer"
-          value={formatDuration(run.durationMin)}
-          label="Time"
-          color={colors.orange}
-        />
-        <StatChip
-          icon="speed"
-          value={formatPace(run.distanceKm, run.durationMin)}
-          label="Pace"
-          color={colors.purple}
-        />
-      </View>
+        {/* Actual stats grid */}
+        <View style={rc.statsGrid}>
+          <StatChip icon="straighten" value={formatDistance(run.distanceKm)} label="Distance" color={colors.blue} />
+          <View style={rc.divider} />
+          <StatChip icon="timer" value={formatDuration(run.durationMin)} label="Time" color={colors.orange} />
+          <View style={rc.divider} />
+          <StatChip icon="speed" value={formatPace(run.distanceKm, run.durationMin)} label="Pace" color={colors.ochre} />
+        </View>
 
-      {/* XP footer */}
-      <View style={rc.xpRow}>
-        <MaterialIcons name="star" size={14} color={colors.yellow} />
-        <Text style={rc.xpText}>+{run.xpEarned} XP earned</Text>
-      <View style={rc.streakPill}>
-        <MaterialIcons name="local-fire-department" size={12} color={colors.orange} />
-        <Text style={rc.streakText}>Day {run.streakDay}</Text>
-      </View>
+        {/* XP footer */}
+        <View style={rc.xpRow}>
+          <MaterialIcons name="star" size={13} color={colors.yellow} />
+          <Text style={rc.xpText}>+{run.xpEarned} XP</Text>
+          <View style={rc.streakPill}>
+            <MaterialIcons name="local-fire-department" size={11} color={colors.orange} />
+            <Text style={rc.streakText}>DAY {run.streakDay}</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
 }
 
-function StatChip({
-  icon,
-  value,
-  label,
-  color,
-}: {
-  icon: string;
-  value: string;
-  label: string;
-  color: string;
-}) {
+function StatChip({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
   return (
     <View style={rc.chip}>
-      <MaterialIcons name={icon as any} size={14} color={color} />
+      <MaterialIcons name={icon as any} size={13} color={color} />
       <Text style={[rc.chipValue, { color }]}>{value}</Text>
       <Text style={rc.chipLabel}>{label}</Text>
     </View>
   );
 }
+
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+
+function ProgressBar({ progress, color }: { progress: number; color: string }) {
+  return (
+    <View style={pb.track}>
+      <View style={[pb.fill, { width: `${Math.min(progress, 1) * 100}%` as any, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+const pb = StyleSheet.create({
+  track: {
+    height: 3,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+    flex: 1,
+  } as ViewStyle,
+  fill: {
+    height: '100%',
+    borderRadius: 2,
+  } as ViewStyle,
+});
 
 // ─── Main MissionNode ────────────────────────────────────────────────────────
 
@@ -146,16 +149,11 @@ export function MissionNode({ mission, completedRun, onPress, onShare, isLast = 
   const isActive = mission.status === 'active';
   const isLocked = mission.status === 'locked';
 
-  // Pulse animation for active node
   const scale = useSharedValue(1);
-
   useEffect(() => {
     if (isActive) {
       scale.value = withRepeat(
-        withSequence(
-          withTiming(1.06, { duration: 800 }),
-          withTiming(1, { duration: 800 }),
-        ),
+        withSequence(withTiming(1.015, { duration: 1200 }), withTiming(1, { duration: 1200 })),
         -1,
         false,
       );
@@ -164,84 +162,86 @@ export function MissionNode({ mission, completedRun, onPress, onShare, isLast = 
     }
   }, [isActive, scale]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
     <View style={styles.nodeWrapper}>
-      {/* Connector line */}
-      {!isLast && (
-        <View style={[
-          styles.connector,
-          isCompleted && styles.connectorDone,
-        ]} />
-      )}
+      {/* Connector line between nodes */}
+      {!isLast && <View style={[styles.connector, isCompleted && styles.connectorDone]} />}
 
-      {/* Completed state — rich result card, non-interactive */}
+      {/* Completed — rich result card */}
       {isCompleted && completedRun ? (
         <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.touchable}>
           <CompletedResultCard mission={mission} run={completedRun} onShare={onShare ?? (() => {})} />
         </TouchableOpacity>
       ) : (
-        /* Active / upcoming / locked — standard node */
-        <TouchableOpacity
-          onPress={onPress}
-          disabled={isLocked}
-          activeOpacity={0.8}
-          style={styles.touchable}
-        >
+        /* Active / upcoming / locked — quest card */
+        <TouchableOpacity onPress={onPress} disabled={isLocked} activeOpacity={0.8} style={styles.touchable}>
           <Animated.View
             style={[
               styles.node,
-              isActive && [styles.nodeActive, { borderColor: config.color, ...shadows.md }],
+              isActive && [styles.nodeActive, { borderColor: config.color }],
               isLocked && styles.nodeLocked,
               animStyle,
             ]}
           >
-            {/* Icon circle */}
-            <View
-              style={[
-                styles.iconCircle,
-                { backgroundColor: isLocked ? colors.border : config.color },
-              ]}
-            >
-              {isLocked ? (
-                <MaterialIcons name="lock" size={20} color={colors.textTertiary} />
-              ) : (
-                <MaterialIcons name={config.icon as any} size={20} color="#fff" />
+            {/* Top: QUEST badge + date */}
+            <View style={styles.nodeTopRow}>
+              <View style={[styles.questBadge, isLocked && styles.questBadgeLocked]}>
+                <Text style={[styles.questBadgeText, isLocked && styles.textLocked]}>
+                  {isLocked ? 'LOCKED' : 'QUEST:'}
+                </Text>
+              </View>
+              <Text style={[styles.dateLabel, isLocked && styles.textLocked]}>
+                {getRelativeDateLabel(mission.scheduledDate)}
+              </Text>
+            </View>
+
+            {/* Mission title */}
+            <View style={styles.nodeBody}>
+              <View style={styles.nodeTitleRow}>
+                <View style={[styles.typeIconBlock, { backgroundColor: isLocked ? colors.border : config.bgColor, borderColor: isLocked ? colors.border : config.color }]}>
+                  {isLocked ? (
+                    <MaterialIcons name="lock" size={18} color={colors.textTertiary} />
+                  ) : (
+                    <MaterialIcons name={config.icon as any} size={18} color={config.color} />
+                  )}
+                </View>
+                <View style={styles.nodeTitleBlock}>
+                  <Text style={[styles.missionTitle, isLocked && styles.textLocked]} numberOfLines={2}>
+                    {mission.title}
+                  </Text>
+                  <Text style={[styles.missionSubtitle, isLocked && styles.textLocked]} numberOfLines={1}>
+                    {mission.subtitle}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Distance + XP row */}
+              <View style={styles.nodeMetaRow}>
+                <View style={styles.distancePill}>
+                  <MaterialIcons name="straighten" size={12} color={isLocked ? colors.textTertiary : colors.textSecondary} />
+                  <Text style={[styles.distanceText, isLocked && styles.textLocked]}>
+                    {formatDistance(mission.targetDistanceKm)}
+                  </Text>
+                </View>
+                {!isLocked && <XPBadge xp={mission.xpReward} size="sm" />}
+              </View>
+
+              {/* Progress bar */}
+              {!isLocked && (
+                <View style={styles.progressRow}>
+                  <ProgressBar progress={isCompleted ? 1 : 0} color={config.color} />
+                </View>
               )}
             </View>
 
-            {/* Content */}
-            <View style={styles.content}>
-              <View style={styles.contentHeader}>
-                <View style={[styles.typePill, { backgroundColor: isLocked ? colors.border : config.bgColor }]}>
-                  <Text style={[styles.typeText, { color: isLocked ? colors.textTertiary : config.color }]}>
-                    {config.label}
-                  </Text>
-                </View>
-                <Text style={styles.dateLabel}>{getRelativeDateLabel(mission.scheduledDate)}</Text>
+            {/* RUN NOW button for active missions */}
+            {isActive && (
+              <View style={styles.runNowBtn}>
+                <MaterialIcons name="directions-run" size={16} color={colors.textInverse} />
+                <Text style={styles.runNowText}>RUN NOW</Text>
               </View>
-
-              <Text style={[styles.missionTitle, isLocked && styles.textLocked]}>
-                {mission.title}
-              </Text>
-              <Text style={[styles.missionSubtitle, isLocked && styles.textLocked]} numberOfLines={1}>
-                {mission.subtitle}
-              </Text>
-
-              <View style={styles.stats}>
-                <Text style={[styles.statText, isLocked && styles.textLocked]}>
-                  {formatDistance(mission.targetDistanceKm)}
-                </Text>
-                {!isLocked && <XPBadge xp={mission.xpReward} size="sm" />}
-              </View>
-            </View>
-
-            {/* Arrow */}
-            {!isLocked && (
-              <MaterialIcons name="chevron-right" size={24} color={colors.textTertiary} />
             )}
           </Animated.View>
         </TouchableOpacity>
@@ -250,26 +250,23 @@ export function MissionNode({ mission, completedRun, onPress, onShare, isLast = 
   );
 }
 
-// ─── Completed result card styles ────────────────────────────────────────────
+// ─── Completed result card styles ─────────────────────────────────────────────
 
 const rc = StyleSheet.create({
   card: {
     borderRadius: radii.lg,
+    borderWidth: 1,
     overflow: 'hidden',
     ...shadows.md,
   } as ViewStyle,
   cardGoal: {
-    backgroundColor: 'rgba(78,204,163,0.08)',
-    borderWidth: 2,
+    backgroundColor: 'rgba(103,144,88,0.08)',
     borderColor: colors.primary,
   } as ViewStyle,
   cardEarly: {
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.primaryLight,
+    borderColor: colors.border,
   } as ViewStyle,
-
-  // Banner strip
   bannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -280,122 +277,121 @@ const rc = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   } as ViewStyle,
   shareBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   } as ViewStyle,
-  bannerGoal: {
-    backgroundColor: colors.primary,
-  } as ViewStyle,
-  bannerEarly: {
-    backgroundColor: colors.primaryLight,
-  } as ViewStyle,
+  bannerGoal: { backgroundColor: colors.primary } as ViewStyle,
+  bannerEarly: { backgroundColor: 'rgba(79,74,66,0.4)' } as ViewStyle,
   bannerText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   } as TextStyle,
-  bannerTextGoal: {
-    color: '#fff',
-  } as TextStyle,
-  bannerTextEarly: {
-    color: colors.primaryDark,
-  } as TextStyle,
-
-  // Header row inside the card body
+  bannerTextGoal: { color: colors.textInverse } as TextStyle,
+  bannerTextEarly: { color: colors.textSecondary } as TextStyle,
+  body: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  } as ViewStyle,
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
   } as ViewStyle,
   typePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    borderRadius: radii.full,
+    gap: 3,
+    borderRadius: radii.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
+    borderWidth: 1,
   } as ViewStyle,
   typeText: {
-    fontSize: fontSizes.xs,
+    fontSize: 10,
     fontWeight: fontWeights.bold,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   } as TextStyle,
   dateText: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
-    fontWeight: fontWeights.medium,
   } as TextStyle,
-
   missionTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
-
-  // Stats grid
   statsGrid: {
     flexDirection: 'row',
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.md,
-    paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  } as ViewStyle,
+  divider: {
+    width: 1,
+    backgroundColor: colors.border,
   } as ViewStyle,
   chip: {
     flex: 1,
     alignItems: 'center',
-    gap: 3,
+    paddingVertical: spacing.md,
+    gap: 2,
   } as ViewStyle,
   chipValue: {
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
-    letterSpacing: -0.3,
   } as TextStyle,
   chipLabel: {
-    fontSize: fontSizes.xs,
+    fontSize: 9,
     color: colors.textTertiary,
-    fontWeight: fontWeights.medium,
+    fontWeight: fontWeights.semibold,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   } as TextStyle,
-
-  // XP footer
   xpRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    gap: spacing.xs,
   } as ViewStyle,
   xpText: {
     flex: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     color: colors.yellow,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     backgroundColor: colors.orangeLight,
-    borderRadius: radii.full,
+    borderRadius: radii.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.orange,
   } as ViewStyle,
   streakText: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.semibold,
+    fontSize: 9,
+    fontWeight: fontWeights.bold,
     color: colors.orange,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   } as TextStyle,
 });
 
-// ─── Standard node styles ────────────────────────────────────────────────────
+// ─── Standard node styles ─────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   nodeWrapper: {
@@ -403,12 +399,13 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   connector: {
     position: 'absolute',
-    left: 31,
-    top: 72,
+    left: '50%',
+    top: '100%',
     width: 2,
-    height: 28,
+    height: spacing.xxl,
     backgroundColor: colors.border,
     zIndex: 0,
+    borderStyle: 'dashed',
   } as ViewStyle,
   connectorDone: {
     backgroundColor: colors.primary,
@@ -417,76 +414,134 @@ const styles = StyleSheet.create({
     zIndex: 1,
   } as ViewStyle,
   node: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
-    gap: spacing.md,
+    overflow: 'hidden',
     ...shadows.sm,
   } as ViewStyle,
   nodeActive: {
     borderWidth: 2,
   } as ViewStyle,
   nodeLocked: {
-    opacity: 0.55,
-    borderColor: colors.border,
+    opacity: 0.45,
   } as ViewStyle,
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  } as ViewStyle,
-  content: {
-    flex: 1,
-    gap: spacing.xs,
-  } as ViewStyle,
-  contentHeader: {
+
+  // Top row: QUEST badge + date
+  nodeTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   } as ViewStyle,
-  typePill: {
-    borderRadius: radii.full,
+  questBadge: {
+    backgroundColor: colors.orangeLight,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.orange,
   } as ViewStyle,
-  typeText: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
+  questBadgeLocked: {
+    backgroundColor: 'transparent',
+    borderColor: colors.border,
+  } as ViewStyle,
+  questBadgeText: {
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
   } as TextStyle,
   dateLabel: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
     fontWeight: fontWeights.medium,
   } as TextStyle,
+
+  // Body
+  nodeBody: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  } as ViewStyle,
+  nodeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  } as ViewStyle,
+  typeIconBlock: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  } as ViewStyle,
+  nodeTitleBlock: {
+    flex: 1,
+    gap: 3,
+  } as ViewStyle,
   missionTitle: {
     fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
+    fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    lineHeight: 20,
   } as TextStyle,
   missionSubtitle: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
+    lineHeight: 18,
   } as TextStyle,
-  stats: {
+
+  // Meta row: distance + XP
+  nodeMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
   } as ViewStyle,
-  statText: {
+  distancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  } as ViewStyle,
+  distanceText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
+  progressRow: {
+    marginTop: 2,
+  } as ViewStyle,
+
+  // RUN NOW button
+  runNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.primaryDark,
+  } as ViewStyle,
+  runNowText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textInverse,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+
   textLocked: {
     color: colors.textTertiary,
   } as TextStyle,

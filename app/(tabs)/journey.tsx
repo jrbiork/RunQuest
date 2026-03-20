@@ -31,13 +31,13 @@ export default function JourneyScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>This Week</Text>
+          <Text style={styles.title}>DEPLOYMENT LOG</Text>
           <Text style={styles.subtitle}>
             {allComplete
-              ? 'All missions complete! 🎉'
+              ? 'ALL MISSIONS COMPLETE — ZONE RESTORED'
               : totalMissions === 0
-              ? 'Complete onboarding to get missions'
-              : `${completedCount} of ${totalMissions} missions done`}
+              ? 'Complete onboarding to receive missions'
+              : `${completedCount} / ${totalMissions} MISSIONS EXECUTED`}
           </Text>
         </View>
 
@@ -63,12 +63,12 @@ export default function JourneyScreen() {
         {/* Mission path */}
         <JourneyPath missions={weekMissions} allComplete={allComplete} />
 
-        {/* Tip when missions locked */}
+        {/* Intel tip */}
         {!allComplete && totalMissions > 0 && completedCount < totalMissions && (
           <View style={styles.tip}>
-            <MaterialIcons name="info-outline" size={16} color={colors.blue} />
+            <MaterialIcons name="radio" size={16} color={colors.blue} />
             <Text style={styles.tipText}>
-              Tap any unlocked mission to view details and start your run.
+              Tap any active mission to view briefing and begin your sortie.
             </Text>
           </View>
         )}
@@ -98,14 +98,20 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xxxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   } as TextStyle,
   subtitle: {
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.sm,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   weekCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
     ...shadows.sm,
@@ -121,14 +127,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   } as ViewStyle,
   weekCardTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   } as TextStyle,
   weekCardCount: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
-    color: colors.primary,
+    color: colors.orange,
   } as TextStyle,
   tip: {
     flexDirection: 'row',

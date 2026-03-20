@@ -39,14 +39,19 @@ export function Button({
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
-  const iconColor = variant === 'primary' || variant === 'danger' ? colors.textInverse : colors.primary;
+  const iconColor =
+    variant === 'primary' || variant === 'danger'
+      ? colors.textInverse
+      : variant === 'secondary'
+      ? colors.orange
+      : colors.primary;
   const iconSize = size === 'sm' ? 16 : size === 'md' ? 18 : 20;
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.8}
+      activeOpacity={0.75}
       style={[
         styles.base,
         styles[variant],
@@ -58,7 +63,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.textInverse : colors.primary}
+          color={variant === 'primary' ? colors.textInverse : colors.orange}
           size="small"
         />
       ) : (
@@ -79,7 +84,7 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     ...shadows.sm,
   } as ViewStyle,
   inner: {
@@ -88,46 +93,53 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   } as ViewStyle,
   iconLeft: {
-    marginRight: 6,
+    marginRight: 8,
   } as TextStyle,
 
   // Variants
   primary: {
     backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primaryDark,
   } as ViewStyle,
   secondary: {
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.orange,
   } as ViewStyle,
   ghost: {
     backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowOpacity: 0,
     elevation: 0,
   } as ViewStyle,
   danger: {
     backgroundColor: colors.red,
+    borderWidth: 1,
+    borderColor: '#A33028',
   } as ViewStyle,
 
   // Sizes
-  size_sm: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.md } as ViewStyle,
+  size_sm: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.sm } as ViewStyle,
   size_md: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl } as ViewStyle,
   size_lg: { paddingVertical: spacing.lg, paddingHorizontal: spacing.xxl } as ViewStyle,
 
   fullWidth: { width: '100%' } as ViewStyle,
-  disabled: { opacity: 0.5 } as ViewStyle,
+  disabled: { opacity: 0.45 } as ViewStyle,
 
-  // Label styles
+  // Label styles — all uppercase, stencil feel
   label: {
     fontWeight: fontWeights.bold,
-    letterSpacing: 0.3,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   } as TextStyle,
   label_primary: { color: colors.textInverse } as TextStyle,
-  label_secondary: { color: colors.primary } as TextStyle,
-  label_ghost: { color: colors.primary } as TextStyle,
+  label_secondary: { color: colors.orange } as TextStyle,
+  label_ghost: { color: colors.textSecondary } as TextStyle,
   label_danger: { color: colors.textInverse } as TextStyle,
 
-  labelSize_sm: { fontSize: fontSizes.sm } as TextStyle,
-  labelSize_md: { fontSize: fontSizes.md } as TextStyle,
-  labelSize_lg: { fontSize: fontSizes.lg } as TextStyle,
+  labelSize_sm: { fontSize: fontSizes.xs } as TextStyle,
+  labelSize_md: { fontSize: fontSizes.sm } as TextStyle,
+  labelSize_lg: { fontSize: fontSizes.md } as TextStyle,
 });

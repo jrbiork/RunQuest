@@ -100,7 +100,7 @@ const scanStyles = StyleSheet.create({
     left: 0,
     width: SCREEN_W * 0.6,
     height: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.orange,
   } as ViewStyle,
 });
 
@@ -184,8 +184,9 @@ const slideStyles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     textAlign: 'center',
-    letterSpacing: -0.5,
+    letterSpacing: 1,
     lineHeight: 38,
+    textTransform: 'uppercase',
   } as TextStyle,
   body: {
     fontSize: fontSizes.lg,
@@ -242,7 +243,7 @@ const dotStyles = StyleSheet.create({
   } as ViewStyle,
   dotActive: {
     width: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.orange,
   } as ViewStyle,
 });
 
@@ -345,8 +346,8 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderTopWidth: cornerThickness,
     borderLeftWidth: cornerThickness,
-    borderColor: colors.primary,
-    opacity: 0.6,
+    borderColor: colors.orange,
+    opacity: 0.7,
   } as ViewStyle,
   cornerTR: {
     position: 'absolute',
@@ -356,8 +357,8 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderTopWidth: cornerThickness,
     borderRightWidth: cornerThickness,
-    borderColor: colors.primary,
-    opacity: 0.6,
+    borderColor: colors.orange,
+    opacity: 0.7,
   } as ViewStyle,
   cornerBL: {
     position: 'absolute',
@@ -367,8 +368,8 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderBottomWidth: cornerThickness,
     borderLeftWidth: cornerThickness,
-    borderColor: colors.primary,
-    opacity: 0.6,
+    borderColor: colors.orange,
+    opacity: 0.7,
   } as ViewStyle,
   cornerBR: {
     position: 'absolute',
@@ -378,8 +379,8 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderBottomWidth: cornerThickness,
     borderRightWidth: cornerThickness,
-    borderColor: colors.primary,
-    opacity: 0.6,
+    borderColor: colors.orange,
+    opacity: 0.7,
   } as ViewStyle,
 
   // Wordmark at top
@@ -391,14 +392,14 @@ const styles = StyleSheet.create({
   wordmarkText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
-    color: colors.primary,
+    color: colors.orange,
     letterSpacing: 6,
     textTransform: 'uppercase',
   } as TextStyle,
   wordmarkSub: {
     fontSize: fontSizes.xs,
-    fontWeight: fontWeights.medium,
-    color: colors.textTertiary,
+    fontWeight: fontWeights.bold,
+    color: colors.ochre,
     letterSpacing: 3,
     textTransform: 'uppercase',
   } as TextStyle,

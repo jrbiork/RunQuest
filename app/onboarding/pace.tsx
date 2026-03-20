@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
 import { OptionCard } from '../../src/components/onboarding/OptionCard';
@@ -9,24 +10,24 @@ import { useMissionsStore } from '../../src/store/missionsStore';
 import type { PaceLevel, UserProfile } from '../../src/types';
 import { spacing, colors, radii, fontSizes, fontWeights } from '../../src/constants/theme';
 
-const OPTIONS: { value: PaceLevel; label: string; description: string; emoji: string }[] = [
+const OPTIONS: { value: PaceLevel; label: string; description: string; icon: string }[] = [
   {
     value: 'easy',
-    label: 'Easy & comfortable',
-    description: "I run to enjoy it — I'm not chasing pace.",
-    emoji: '🐢',
+    label: 'EVASION',
+    description: 'Move quietly. Survive. Enjoyment over speed.',
+    icon: 'explore',
   },
   {
     value: 'moderate',
-    label: 'Moderate effort',
-    description: 'I like a mix of easy miles and occasional pushes.',
-    emoji: '🏃',
+    label: 'PATROL',
+    description: 'Balanced output. Push when needed, hold when not.',
+    icon: 'directions-run',
   },
   {
     value: 'fast',
-    label: 'Fast & competitive',
-    description: "I'm always trying to beat my last time.",
-    emoji: '🚀',
+    label: 'ASSAULT',
+    description: 'Maximum effort. Every run is a push operation.',
+    icon: 'flash-on',
   },
 ];
 
@@ -43,7 +44,6 @@ export default function PaceScreen() {
     if (!selected) return;
     draft.current.paceLevel = selected;
 
-    // Validate all fields are present before completing
     const {
       experienceLevel,
       runningGoal,
@@ -86,10 +86,10 @@ export default function PaceScreen() {
     <OnboardingLayout
       step={5}
       totalSteps={5}
-      title="How do you like to run?"
-      subtitle="This helps us set realistic mission distances and pacing cues."
+      title="Operational Mode"
+      subtitle="Field Calibration"
       onNext={handleFinish}
-      nextLabel="Start My Journey 🚀"
+      nextLabel="Begin Your Deployment"
       nextDisabled={!selected}
     >
       <View style={styles.options}>
@@ -98,17 +98,23 @@ export default function PaceScreen() {
             key={opt.value}
             label={opt.label}
             description={opt.description}
-            emoji={opt.emoji}
+            icon={opt.icon}
             selected={selected === opt.value}
             onPress={() => setSelected(opt.value)}
           />
         ))}
       </View>
 
-      {/* Reassurance note */}
-      <View style={styles.note}>
-        <Text style={styles.noteText}>
-          🎉 You're all set! Your first week of personalised missions is about to be generated.
+      {/* Mission assigned panel */}
+      <View style={styles.missionPanel}>
+        <View style={styles.missionPanelHeader}>
+          <View style={styles.missionIconCircle}>
+            <MaterialIcons name="gps-fixed" size={18} color={colors.orange} />
+          </View>
+          <Text style={styles.missionPanelTitle}>MISSION ASSIGNED</Text>
+        </View>
+        <Text style={styles.missionPanelBody}>
+          Your first deployment to Sector 4 is ready. The world needs you to move.
         </Text>
       </View>
     </OnboardingLayout>
@@ -119,16 +125,43 @@ const styles = StyleSheet.create({
   options: {
     gap: spacing.md,
   } as ViewStyle,
-  note: {
-    backgroundColor: colors.primaryLight,
-    borderRadius: radii.lg,
+  missionPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
+    gap: spacing.md,
     marginTop: spacing.sm,
   } as ViewStyle,
-  noteText: {
+  missionPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  } as ViewStyle,
+  missionIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    backgroundColor: colors.orangeLight,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  missionPanelTitle: {
     fontSize: fontSizes.sm,
-    color: colors.primaryDark,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  missionPanelBody: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
     lineHeight: 20,
-    fontWeight: fontWeights.medium,
   } as TextStyle,
 });
