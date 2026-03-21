@@ -7,6 +7,7 @@ import {
   getLevelInfo,
   WEEKLY_BONUS_XP,
 } from '../utils/xpCalculator';
+import { setAudioMutedFlag } from '../services/audioService';
 import {
   getTodayISO,
   getWeekStartISO,
@@ -17,6 +18,7 @@ import {
 interface UserActions {
   completeOnboarding: (profile: UserProfile) => void;
   markIntroSeen: () => void;
+  setAudioMuted: (muted: boolean) => void;
   completeRun: (
     missionId: string,
     missionType: Parameters<typeof calculateXpEarned>[0],
@@ -48,6 +50,7 @@ export const useUserStore = create<UserStore>()(
       profile: null,
       hasCompletedOnboarding: false,
       hasSeenIntro: false,
+      audioMuted: false,
       xp: 0,
       streak: 0,
       lastRunDate: null,
@@ -60,6 +63,10 @@ export const useUserStore = create<UserStore>()(
       // ─── Actions ────────────────────────────────────────────────────────
 
       markIntroSeen: () => set({ hasSeenIntro: true }),
+      setAudioMuted: (muted) => {
+        setAudioMutedFlag(muted);
+        set({ audioMuted: muted });
+      },
 
       completeOnboarding: (profile: UserProfile) => {
         set({
@@ -173,6 +180,9 @@ export const useUserStore = create<UserStore>()(
     {
       name: 'runquest-user',
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state?.audioMuted) setAudioMutedFlag(state.audioMuted);
+      },
     },
   ),
 );

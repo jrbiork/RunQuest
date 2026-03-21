@@ -6,6 +6,8 @@ export interface WeekStats {
   weekIndex: number;      // 1-based week number within the month (1–5)
   weekLabel: string;      // e.g. "Week 1"
   dateRange: string;      // e.g. "Mar 1–7"
+  startIso: string;       // YYYY-MM-DD of the first day of this row
+  endIso: string;         // YYYY-MM-DD of the last day of this row
   runs: CompletedRun[];
   totalXp: number;
   totalRuns: number;
@@ -94,10 +96,14 @@ export function getWeeklyBreakdown(
       const day = d.getDate();
       return day >= startDay && day <= endDay;
     });
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const monthStr = pad(month + 1);
     weeks.push({
       weekIndex,
       weekLabel: `Week ${weekIndex}`,
       dateRange: `${mName} ${startDay}–${endDay}`,
+      startIso: `${year}-${monthStr}-${pad(startDay)}`,
+      endIso: `${year}-${monthStr}-${pad(endDay)}`,
       runs: weekRuns,
       totalXp: weekRuns.reduce((s, r) => s + r.xpEarned, 0),
       totalRuns: weekRuns.length,

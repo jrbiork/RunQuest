@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
+import { useDevStore } from '../../src/store/devStore';
+import { getNow, getWeekStartISO, toISODate } from '../../src/utils/dateUtils';
 import {
   getDayMap,
   getMonthStats,
@@ -114,6 +116,7 @@ function DayCell({
   day,
   missionType,
   isToday,
+  isCurrentWeek,
   hasRun,
   isSelected,
   onPress,
@@ -121,6 +124,7 @@ function DayCell({
   day: number | null;
   missionType: MissionType | null;
   isToday: boolean;
+  isCurrentWeek: boolean;
   hasRun: boolean;
   isSelected: boolean;
   onPress: () => void;
@@ -137,6 +141,7 @@ function DayCell({
       onPress={onPress}
       style={[
         styles.dayCell,
+        isCurrentWeek && !hasRun && styles.dayCellCurrentWeek,
         hasRun && { backgroundColor: config?.color ?? colors.primary },
         isToday && styles.dayCellToday,
         isSelected && styles.dayCellSelected,
@@ -152,8 +157,9 @@ function DayCell({
       <Text
         style={[
           styles.dayCellText,
+          isCurrentWeek && !hasRun && styles.dayCellTextCurrentWeek,
           hasRun && styles.dayCellTextRun,
-          isToday && !hasRun && styles.dayCellTextToday,
+          isToday && styles.dayCellTextToday,
           isSelected && styles.dayCellTextSelected,
         ]}
       >
@@ -299,23 +305,36 @@ function DetailStat({
 function WeekRow({
   week,
   maxXpInMonth,
+  isCurrentWeek,
 }: {
   week: WeekStats;
   maxXpInMonth: number;
+  isCurrentWeek: boolean;
 }) {
   const BAR_MAX_WIDTH = SCREEN_WIDTH - spacing.xl * 2 - 100;
   const barWidth = maxXpInMonth > 0 ? (week.totalXp / maxXpInMonth) * BAR_MAX_WIDTH : 0;
 
   return (
-    <View style={styles.weekRow}>
+    <View style={[styles.weekRow, isCurrentWeek && styles.weekRowCurrent]}>
+      {isCurrentWeek && (
+        <View style={styles.weekCurrentBadge}>
+          <Text style={styles.weekCurrentBadgeText}>NOW</Text>
+        </View>
+      )}
       <View style={styles.weekMeta}>
-        <Text style={styles.weekLabel}>{week.weekLabel}</Text>
+        <Text style={[styles.weekLabel, isCurrentWeek && styles.weekLabelCurrent]}>
+          {week.weekLabel}
+        </Text>
         <Text style={styles.weekDateRange}>{week.dateRange}</Text>
       </View>
 
       <View style={styles.weekBarWrap}>
         <View style={styles.weekBarTrack}>
-          <View style={[styles.weekBarFill, { width: Math.max(barWidth, week.totalXp > 0 ? 8 : 0) }]} />
+          <View style={[
+            styles.weekBarFill,
+            isCurrentWeek && styles.weekBarFillCurrent,
+            { width: Math.max(barWidth, week.totalXp > 0 ? 8 : 0) },
+          ]} />
         </View>
         <View style={styles.weekNumbers}>
           {week.totalRuns > 0 ? (
@@ -382,7 +401,11 @@ function SummaryStat({
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function StatsScreen() {
-  const now = new Date();
+  // Subscribe to dayOffset so the calendar re-renders when dev tools change the date
+  const dayOffset = useDevStore((s) => s.dayOffset);
+  const now = getNow(); // respects mock offset
+  void dayOffset; // consumed only for reactivity
+
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -395,8 +418,20 @@ export default function StatsScreen() {
   const dayShareRef = useRef<ViewShot>(null);
   const monthShareRef = useRef<ViewShot>(null);
 
+  // Keep displayed month in sync when dayOffset jumps to a different month
+  useEffect(() => {
+    const n = getNow();
+    setYear(n.getFullYear());
+    setMonth(n.getMonth());
+    setSelectedDate(null);
+  }, [dayOffset]);
+
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
   const todayStr = toLocalDateStr(now);
+
+  // Current week range (Mon–Sun) for highlighting
+  const weekStartStr = getWeekStartISO(); // respects mock offset
+  const weekEndStr = toISODate(new Date(new Date(weekStartStr + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000));
 
   const handlePrev = () => {
     setSelectedDate(null);
@@ -499,6 +534,7 @@ export default function StatsScreen() {
                     day={null}
                     missionType={null}
                     isToday={false}
+                    isCurrentWeek={false}
                     hasRun={false}
                     isSelected={false}
                     onPress={() => {}}
@@ -512,12 +548,14 @@ export default function StatsScreen() {
               const mType = firstRun
                 ? getMissionTypeFromId(firstRun.missionId, weekMissions)
                 : null;
+              const inCurrentWeek = dateStr >= weekStartStr && dateStr <= weekEndStr;
               return (
                 <DayCell
                   key={dateStr}
                   day={day}
                   missionType={mType}
                   isToday={dateStr === todayStr}
+                  isCurrentWeek={inCurrentWeek}
                   hasRun={hasRun}
                   isSelected={selectedDate === dateStr}
                   onPress={() => handleDayPress(dateStr)}
@@ -532,6 +570,8 @@ export default function StatsScreen() {
             <Text style={styles.legendText}>Run completed</Text>
             <View style={[styles.legendDot, styles.legendDotToday]} />
             <Text style={styles.legendText}>Today</Text>
+            <View style={[styles.legendDot, styles.legendDotWeek]} />
+            <Text style={styles.legendText}>This week</Text>
           </View>
         </Animated.View>
 
@@ -580,7 +620,12 @@ export default function StatsScreen() {
           <Text style={styles.sectionTitle}>Weekly Breakdown</Text>
           <View style={styles.weeksList}>
             {monthStats.weeks.map((week) => (
-              <WeekRow key={week.weekIndex} week={week} maxXpInMonth={maxWeekXp} />
+              <WeekRow
+                key={week.weekIndex}
+                week={week}
+                maxXpInMonth={maxWeekXp}
+                isCurrentWeek={todayStr >= week.startIso && todayStr <= week.endIso}
+              />
             ))}
           </View>
         </Animated.View>
@@ -767,25 +812,34 @@ const styles = StyleSheet.create({
   dayCellEmpty: {
     backgroundColor: 'transparent',
   } as ViewStyle,
+  dayCellCurrentWeek: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  } as ViewStyle,
   dayCellToday: {
-    borderWidth: 2,
-    borderColor: colors.primary,
+    backgroundColor: colors.orange,
+    borderWidth: 0,
   } as ViewStyle,
   dayCellText: {
     fontSize: 10,
     fontWeight: fontWeights.medium,
     color: colors.textSecondary,
   } as TextStyle,
+  dayCellTextCurrentWeek: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.bold,
+  } as TextStyle,
   dayCellTextRun: {
     color: colors.textInverse,
     fontWeight: fontWeights.bold,
   } as TextStyle,
   dayCellTextToday: {
-    color: colors.primary,
-    fontWeight: fontWeights.bold,
+    color: colors.textInverse,
+    fontWeight: fontWeights.extrabold,
   } as TextStyle,
   dayCellSelected: {
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: colors.textPrimary,
     opacity: 0.85,
   } as ViewStyle,
@@ -807,9 +861,12 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
   } as ViewStyle,
   legendDotToday: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: colors.primary,
+    backgroundColor: colors.orange,
+  } as ViewStyle,
+  legendDotWeek: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
   } as ViewStyle,
   legendText: {
     fontSize: fontSizes.xs,
@@ -850,7 +907,31 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   weekRow: {
     gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md,
   } as ViewStyle,
+  weekRowCurrent: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    borderRadius: radii.md,
+  } as ViewStyle,
+  weekCurrentBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.orange,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radii.sm,
+  } as ViewStyle,
+  weekCurrentBadgeText: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textInverse,
+    letterSpacing: 1.5,
+  } as TextStyle,
+  weekLabelCurrent: {
+    color: colors.orange,
+  } as TextStyle,
   weekMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -878,6 +959,9 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: colors.purple,
     borderRadius: radii.full,
+  } as ViewStyle,
+  weekBarFillCurrent: {
+    backgroundColor: colors.orange,
   } as ViewStyle,
   weekNumbers: {
     flexDirection: 'row',

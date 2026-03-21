@@ -105,6 +105,7 @@ export interface UserState {
   profile: UserProfile | null;
   hasCompletedOnboarding: boolean;
   hasSeenIntro: boolean;
+  audioMuted: boolean;
   xp: number;
   streak: number;
   lastRunDate: string | null;   // ISO date YYYY-MM-DD

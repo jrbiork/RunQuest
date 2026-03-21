@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore, selectCompletedCount, selectAllComplete } from '../../src/store/missionsStore';
+import { useDevStore } from '../../src/store/devStore';
+import { getWeekStartISO } from '../../src/utils/dateUtils';
 import { JourneyPath } from '../../src/components/journey/JourneyPath';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { colors, spacing, fontSizes, fontWeights, radii, shadows } from '../../src/constants/theme';
@@ -14,10 +16,23 @@ export default function JourneyScreen() {
   const completedCount = useMissionsStore(selectCompletedCount);
   const allComplete = useMissionsStore(selectAllComplete);
   const refreshMissions = useMissionsStore((s) => s.refreshIfNewWeek);
+  const generateWeek = useMissionsStore((s) => s.generateWeek);
+  const dayOffset = useDevStore((s) => s.dayOffset);
 
+  // Initial load
   useEffect(() => {
     if (profile) refreshMissions(profile);
   }, []);
+
+  // When dev tools shift to a different week, regenerate missions for that week
+  useEffect(() => {
+    if (!profile) return;
+    const mockedWeekStart = getWeekStartISO();
+    const storedWeekStart = useMissionsStore.getState().weekStartDate;
+    if (mockedWeekStart !== storedWeekStart) {
+      generateWeek(profile);
+    }
+  }, [dayOffset, profile]);
 
   const totalMissions = weekMissions.length;
   const weekProgress = totalMissions > 0 ? completedCount / totalMissions : 0;

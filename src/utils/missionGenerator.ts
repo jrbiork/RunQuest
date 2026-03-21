@@ -8,7 +8,11 @@ import type {
 } from '../types';
 import { MISSION_TEMPLATES } from '../constants/missions';
 import { BASE_XP } from './xpCalculator';
-import { getScheduledDatesForWeek, getWeekStart, getTodayISO } from './dateUtils';
+import {
+  getScheduledDatesForWeek,
+  getWeekStart,
+  getTodayISO,
+} from './dateUtils';
 
 // ─── Mission Mix Rules ────────────────────────────────────────────────────────
 
@@ -44,7 +48,8 @@ function getMissionMix(
     },
   };
 
-  const baseMix = mixes[level][runsPerWeek] ?? mixes[level][3] ?? ['easy', 'recovery', 'easy'];
+  const baseMix = mixes[level][runsPerWeek] ??
+    mixes[level][3] ?? ['easy', 'recovery', 'easy'];
 
   // Adjust for specific goals
   if (goal === 'race' || goal === 'distance') {
@@ -84,31 +89,31 @@ interface MissionTargets {
   durationMin: number;
 }
 
-function getTargets(
-  type: MissionType,
-  level: ExperienceLevel,
-): MissionTargets {
-  const targets: Record<ExperienceLevel, Record<MissionType, MissionTargets>> = {
+function getTargets(type: MissionType, level: ExperienceLevel): MissionTargets {
+  const targets: Record<
+    ExperienceLevel,
+    Record<MissionType, MissionTargets>
+  > = {
     beginner: {
-      easy:     { distanceKm: 3,  durationMin: 25 },
-      recovery: { distanceKm: 2,  durationMin: 20 },
-      tempo:    { distanceKm: 3,  durationMin: 25 },
-      interval: { distanceKm: 3,  durationMin: 25 },
-      long:     { distanceKm: 5,  durationMin: 40 },
+      easy: { distanceKm: 0.5, durationMin: 5 },
+      recovery: { distanceKm: 0.5, durationMin: 5 },
+      tempo: { distanceKm: 0.5, durationMin: 5 },
+      interval: { distanceKm: 0.5, durationMin: 5 },
+      long: { distanceKm: 0.5, durationMin: 5 },
     },
     intermediate: {
-      easy:     { distanceKm: 5,  durationMin: 35 },
-      recovery: { distanceKm: 4,  durationMin: 30 },
-      tempo:    { distanceKm: 6,  durationMin: 40 },
-      interval: { distanceKm: 5,  durationMin: 35 },
-      long:     { distanceKm: 10, durationMin: 65 },
+      easy: { distanceKm: 0.5, durationMin: 5 },
+      recovery: { distanceKm: 0.5, durationMin: 5 },
+      tempo: { distanceKm: 0.5, durationMin: 5 },
+      interval: { distanceKm: 0.5, durationMin: 5 },
+      long: { distanceKm: 0.5, durationMin: 5 },
     },
     advanced: {
-      easy:     { distanceKm: 8,  durationMin: 45 },
-      recovery: { distanceKm: 6,  durationMin: 40 },
-      tempo:    { distanceKm: 10, durationMin: 55 },
-      interval: { distanceKm: 8,  durationMin: 50 },
-      long:     { distanceKm: 16, durationMin: 95 },
+      easy: { distanceKm: 0.5, durationMin: 5 },
+      recovery: { distanceKm: 0.5, durationMin: 5 },
+      tempo: { distanceKm: 0.5, durationMin: 5 },
+      interval: { distanceKm: 0.5, durationMin: 5 },
+      long: { distanceKm: 0.5, durationMin: 5 },
     },
   };
   return targets[level][type] as MissionTargets;
@@ -194,14 +199,21 @@ export function generateWeekMissions(profile: UserProfile): Mission[] {
 export function getTodaysMission(missions: Mission[]): Mission | null {
   const today = getTodayISO();
   // Prefer exact date match
-  const exact = missions.find((m) => m.scheduledDate === today && m.status !== 'completed');
+  const exact = missions.find(
+    (m) => m.scheduledDate === today && m.status !== 'completed',
+  );
   if (exact) return exact;
   // Next incomplete upcoming
-  const upcoming = missions.find((m) => m.status !== 'completed' && m.scheduledDate >= today);
+  const upcoming = missions.find(
+    (m) => m.status !== 'completed' && m.scheduledDate >= today,
+  );
   return upcoming ?? null;
 }
 
-export function getNextMission(missions: Mission[], afterId: string): Mission | null {
+export function getNextMission(
+  missions: Mission[],
+  afterId: string,
+): Mission | null {
   const idx = missions.findIndex((m) => m.id === afterId);
   if (idx === -1) return null;
   return missions.slice(idx + 1).find((m) => m.status !== 'completed') ?? null;

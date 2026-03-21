@@ -11,7 +11,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, fontSizes, fontWeights, shadows } from '../../src/constants/theme';
-import { useMissionsStore, selectTodaysMission } from '../../src/store/missionsStore';
+import { useMissionsStore, selectNextMission } from '../../src/store/missionsStore';
+import { FUN_RUN_ID } from '../../src/constants/missions';
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -25,16 +26,13 @@ const TAB_SLOTS: Array<{ route: string; label: string; icon: MaterialIconName } 
 
 function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
-  const mission = useMissionsStore(selectTodaysMission);
+  const nextMission = useMissionsStore(selectNextMission);
 
   const tabRoutes = state.routes;
 
   function handleRunPress() {
-    if (mission) {
-      router.push(`/run/${mission.id}` as any);
-    } else {
-      router.push('/run/' as any);
-    }
+    const id = nextMission ? nextMission.id : FUN_RUN_ID;
+    router.push(`/run/${id}` as any);
   }
 
   function handleTabPress(routeName: string) {
@@ -58,16 +56,17 @@ function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
       <View style={styles.tabBar}>
         {TAB_SLOTS.map((slot, idx) => {
           if (slot === 'run') {
+            const isFreeRun = !nextMission;
             return (
               <View key="run" style={styles.runSlot}>
                 <TouchableOpacity
                   onPress={handleRunPress}
                   activeOpacity={0.8}
-                  style={styles.runBtn}
+                  style={[styles.runBtn, isFreeRun && styles.runBtnFreeRun]}
                 >
                   <MaterialIcons name="directions-run" size={30} color={colors.textInverse} />
                 </TouchableOpacity>
-                <Text style={styles.runLabel}>RUN</Text>
+                <Text style={styles.runLabel}>{isFreeRun ? 'FREE RUN' : 'RUN'}</Text>
               </View>
             );
           }
@@ -171,6 +170,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.background,
     ...shadows.md,
+  } as ViewStyle,
+  runBtnFreeRun: {
+    backgroundColor: colors.primary,
   } as ViewStyle,
   runLabel: {
     fontSize: 9,

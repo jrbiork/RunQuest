@@ -31,16 +31,19 @@ import { formatElapsed, formatPace } from '../../src/utils/haversine';
 import { useGpsTracking } from '../../src/hooks/useGpsTracking';
 import { playGoalReachedSound, speakRunCue } from '../../src/services/audioService';
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
+import { MISSION_AUDIO_CUES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 
 export default function ActiveRunScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const mission = weekMissions.find((m) => m.id === id);
+  const isFreeRun = id === FUN_RUN_ID;
+  const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
   const { path, distanceKm, elapsedSec, isTracking, hasPermission, start, stop } =
     useGpsTracking();
 
   const goalReachedFired = useRef(false);
+  const startCueFired = useRef(false);
   const milestone25Fired = useRef(false);
   const milestone50Fired = useRef(false);
   const milestone75Fired = useRef(false);
@@ -83,30 +86,44 @@ export default function ActiveRunScreen() {
     start();
   }, [start]);
 
+  // 2-second start cue (skip for free run — no narrative)
   useEffect(() => {
-    if (!mission || !isTracking) return;
+    if (!mission || !isTracking || isFreeRun || startCueFired.current) return;
+    const cues = MISSION_AUDIO_CUES[mission.type];
+    const timer = setTimeout(() => {
+      startCueFired.current = true;
+      speakRunCue(cues.start);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [isTracking, mission, isFreeRun]);
 
+  // Milestone cues at 25 / 50 / 75 / 100% (skip for free run — no targets)
+  useEffect(() => {
+    if (!mission || !isTracking || isFreeRun) return;
+
+    const cues = MISSION_AUDIO_CUES[mission.type];
     const distRatio = mission.targetDistanceKm > 0 ? distanceKm / mission.targetDistanceKm : 0;
     const timeRatio = mission.targetDurationMin > 0 ? elapsedSec / (mission.targetDurationMin * 60) : 0;
     const progress = Math.max(distRatio, timeRatio);
 
     if (!milestone25Fired.current && progress >= 0.25) {
       milestone25Fired.current = true;
-      speakRunCue('Signal weak. Keep moving, Runner.');
+      speakRunCue(cues.quarter);
     }
     if (!milestone50Fired.current && progress >= 0.5) {
       milestone50Fired.current = true;
-      speakRunCue('Halfway. The zone can feel you.');
+      speakRunCue(cues.half);
     }
     if (!milestone75Fired.current && progress >= 0.75) {
       milestone75Fired.current = true;
-      speakRunCue('Final stretch. Do not stop now.');
+      speakRunCue(cues.threeQuarter);
     }
     if (!goalReachedFired.current && progress >= 1.0) {
       goalReachedFired.current = true;
+      speakRunCue(cues.complete);
       triggerGoalReached(mission.title);
     }
-  }, [distanceKm, elapsedSec, isTracking, mission, triggerGoalReached]);
+  }, [distanceKm, elapsedSec, isTracking, isFreeRun, mission, triggerGoalReached]);
 
   // Pan map to follow latest GPS point
   useEffect(() => {
@@ -256,7 +273,7 @@ export default function ActiveRunScreen() {
         {/* Goal reached banner — floats over the map */}
         <Animated.View style={[styles.goalBanner, bannerStyle]} pointerEvents="none">
           <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
-            <MaterialIcons name="emoji-events" size={28} color={colors.primary} />
+            <MaterialIcons name="emoji-events" size={18} color={colors.primary} />
             <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
             <Text style={styles.goalBannerSub}>Keep pushing or finish the run</Text>
           </Animated.View>
@@ -275,38 +292,40 @@ export default function ActiveRunScreen() {
             <StatTile label="PACE" value={formatPace(distanceKm, elapsedSec)} icon="speed" accent={colors.ochre} />
           </View>
 
-          {/* Target + progress */}
-          <View style={styles.progressSection}>
-            <View style={styles.targetRow}>
-              <Text style={styles.targetLabel}>TARGET</Text>
-              <Text style={styles.targetValue}>
-                {formatDistance(mission.targetDistanceKm)} · ~{mission.targetDurationMin} min
-              </Text>
-              <Text style={[styles.progressPercent, goalHit && styles.progressPercentDone]}>
-                {goalHit ? '✓ COMPLETE' : `${Math.round(overallProgress * 100)}%`}
-              </Text>
+          {/* Target + progress — hidden for free run */}
+          {!isFreeRun && (
+            <View style={styles.progressSection}>
+              <View style={styles.targetRow}>
+                <Text style={styles.targetLabel}>TARGET</Text>
+                <Text style={styles.targetValue}>
+                  {formatDistance(mission.targetDistanceKm)} · ~{mission.targetDurationMin} min
+                </Text>
+                <Text style={[styles.progressPercent, goalHit && styles.progressPercentDone]}>
+                  {goalHit ? '✓ COMPLETE' : `${Math.round(overallProgress * 100)}%`}
+                </Text>
+              </View>
+              <ProgressBar
+                progress={overallProgress}
+                color={goalHit ? colors.primary : config.color}
+                backgroundColor={colors.border}
+                height={6}
+              />
             </View>
-            <ProgressBar
-              progress={overallProgress}
-              color={goalHit ? colors.primary : config.color}
-              backgroundColor={colors.border}
-              height={6}
-            />
-          </View>
+          )}
 
           {/* Finish button */}
           <TouchableOpacity
-            style={[styles.finishBtn, goalHit && styles.finishBtnGoal]}
+            style={[styles.finishBtn, (goalHit || isFreeRun) && styles.finishBtnGoal]}
             onPress={handleFinish}
             activeOpacity={0.85}
           >
             <MaterialIcons
-              name={goalHit ? 'emoji-events' : 'flag'}
+              name={isFreeRun ? 'stop' : goalHit ? 'emoji-events' : 'flag'}
               size={20}
-              color={goalHit ? colors.textInverse : colors.textSecondary}
+              color={colors.textInverse}
             />
-            <Text style={[styles.finishBtnText, goalHit && styles.finishBtnTextGoal]}>
-              {goalHit ? 'COMPLETE MISSION' : 'FINISH EARLY'}
+            <Text style={[styles.finishBtnText, (goalHit || isFreeRun) && styles.finishBtnTextGoal]}>
+              {isFreeRun ? 'FINISH FREE RUN' : goalHit ? 'COMPLETE MISSION' : 'FINISH EARLY'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -452,24 +471,24 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   goalBannerInner: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 2,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
     ...shadows.lg,
   } as ViewStyle,
   goalBannerTitle: {
-    fontSize: fontSizes.lg,
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
     color: colors.primary,
     letterSpacing: 2,
     textTransform: 'uppercase',
   } as TextStyle,
   goalBannerSub: {
-    fontSize: fontSizes.xs,
+    fontSize: 10,
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,

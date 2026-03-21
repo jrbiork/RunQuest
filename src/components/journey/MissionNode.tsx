@@ -185,13 +185,13 @@ export function MissionNode({ mission, completedRun, onPress, onShare, isLast = 
               animStyle,
             ]}
           >
-            {/* Top: QUEST badge + date */}
+            {/* Top: status badge + date */}
             <View style={styles.nodeTopRow}>
-              <View style={[styles.questBadge, isLocked && styles.questBadgeLocked]}>
-                <Text style={[styles.questBadgeText, isLocked && styles.textLocked]}>
-                  {isLocked ? 'LOCKED' : 'QUEST:'}
-                </Text>
-              </View>
+              {isLocked && (
+                <View style={styles.questBadgeLocked}>
+                  <Text style={[styles.questBadgeText, styles.textLocked]}>LOCKED</Text>
+                </View>
+              )}
               <Text style={[styles.dateLabel, isLocked && styles.textLocked]}>
                 {getRelativeDateLabel(mission.scheduledDate)}
               </Text>

@@ -36,7 +36,7 @@ import {
   missionConfig,
 } from '../../src/constants/theme';
 import { calculateXpEarned, getLevelInfo, formatDistance } from '../../src/utils/xpCalculator';
-import { MISSION_TEMPLATES, MISSION_IMPACT_MESSAGES } from '../../src/constants/missions';
+import { MISSION_TEMPLATES, MISSION_IMPACT_MESSAGES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
 import type { GpsPoint } from '../../src/types';
@@ -89,11 +89,13 @@ export default function RunCompleteScreen() {
   const totalRuns = useUserStore((s) => s.totalRuns);
   const levelInfoAfter = useMemo(() => getLevelInfo(xpBefore), [xpBefore]);
 
-  const mission = weekMissions.find((m) => m.id === id);
+  const isFreeRun = id === FUN_RUN_ID;
+  const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
   const alreadyCompleted = useRef(false);
 
   useEffect(() => {
-    if (!mission || alreadyCompleted.current) return;
+    // Free runs don't update the store — no XP, no mission completion
+    if (!mission || isFreeRun || alreadyCompleted.current) return;
     alreadyCompleted.current = true;
 
     completeMission(mission.id);
@@ -122,12 +124,17 @@ export default function RunCompleteScreen() {
   };
 
   const template = MISSION_TEMPLATES[mission.type];
-  const xpEarned = calculateXpEarned(mission.type, streak);
+  const completionRatio = (!isFreeRun && mission.targetDistanceKm > 0 && actualDistanceKm !== undefined)
+    ? actualDistanceKm / mission.targetDistanceKm
+    : 1;
+  const xpEarned = isFreeRun ? 0 : calculateXpEarned(mission.type, streak, completionRatio);
   const config = missionConfig[mission.type];
 
   // Impact message
   const impactMessages = MISSION_IMPACT_MESSAGES[mission.type];
-  const impactMsg = impactMessages[Math.floor(Math.random() * impactMessages.length)] as string;
+  const impactMsg = isFreeRun
+    ? 'You ran for the joy of it. The world is better for it.'
+    : impactMessages[Math.floor(Math.random() * impactMessages.length)] as string;
 
   // World restoration stats
   const zonesOnline = Math.min(Math.floor((totalRuns + 1) / 1.5) + 1, 12);
@@ -153,7 +160,7 @@ export default function RunCompleteScreen() {
             <MaterialIcons name={config.icon as any} size={12} color={config.color} />
             <Text style={[styles.missionTypeText, { color: config.color }]}>{config.label}</Text>
           </View>
-          <Text style={styles.missionCompleteLabel}>MISSION COMPLETE</Text>
+          <Text style={styles.missionCompleteLabel}>{isFreeRun ? 'FREE RUN COMPLETE' : 'MISSION COMPLETE'}</Text>
           <Text style={styles.missionTitle}>{mission.title}</Text>
         </Animated.View>
 
@@ -168,27 +175,29 @@ export default function RunCompleteScreen() {
           <ZoneMapAnimation zonesOnline={zonesOnline} totalZones={12} />
         </Animated.View>
 
-        {/* ── World restoration progress ──────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(800).duration(400)}>
-          <Card style={styles.worldCard}>
-            <View style={styles.worldHeader}>
-              <MaterialIcons name="public" size={16} color={colors.primary} />
-              <Text style={styles.worldTitle}>World Restoration</Text>
-              <Text style={styles.worldPct}>{worldRestoredPct}%</Text>
-            </View>
-            <ProgressBar
-              progress={worldRestoredPct / 100}
-              color={colors.primary}
-              backgroundColor={colors.primaryLight}
-              height={6}
-            />
-            <Text style={styles.worldSub}>
-              {goalMet
-                ? 'Zone fully restored. Another victory for the Runners.'
-                : 'Zone partially restored. Every mission counts.'}
-            </Text>
-          </Card>
-        </Animated.View>
+        {/* ── World restoration progress — hidden for free run ──────────── */}
+        {!isFreeRun && (
+          <Animated.View entering={FadeInDown.delay(800).duration(400)}>
+            <Card style={styles.worldCard}>
+              <View style={styles.worldHeader}>
+                <MaterialIcons name="public" size={16} color={colors.primary} />
+                <Text style={styles.worldTitle}>World Restoration</Text>
+                <Text style={styles.worldPct}>{worldRestoredPct}%</Text>
+              </View>
+              <ProgressBar
+                progress={worldRestoredPct / 100}
+                color={colors.primary}
+                backgroundColor={colors.primaryLight}
+                height={6}
+              />
+              <Text style={styles.worldSub}>
+                {goalMet
+                  ? 'Zone fully restored. Another victory for the Runners.'
+                  : 'Zone partially restored. Every mission counts.'}
+              </Text>
+            </Card>
+          </Animated.View>
+        )}
 
         {/* ── GPS run stats ─────────────────────────────────────────────── */}
         {hasGpsData && (
@@ -212,66 +221,82 @@ export default function RunCompleteScreen() {
 
         {/* ── XP earned ────────────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(950).duration(400)}>
-          <Card style={styles.xpCard} elevated>
-            <View style={styles.xpRow}>
-              <View style={styles.xpLeft}>
-                <Text style={styles.xpLabel}>XP Earned</Text>
-                <Text style={styles.xpValue}>+{xpEarned} XP</Text>
+          {isFreeRun ? (
+            <Card style={styles.xpCard}>
+              <View style={styles.xpRow}>
+                <MaterialIcons name="self-improvement" size={28} color={colors.textSecondary} />
+                <View style={styles.xpLeft}>
+                  <Text style={styles.xpLabel}>Free Run</Text>
+                  <Text style={[styles.xpValue, { color: colors.textSecondary }]}>No XP earned</Text>
+                </View>
               </View>
-              <View style={styles.xpCircle}>
-                <Text style={styles.xpCircleText}>+{xpEarned}</Text>
+            </Card>
+          ) : (
+            <Card style={styles.xpCard} elevated>
+              <View style={styles.xpRow}>
+                <View style={styles.xpLeft}>
+                  <Text style={styles.xpLabel}>XP Earned</Text>
+                  <Text style={styles.xpValue}>+{xpEarned} XP</Text>
+                </View>
+                <View style={styles.xpCircle}>
+                  <Text style={styles.xpCircleText}>+{xpEarned}</Text>
+                </View>
               </View>
-            </View>
-            <ProgressBar
-              progress={levelInfoAfter.progress}
-              color={colors.purple}
-              backgroundColor={colors.purpleLight}
-              height={6}
-            />
-            <View style={styles.levelRow}>
-              <LevelBadge level={levelInfoAfter.level} size="sm" />
-              <Text style={styles.levelText}>{levelInfoAfter.title}</Text>
-              <Text style={styles.levelXpText}>
-                {levelInfoAfter.xpInLevel}/{levelInfoAfter.xpToNextLevel} XP
-              </Text>
-            </View>
-          </Card>
+              <ProgressBar
+                progress={levelInfoAfter.progress}
+                color={colors.purple}
+                backgroundColor={colors.purpleLight}
+                height={6}
+              />
+              <View style={styles.levelRow}>
+                <LevelBadge level={levelInfoAfter.level} size="sm" />
+                <Text style={styles.levelText}>{levelInfoAfter.title}</Text>
+                <Text style={styles.levelXpText}>
+                  {levelInfoAfter.xpInLevel}/{levelInfoAfter.xpToNextLevel} XP
+                </Text>
+              </View>
+            </Card>
+          )}
         </Animated.View>
 
-        {/* ── Streak ───────────────────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(1000).duration(400)}>
-          <Card style={styles.streakCard}>
-            <MaterialIcons name="local-fire-department" size={32} color={colors.orange} />
-            <View style={styles.streakInfo}>
-              <Text style={styles.streakTitle}>
-                {streak === 0 ? 'Streak started!' : `Day ${newStreak} streak`}
-              </Text>
-              <Text style={styles.streakSub}>
-                {streak === 0 ? 'The world starts healing today.' : 'Keep running. Keep rebuilding.'}
-              </Text>
-            </View>
-            <Text style={styles.streakCount}>{newStreak}</Text>
-          </Card>
-        </Animated.View>
+        {/* ── Streak — hidden for free run ─────────────────────────────── */}
+        {!isFreeRun && (
+          <Animated.View entering={FadeInDown.delay(1000).duration(400)}>
+            <Card style={styles.streakCard}>
+              <MaterialIcons name="local-fire-department" size={32} color={colors.orange} />
+              <View style={styles.streakInfo}>
+                <Text style={styles.streakTitle}>
+                  {streak === 0 ? 'Streak started!' : `Day ${newStreak} streak`}
+                </Text>
+                <Text style={styles.streakSub}>
+                  {streak === 0 ? 'The world starts healing today.' : 'Keep running. Keep rebuilding.'}
+                </Text>
+              </View>
+              <Text style={styles.streakCount}>{newStreak}</Text>
+            </Card>
+          </Animated.View>
+        )}
 
         {/* ── Weekly goal ──────────────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(1050).duration(400)}>
-          <Card style={styles.weeklyCard}>
-            <View style={styles.weeklyHeader}>
-              <MaterialIcons name="calendar-today" size={16} color={colors.primary} />
-              <Text style={styles.weeklyTitle}>Weekly Ops</Text>
-            </View>
-            <ProgressBar
-              progress={weeklyProg}
-              color={colors.primary}
-              backgroundColor={colors.primaryLight}
-              height={8}
-            />
-            <Text style={styles.weeklyText}>
-              {weeklyRunsCompleted} mission{weeklyRunsCompleted !== 1 ? 's' : ''} completed this week
-            </Text>
-          </Card>
-        </Animated.View>
+        {!isFreeRun && (
+          <Animated.View entering={FadeInDown.delay(1050).duration(400)}>
+            <Card style={styles.weeklyCard}>
+              <View style={styles.weeklyHeader}>
+                <MaterialIcons name="calendar-today" size={16} color={colors.primary} />
+                <Text style={styles.weeklyTitle}>Weekly Ops</Text>
+              </View>
+              <ProgressBar
+                progress={weeklyProg}
+                color={colors.primary}
+                backgroundColor={colors.primaryLight}
+                height={8}
+              />
+              <Text style={styles.weeklyText}>
+                {weeklyRunsCompleted} mission{weeklyRunsCompleted !== 1 ? 's' : ''} completed this week
+              </Text>
+            </Card>
+          </Animated.View>
+        )}
 
         {/* ── CTAs ─────────────────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(1100).duration(400)} style={styles.ctaGroup}>

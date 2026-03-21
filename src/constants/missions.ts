@@ -1,4 +1,4 @@
-import type { MissionType } from '../types';
+import type { Mission, MissionType } from '../types';
 
 // ─── Mission Microcopy Templates ─────────────────────────────────────────────
 
@@ -155,6 +155,55 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
   },
 };
 
+// ─── In-Run Audio Cues per Mission Type ──────────────────────────────────────
+// Five cues per mission: [start, 25%, 50%, 75%, 100%]
+
+export interface MissionAudioCues {
+  start: string;
+  quarter: string;
+  half: string;
+  threeQuarter: string;
+  complete: string;
+}
+
+export const MISSION_AUDIO_CUES: Record<MissionType, MissionAudioCues> = {
+  easy: {
+    start:        'Grid Patrol initiated. Steady pace, Runner. Let the zone feel your presence.',
+    quarter:      'Signal is faint but rising. Keep your rhythm. Every step charges the grid.',
+    half:         'Halfway. Power levels climbing. The sector is starting to respond.',
+    threeQuarter: 'Almost there. Three quarters done. The grid lights are flickering on ahead.',
+    complete:     'Grid restored. Sector online. Mission complete, Runner. Well done.',
+  },
+  tempo: {
+    start:        'Signal Rush protocol active. Push hard and hold it, Runner. The tower is counting on you.',
+    quarter:      'Tower signal at twenty-five percent. Keep the pace high. No backing down now.',
+    half:         'Halfway through the push. Signal is building. Hold this frequency — do not drop it.',
+    threeQuarter: 'Final surge incoming. Three quarters done. Dig deep. The tower is almost back online.',
+    complete:     'Tower online. Full signal restored. Threshold run complete. The network is expanding.',
+  },
+  long: {
+    start:        'Cross-zone delivery underway. Settle into your pace, Runner. This is a long road — respect it.',
+    quarter:      'First zone crossed. Supplies secure. Stay relaxed. The survivors are waiting.',
+    half:         'Halfway across. You are carrying more than supplies — you are carrying hope. Keep going.',
+    threeQuarter: 'Almost at the destination. Three zones down. One more push and the delivery is complete.',
+    complete:     'Delivery complete. Zone seven has what it needs. Outstanding endurance, Runner.',
+  },
+  recovery: {
+    start:        'Scout patrol initiated. Easy movement, Runner. Eyes open, pace light. Survey everything.',
+    quarter:      'Perimeter quarter mapped. Good intel so far. Stay loose — recovery is the mission today.',
+    half:         'Halfway through the recon. Your body is thanking you. Keep it easy. Every step counts.',
+    threeQuarter: 'Almost done with the sweep. Three quarters of the perimeter secured. Nearly there.',
+    complete:     'Recon complete. Perimeter mapped. Intel filed. Smart work, Runner. Rest earned.',
+  },
+  interval: {
+    start:        'Surge Protocol activated. Get ready to push hard, Runner. Bursts of speed, then recover — repeat.',
+    quarter:      'First surge done. Good output. Recover now — you will need that energy for the next push.',
+    half:         'Halfway through the anomaly response. The surges are working. Stay sharp and keep the pattern.',
+    threeQuarter: 'Final surge incoming. Three quarters down. One last hard push and the anomaly is contained.',
+    complete:     'Surge Protocol complete. Anomaly suppressed. Speed capacity upgraded. Outstanding effort, Runner.',
+  },
+};
+
 // ─── Post-Run World Impact Messages ──────────────────────────────────────────
 
 export const MISSION_IMPACT_MESSAGES: Record<MissionType, string[]> = {
@@ -216,6 +265,24 @@ export const STREAK_MESSAGES = {
   7: ['One week. The grid is almost fully restored.', 'Seven days. This Runner is consistent.'],
   14: ['Two weeks. You\'re keeping the world alive.', 'Fourteen days straight. Elite Runner status.'],
   30: ['30-day streak. The world is healing because of you.'],
+};
+
+// ─── Free / Fun Run (no XP, no targets) ──────────────────────────────────────
+
+export const FUN_RUN_ID = 'fun-run';
+
+export const FUN_RUN_MISSION: Mission = {
+  id: FUN_RUN_ID,
+  type: 'easy',
+  title: 'FREE ROAM',
+  subtitle: 'No objectives. Just move.',
+  description: 'All missions complete. Hit the road for fun — no XP, no targets, just running. The world is already restored. This one is for you.',
+  targetDistanceKm: 0,
+  targetDurationMin: 0,
+  xpReward: 0,
+  day: 'Mon',
+  scheduledDate: '',
+  status: 'active',
 };
 
 export const REST_DAY_MESSAGES = [

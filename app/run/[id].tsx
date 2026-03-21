@@ -8,12 +8,13 @@ import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../src/constants/theme';
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
-import { MISSION_TEMPLATES } from '../../src/constants/missions';
+import { MISSION_TEMPLATES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 
 export default function RunDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const mission = weekMissions.find((m) => m.id === id);
+  const isFreeRun = id === FUN_RUN_ID;
+  const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
 
   if (!mission) {
     return (
@@ -64,37 +65,53 @@ export default function RunDetailScreen() {
 
       {/* ─── Scrollable body ─────────────────────────────────────────── */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          <StatCard icon="straighten" label="Distance" value={formatDistance(mission.targetDistanceKm)} color={config.color} />
-          <StatCard icon="timer" label="Duration" value={`~${formatDuration(mission.targetDurationMin)}`} color={config.color} />
-        </View>
-
-        {/* Mission reward */}
-        <Card accentTop={colors.ochre} style={styles.xpCard}>
-          <View style={styles.xpRow}>
-            <View style={styles.xpLeft}>
-              <Text style={styles.xpTitle}>Mission Reward</Text>
-              <Text style={styles.xpSub}>Streak bonus may increase XP</Text>
-            </View>
-            <XPBadge xp={mission.xpReward} size="lg" />
+        {/* Stats row — hidden for free run (no targets) */}
+        {!isFreeRun && (
+          <View style={styles.statsRow}>
+            <StatCard icon="straighten" label="Distance" value={formatDistance(mission.targetDistanceKm)} color={config.color} />
+            <StatCard icon="timer" label="Duration" value={`~${formatDuration(mission.targetDurationMin)}`} color={config.color} />
           </View>
-        </Card>
+        )}
+
+        {/* Mission reward — hidden for free run */}
+        {!isFreeRun ? (
+          <Card accentTop={colors.ochre} style={styles.xpCard}>
+            <View style={styles.xpRow}>
+              <View style={styles.xpLeft}>
+                <Text style={styles.xpTitle}>Mission Reward</Text>
+                <Text style={styles.xpSub}>Streak bonus may increase XP</Text>
+              </View>
+              <XPBadge xp={mission.xpReward} size="lg" />
+            </View>
+          </Card>
+        ) : (
+          <Card accentTop={colors.border} style={styles.xpCard}>
+            <View style={styles.xpRow}>
+              <MaterialIcons name="self-improvement" size={24} color={colors.textSecondary} />
+              <View style={styles.xpLeft}>
+                <Text style={styles.xpTitle}>No XP Reward</Text>
+                <Text style={styles.xpSub}>Run for the joy of it. No targets, no pressure.</Text>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {/* Briefing */}
         <Card accentTop={colors.border} style={styles.descCard}>
-          <Text style={styles.descTitle}>Mission Briefing</Text>
+          <Text style={styles.descTitle}>{isFreeRun ? 'Field Note' : 'Mission Briefing'}</Text>
           <Text style={styles.descText}>{mission.description}</Text>
         </Card>
 
-        {/* Intelligence / motivational framing */}
-        <View style={styles.intelCard}>
-          <View style={styles.intelHeader}>
-            <MaterialIcons name="radio" size={14} color={colors.orange} />
-            <Text style={styles.intelHeaderText}>Intel Received</Text>
+        {/* Intelligence / motivational framing — hidden for free run */}
+        {!isFreeRun && (
+          <View style={styles.intelCard}>
+            <View style={styles.intelHeader}>
+              <MaterialIcons name="radio" size={14} color={colors.orange} />
+              <Text style={styles.intelHeaderText}>Intel Received</Text>
+            </View>
+            <Text style={styles.intelQuote}>"{motivational}"</Text>
           </View>
-          <Text style={styles.intelQuote}>"{motivational}"</Text>
-        </View>
+        )}
 
         {/* CTA */}
         {isCompleted ? (
@@ -104,7 +121,7 @@ export default function RunDetailScreen() {
           </View>
         ) : (
           <Button
-            label="Start Mission"
+            label={isFreeRun ? 'Start Free Run' : 'Start Mission'}
             icon="directions-run"
             onPress={handleStartMission}
             fullWidth

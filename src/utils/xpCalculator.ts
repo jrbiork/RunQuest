@@ -83,11 +83,14 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 export function calculateXpEarned(
   missionType: MissionType,
   streak: number,
+  completionRatio: number = 1,
 ): number {
   const base = BASE_XP[missionType];
+  // Proportional to distance actually run (capped at 1.0 — no bonus for going over)
+  const ratio = Math.min(Math.max(completionRatio, 0), 1);
   // Streak multiplier: +5% per streak day, capped at 1.5x
-  const multiplier = Math.min(1 + streak * 0.05, 1.5);
-  return Math.round(base * multiplier);
+  const streakMultiplier = Math.min(1 + streak * 0.05, 1.5);
+  return Math.ceil(base * ratio * streakMultiplier);
 }
 
 // Weekly completion bonus XP

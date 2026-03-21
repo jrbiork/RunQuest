@@ -8,6 +8,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../src/constants/theme';
 import { requestNotificationPermissions } from '../src/services/notificationService';
 import { useRunSessionStore } from '../src/store/runSessionStore';
+// Import side-effect: registers the background location task with expo-task-manager
+import '../src/hooks/useGpsTracking';
 
 // Keep splash screen up while fonts load
 SplashScreen.preventAutoHideAsync();

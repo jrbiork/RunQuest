@@ -67,3 +67,6 @@ export const selectCompletedCount = (state: MissionsStore): number =>
 export const selectAllComplete = (state: MissionsStore): boolean =>
   state.weekMissions.length > 0 &&
   state.weekMissions.every((m) => m.status === 'completed');
+
+export const selectNextMission = (state: MissionsStore): import('../types').Mission | null =>
+  state.weekMissions.find((m) => m.status !== 'completed') ?? null;

@@ -3,18 +3,25 @@ import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import { OPENAI_API_KEY, TTS_VOICE, TTS_MODEL } from '../constants/openaiConfig';
 
+// Mute flag — set externally by the user store to avoid circular imports
+let _muted = false;
+export function setAudioMutedFlag(muted: boolean) { _muted = muted; }
+export function isAudioMuted() { return _muted; }
+
 /**
  * Play the goal-reached chime and trigger haptic feedback.
  * Gracefully handles missing file or permission issues so the run
  * screen is never broken by audio errors.
  */
 export async function playGoalReachedSound(): Promise<void> {
-  // Haptic first — always works, no permissions needed
+  // Haptic first — always works regardless of mute
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   } catch {
     // ignore
   }
+
+  if (_muted) return;
 
   // Audio chime
   try {
@@ -49,7 +56,7 @@ export async function playGoalReachedSound(): Promise<void> {
  * Requires OPENAI_API_KEY to be set in src/constants/openaiConfig.ts.
  */
 export async function speakRunCue(line: string): Promise<void> {
-  if (!OPENAI_API_KEY) return; // key not configured — skip silently
+  if (!OPENAI_API_KEY || _muted) return;
 
   try {
     // 1. Call OpenAI TTS

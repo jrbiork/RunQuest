@@ -2,9 +2,26 @@ import type { DayOfWeek } from '../types';
 
 const DAY_NAMES: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+// ─── Dev date mocking ─────────────────────────────────────────────────────────
+// Offset in milliseconds added to real Date.now() for testing date-sensitive logic.
+let _dateOffsetMs = 0;
+
+export function setDateOffsetMs(ms: number) {
+  _dateOffsetMs = ms;
+}
+
+export function getDateOffsetMs(): number {
+  return _dateOffsetMs;
+}
+
+/** Returns the mocked "now" timestamp (real time + any test offset). */
+export function getNow(): Date {
+  return new Date(Date.now() + _dateOffsetMs);
+}
+
 // Returns today as YYYY-MM-DD
 export function getTodayISO(): string {
-  return new Date().toISOString().split('T')[0] as string;
+  return toISODate(getNow());
 }
 
 // Returns a Date from a YYYY-MM-DD string (local time, not UTC)
@@ -31,7 +48,7 @@ export function getWeekStart(date: Date = new Date()): Date {
   return d;
 }
 
-export function getWeekStartISO(date: Date = new Date()): string {
+export function getWeekStartISO(date: Date = getNow()): string {
   return toISODate(getWeekStart(date));
 }
 
@@ -100,7 +117,7 @@ export function formatDateDisplay(dateStr: string): string {
 
 // Returns the hour of the day (0-23) for time-of-day greetings
 export function getHourOfDay(): number {
-  return new Date().getHours();
+  return getNow().getHours();
 }
 
 export function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' {

@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { Switch } from 'react-native';
 import { useUserStore, selectWeeklyRunsTarget } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useStreak } from '../../src/hooks/useStreak';
@@ -28,6 +29,7 @@ import {
   shadows,
 } from '../../src/constants/theme';
 import { getLevelInfo, formatDistance } from '../../src/utils/xpCalculator';
+import { useDevStore, getMockedDateLabel } from '../../src/store/devStore';
 
 const GOAL_LABELS: Record<string, string> = {
   habit: 'Secure Perimeter',
@@ -59,7 +61,13 @@ export default function ProfileScreen() {
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const runsTarget = useUserStore(selectWeeklyRunsTarget);
   const resetOnboarding = useUserStore((s) => s.resetOnboarding);
+  const audioMuted = useUserStore((s) => s.audioMuted);
+  const setAudioMuted = useUserStore((s) => s.setAudioMuted);
   const levelInfo = useMemo(() => getLevelInfo(xp), [xp]);
+
+  const dayOffset = useDevStore((s) => s.dayOffset);
+  const adjustDay = useDevStore((s) => s.adjustDay);
+  const resetDateOffset = useDevStore((s) => s.resetDateOffset);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
 
   const { streak, isAlive, message: streakMessage } = useStreak();
@@ -213,19 +221,90 @@ export default function ProfileScreen() {
           </View>
         </Card>
 
+        {/* ─── Settings ────────────────────────────────────────────── */}
+        <Card style={styles.settingsCard}>
+          <Text style={styles.sectionHeader}>SETTINGS</Text>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons
+                name={audioMuted ? 'volume-off' : 'volume-up'}
+                size={20}
+                color={audioMuted ? colors.textTertiary : colors.orange}
+              />
+              <View>
+                <Text style={styles.settingLabel}>MISSION AUDIO</Text>
+                <Text style={styles.settingSubLabel}>
+                  {audioMuted ? 'Voice cues silenced' : 'Voice cues active'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={!audioMuted}
+              onValueChange={(val) => setAudioMuted(!val)}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={audioMuted ? colors.textTertiary : colors.orange}
+            />
+          </View>
+        </Card>
+
         {/* ─── Actions ─────────────────────────────────────────────── */}
         {profile && (
           <Button
-            label="Regenerate This Week's Missions"
+            label="Reset This Week's Missions"
             icon="refresh"
             onPress={() => {
-              generateWeek(profile);
-              Alert.alert('Missions Regenerated', 'Your weekly deployment schedule has been updated.');
+              Alert.alert(
+                'Reset Missions?',
+                'This will wipe all current missions and generate a fresh deployment schedule for this week. Any progress will be lost.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Reset',
+                    style: 'destructive',
+                    onPress: () => {
+                      generateWeek(profile);
+                      Alert.alert('Missions Reset', 'Your weekly deployment schedule has been updated.');
+                    },
+                  },
+                ]
+              );
             }}
             variant="secondary"
             fullWidth
           />
         )}
+
+        {/* ─── Dev Tools ───────────────────────────────────────────── */}
+        <Card style={styles.devCard}>
+          <View style={styles.devHeader}>
+            <MaterialIcons name="bug-report" size={14} color={colors.ochre} />
+            <Text style={styles.devTitle}>DEV TOOLS</Text>
+          </View>
+
+          <Text style={styles.devDateLabel}>{getMockedDateLabel(dayOffset)}</Text>
+
+          <View style={styles.devRow}>
+            <TouchableOpacity style={styles.devBtn} onPress={() => adjustDay(-1)} activeOpacity={0.7}>
+              <MaterialIcons name="chevron-left" size={20} color={colors.textPrimary} />
+              <Text style={styles.devBtnText}>–1 DAY</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.devBtn, styles.devBtnReset, dayOffset === 0 && styles.devBtnDisabled]}
+              onPress={resetDateOffset}
+              disabled={dayOffset === 0}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="refresh" size={16} color={dayOffset === 0 ? colors.textTertiary : colors.orange} />
+              <Text style={[styles.devBtnText, dayOffset === 0 && { color: colors.textTertiary }]}>RESET</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.devBtn} onPress={() => adjustDay(1)} activeOpacity={0.7}>
+              <Text style={styles.devBtnText}>+1 DAY</Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        </Card>
 
         <Button
           label="Wipe Operative Data"
@@ -526,4 +605,94 @@ const styles = StyleSheet.create({
 
   // Buttons
   resetBtn: { marginTop: spacing.sm } as ViewStyle,
+
+  // Dev tools card
+  devCard: {
+    borderColor: colors.ochre,
+    gap: spacing.sm,
+  } as ViewStyle,
+  devHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  } as ViewStyle,
+  devTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.ochre,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  devDateLabel: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  } as TextStyle,
+  devRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  } as ViewStyle,
+  devBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+  } as ViewStyle,
+  devBtnReset: {
+    borderColor: colors.orange,
+  } as ViewStyle,
+  devBtnDisabled: {
+    borderColor: colors.border,
+    opacity: 0.4,
+  } as ViewStyle,
+  devBtnText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    letterSpacing: 1,
+  } as TextStyle,
+
+  // Settings card
+  settingsCard: { gap: spacing.md } as ViewStyle,
+  sectionHeader: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  } as ViewStyle,
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  } as ViewStyle,
+  settingLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  settingSubLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  } as TextStyle,
 });
