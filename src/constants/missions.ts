@@ -279,6 +279,8 @@ export const FUN_RUN_MISSION: Mission = {
   description: 'All missions complete. Hit the road for fun — no XP, no targets, just running. The world is already restored. This one is for you.',
   targetDistanceKm: 0,
   targetDurationMin: 0,
+  targetCyclingDistanceKm: 0,
+  targetCyclingDurationMin: 0,
   xpReward: 0,
   day: 'Mon',
   scheduledDate: '',

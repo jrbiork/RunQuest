@@ -17,7 +17,6 @@ import { useUserStore, selectWeeklyRunsTarget } from '../../src/store/userStore'
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useStreak } from '../../src/hooks/useStreak';
 import { Card } from '../../src/components/ui/Card';
-import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { StreakBadge } from '../../src/components/ui/StreakBadge';
 import { Button } from '../../src/components/ui/Button';
 import {
@@ -66,6 +65,8 @@ export default function ProfileScreen() {
   const levelInfo = useMemo(() => getLevelInfo(xp), [xp]);
 
   const dayOffset = useDevStore((s) => s.dayOffset);
+  void dayOffset; // consumed for reactivity
+
   const adjustDay = useDevStore((s) => s.adjustDay);
   const resetDateOffset = useDevStore((s) => s.resetDateOffset);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
@@ -96,7 +97,6 @@ export default function ProfileScreen() {
     );
   };
 
-  const milestones = RANK_TITLES.slice(0, Math.min(levelInfo.level + 2, RANK_TITLES.length));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -124,21 +124,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ─── XP progress ──────────────────────────────────────────── */}
-        <Card style={styles.xpCard}>
-          <SectionHeader icon="trending-up" title="Rank Progress" />
-          <View style={styles.xpCardBody}>
-            <Text style={styles.xpCardSub}>
-              {levelInfo.xpInLevel} / {levelInfo.xpToNextLevel} XP → LVL {levelInfo.level + 1}
-            </Text>
-            <ProgressBar
-              progress={levelInfo.progress}
-              color={colors.ochre}
-              backgroundColor={colors.purpleLight}
-              height={8}
-            />
-          </View>
-        </Card>
 
         {/* ─── Stats grid ───────────────────────────────────────────── */}
         <View style={styles.statsGrid}>
@@ -152,21 +137,6 @@ export default function ProfileScreen() {
         <Card style={styles.streakCard}>
           <StreakBadge streak={streak} isAlive={isAlive} size="lg" showLabel />
           <Text style={styles.streakMsg}>{streakMessage}</Text>
-        </Card>
-
-        {/* ─── Weekly sortie progress ───────────────────────────────── */}
-        <Card style={styles.weekCard}>
-          <SectionHeader icon="calendar-today" title="This Week's Sorties" />
-          <View style={styles.weekStats}>
-            <Text style={styles.weekBold}>{runsThisWeek}</Text>
-            <Text style={styles.weekDim}> / {runsTarget} sorties</Text>
-          </View>
-          <ProgressBar
-            progress={weekProgress}
-            color={colors.primary}
-            backgroundColor={colors.primaryLight}
-            height={6}
-          />
         </Card>
 
         {/* ─── Operative profile details ────────────────────────────── */}
@@ -184,42 +154,6 @@ export default function ProfileScreen() {
             </View>
           </Card>
         )}
-
-        {/* ─── Rank milestones ──────────────────────────────────────── */}
-        <Card style={styles.milestonesCard}>
-          <SectionHeader icon="military-tech" title="Rank Progression" />
-          <View style={styles.milestoneList}>
-            {milestones.map((title, idx) => {
-              const lvl = idx + 1;
-              const isUnlocked = lvl <= levelInfo.level;
-              const isCurrent = lvl === levelInfo.level;
-              return (
-                <View key={lvl} style={styles.milestoneRow}>
-                  <View style={[
-                    styles.milestoneDot,
-                    isUnlocked ? styles.milestoneDotDone : styles.milestoneDotLocked,
-                    isCurrent && styles.milestoneDotCurrent,
-                  ]}>
-                    {isUnlocked && <MaterialIcons name="check" size={11} color={colors.textInverse} />}
-                  </View>
-                  <View style={styles.milestoneContent}>
-                    <Text style={[styles.milestoneLvl, !isUnlocked && styles.textLocked]}>
-                      LEVEL {lvl}
-                    </Text>
-                    <Text style={[styles.milestoneTitle, !isUnlocked && styles.textLocked]}>
-                      {title}
-                    </Text>
-                  </View>
-                  {isCurrent && (
-                    <View style={styles.currentBadge}>
-                      <Text style={styles.currentBadgeText}>ACTIVE</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        </Card>
 
         {/* ─── Settings ────────────────────────────────────────────── */}
         <Card style={styles.settingsCard}>
@@ -246,33 +180,6 @@ export default function ProfileScreen() {
             />
           </View>
         </Card>
-
-        {/* ─── Actions ─────────────────────────────────────────────── */}
-        {profile && (
-          <Button
-            label="Reset This Week's Missions"
-            icon="refresh"
-            onPress={() => {
-              Alert.alert(
-                'Reset Missions?',
-                'This will wipe all current missions and generate a fresh deployment schedule for this week. Any progress will be lost.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: () => {
-                      generateWeek(profile);
-                      Alert.alert('Missions Reset', 'Your weekly deployment schedule has been updated.');
-                    },
-                  },
-                ]
-              );
-            }}
-            variant="secondary"
-            fullWidth
-          />
-        )}
 
         {/* ─── Dev Tools ───────────────────────────────────────────── */}
         <Card style={styles.devCard}>
@@ -305,6 +212,33 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </Card>
+
+        {/* ─── Actions ─────────────────────────────────────────────── */}
+        {profile && (
+          <Button
+            label="Reset This Week's Missions"
+            icon="refresh"
+            onPress={() => {
+              Alert.alert(
+                'Reset Missions?',
+                'This will wipe all current missions and generate a fresh deployment schedule for this week. Any progress will be lost.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Reset',
+                    style: 'destructive',
+                    onPress: () => {
+                      generateWeek(profile);
+                      Alert.alert('Missions Reset', 'Your weekly deployment schedule has been updated.');
+                    },
+                  },
+                ]
+              );
+            }}
+            variant="secondary"
+            fullWidth
+          />
+        )}
 
         <Button
           label="Wipe Operative Data"
@@ -551,57 +485,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   } as ViewStyle,
 
-  // Milestones
-  milestonesCard: { gap: spacing.md } as ViewStyle,
-  milestoneList: { gap: spacing.sm } as ViewStyle,
-  milestoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.xs,
-  } as ViewStyle,
-  milestoneDot: {
-    width: 22,
-    height: 22,
-    borderRadius: radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  } as ViewStyle,
-  milestoneDotDone: { backgroundColor: colors.primary } as ViewStyle,
-  milestoneDotCurrent: { backgroundColor: colors.primary, ...shadows.sm } as ViewStyle,
-  milestoneDotLocked: { backgroundColor: colors.border } as ViewStyle,
-  milestoneContent: { flex: 1 } as ViewStyle,
-  milestoneLvl: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
-  milestoneTitle: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  } as TextStyle,
-  textLocked: { color: colors.textTertiary } as TextStyle,
-  currentBadge: {
-    backgroundColor: colors.primaryLight,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  } as ViewStyle,
-  currentBadgeText: {
-    fontSize: 9,
-    color: colors.primary,
-    fontWeight: fontWeights.extrabold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  } as TextStyle,
 
   // Buttons
   resetBtn: { marginTop: spacing.sm } as ViewStyle,

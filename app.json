@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.runquest.app"
+      "bundleIdentifier": "com.rbiork.runquest"
     },
     "android": {
       "adaptiveIcon": {
@@ -36,13 +36,6 @@
         {
           "locationAlwaysAndWhenInUsePermission": "RunQuest needs your location to track your run distance and path.",
           "locationWhenInUsePermission": "RunQuest needs your location to track your run distance and path."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#4CAF50"
         }
       ],
       "expo-audio",

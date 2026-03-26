@@ -26,6 +26,7 @@ interface UserActions {
     actualDurationMin?: number,
     path?: GpsPoint[],
     goalMet?: boolean,
+    activityMode?: import('../types').ActivityMode,
   ) => CompletedRun;
   markWeeklyBonusAwarded: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
@@ -76,7 +77,7 @@ export const useUserStore = create<UserStore>()(
         });
       },
 
-      completeRun: (missionId, missionType, actualDistanceKm, actualDurationMin, path, goalMet) => {
+      completeRun: (missionId, missionType, actualDistanceKm, actualDurationMin, path, goalMet, activityMode) => {
         const state = get();
         const today = getTodayISO();
         const level = state.profile?.experienceLevel ?? 'beginner';
@@ -118,6 +119,7 @@ export const useUserStore = create<UserStore>()(
           xpEarned,
           streakDay: newStreak,
           goalMet: goalMet ?? false,
+          ...(activityMode ? { activityMode } : {}),
           ...(path && path.length > 0 ? { path } : {}),
         };
 

@@ -219,11 +219,25 @@ export function MissionNode({ mission, completedRun, onPress, onShare, isLast = 
 
               {/* Distance + XP row */}
               <View style={styles.nodeMetaRow}>
-                <View style={styles.distancePill}>
-                  <MaterialIcons name="straighten" size={12} color={isLocked ? colors.textTertiary : colors.textSecondary} />
-                  <Text style={[styles.distanceText, isLocked && styles.textLocked]}>
-                    {formatDistance(mission.targetDistanceKm)}
-                  </Text>
+                <View style={styles.distancePills}>
+                  <View style={styles.distancePill}>
+                    <MaterialIcons name="directions-run" size={12} color={isLocked ? colors.textTertiary : colors.textSecondary} />
+                    <Text style={[styles.distanceText, isLocked && styles.textLocked]}>
+                      {formatDistance(mission.targetDistanceKm)}
+                    </Text>
+                    <Text style={[styles.durationText, isLocked && styles.textLocked]}>
+                      ~{formatDuration(mission.targetDurationMin)}
+                    </Text>
+                  </View>
+                  <View style={styles.distancePill}>
+                    <MaterialIcons name="directions-bike" size={12} color={isLocked ? colors.textTertiary : colors.textSecondary} />
+                    <Text style={[styles.distanceText, isLocked && styles.textLocked]}>
+                      {formatDistance(mission.targetCyclingDistanceKm)}
+                    </Text>
+                    <Text style={[styles.durationText, isLocked && styles.textLocked]}>
+                      ~{formatDuration(mission.targetCyclingDurationMin)}
+                    </Text>
+                  </View>
                 </View>
                 {!isLocked && <XPBadge xp={mission.xpReward} size="sm" />}
               </View>
@@ -236,11 +250,11 @@ export function MissionNode({ mission, completedRun, onPress, onShare, isLast = 
               )}
             </View>
 
-            {/* RUN NOW button for active missions */}
+            {/* DEPLOY NOW button for active missions */}
             {isActive && (
               <View style={styles.runNowBtn}>
                 <MaterialIcons name="directions-run" size={16} color={colors.textInverse} />
-                <Text style={styles.runNowText}>RUN NOW</Text>
+                <Text style={styles.runNowText}>DEPLOY NOW</Text>
               </View>
             )}
           </Animated.View>
@@ -507,6 +521,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   } as ViewStyle,
+  distancePills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  } as ViewStyle,
   distancePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -518,6 +537,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+  } as TextStyle,
+  durationText: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
+    fontWeight: fontWeights.medium,
   } as TextStyle,
   progressRow: {
     marginTop: 2,

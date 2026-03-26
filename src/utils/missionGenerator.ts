@@ -12,6 +12,7 @@ import {
   getScheduledDatesForWeek,
   getWeekStart,
   getTodayISO,
+  getNow,
 } from './dateUtils';
 
 // ─── Mission Mix Rules ────────────────────────────────────────────────────────
@@ -87,36 +88,43 @@ function getMissionMix(
 interface MissionTargets {
   distanceKm: number;
   durationMin: number;
+  cyclingDistanceKm: number;
+  cyclingDurationMin: number;
 }
 
 function getTargets(type: MissionType, level: ExperienceLevel): MissionTargets {
-  const targets: Record<
-    ExperienceLevel,
-    Record<MissionType, MissionTargets>
-  > = {
+  // Running targets (kept at 1km/5min for easy testing)
+  const runTargets: Record<ExperienceLevel, Record<MissionType, { distanceKm: number; durationMin: number }>> = {
     beginner: {
-      easy: { distanceKm: 0.5, durationMin: 5 },
-      recovery: { distanceKm: 0.5, durationMin: 5 },
-      tempo: { distanceKm: 0.5, durationMin: 5 },
-      interval: { distanceKm: 0.5, durationMin: 5 },
-      long: { distanceKm: 0.5, durationMin: 5 },
+      easy:     { distanceKm: 1, durationMin: 5 },
+      recovery: { distanceKm: 1, durationMin: 5 },
+      tempo:    { distanceKm: 1, durationMin: 5 },
+      interval: { distanceKm: 1, durationMin: 5 },
+      long:     { distanceKm: 1, durationMin: 5 },
     },
     intermediate: {
-      easy: { distanceKm: 0.5, durationMin: 5 },
-      recovery: { distanceKm: 0.5, durationMin: 5 },
-      tempo: { distanceKm: 0.5, durationMin: 5 },
-      interval: { distanceKm: 0.5, durationMin: 5 },
-      long: { distanceKm: 0.5, durationMin: 5 },
+      easy:     { distanceKm: 1, durationMin: 5 },
+      recovery: { distanceKm: 1, durationMin: 5 },
+      tempo:    { distanceKm: 1, durationMin: 5 },
+      interval: { distanceKm: 1, durationMin: 5 },
+      long:     { distanceKm: 1, durationMin: 5 },
     },
     advanced: {
-      easy: { distanceKm: 0.5, durationMin: 5 },
-      recovery: { distanceKm: 0.5, durationMin: 5 },
-      tempo: { distanceKm: 0.5, durationMin: 5 },
-      interval: { distanceKm: 0.5, durationMin: 5 },
-      long: { distanceKm: 0.5, durationMin: 5 },
+      easy:     { distanceKm: 1, durationMin: 5 },
+      recovery: { distanceKm: 1, durationMin: 5 },
+      tempo:    { distanceKm: 1, durationMin: 5 },
+      interval: { distanceKm: 1, durationMin: 5 },
+      long:     { distanceKm: 1, durationMin: 5 },
     },
   };
-  return targets[level][type] as MissionTargets;
+  const run = runTargets[level][type]!;
+  return {
+    distanceKm: run.distanceKm,
+    durationMin: run.durationMin,
+    // Cycling covers ~2.5× the distance in the same time
+    cyclingDistanceKm: Math.round(run.distanceKm * 2.5 * 10) / 10,
+    cyclingDurationMin: run.durationMin,
+  };
 }
 
 // ─── Pick a random item from an array ────────────────────────────────────────
@@ -157,6 +165,8 @@ function buildMission(
     description: pick(template.descriptions),
     targetDistanceKm: targets.distanceKm,
     targetDurationMin: targets.durationMin,
+    targetCyclingDistanceKm: targets.cyclingDistanceKm,
+    targetCyclingDurationMin: targets.cyclingDurationMin,
     xpReward: BASE_XP[type],
     day,
     scheduledDate,
@@ -182,7 +192,7 @@ export function generateWeekMissions(profile: UserProfile): Mission[] {
 
   // Trim days to the target run count (take first N preferred days)
   const activeDays = preferredDays.slice(0, runsPerWeek);
-  const weekStart = getWeekStart();
+  const weekStart = getWeekStart(getNow());
   const scheduledDates = getScheduledDatesForWeek(activeDays, weekStart);
   const missionMix = getMissionMix(experienceLevel, runningGoal, runsPerWeek);
   const today = getTodayISO();

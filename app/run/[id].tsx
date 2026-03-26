@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -9,12 +10,14 @@ import { Card } from '../../src/components/ui/Card';
 import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../src/constants/theme';
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
 import { MISSION_TEMPLATES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import type { ActivityMode } from '../../src/types';
 
 export default function RunDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
+  const [activityMode, setActivityMode] = useState<ActivityMode>('run');
 
   if (!mission) {
     return (
@@ -37,8 +40,15 @@ export default function RunDetailScreen() {
 
   const isCompleted = mission.status === 'completed';
 
+  const targetDistance = activityMode === 'cycle'
+    ? mission.targetCyclingDistanceKm
+    : mission.targetDistanceKm;
+  const targetDuration = activityMode === 'cycle'
+    ? mission.targetCyclingDurationMin
+    : mission.targetDurationMin;
+
   const handleStartMission = () => {
-    router.push({ pathname: '/run/active', params: { id: mission.id } });
+    router.push({ pathname: '/run/active', params: { id: mission.id, activityMode } });
   };
 
   return (
@@ -65,11 +75,56 @@ export default function RunDetailScreen() {
 
       {/* ─── Scrollable body ─────────────────────────────────────────── */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* Activity mode selector — hidden for free run */}
+        {!isFreeRun && (
+          <View style={styles.modeSelector}>
+            <TouchableOpacity
+              style={[styles.modeTab, activityMode === 'run' && styles.modeTabActive]}
+              onPress={() => setActivityMode('run')}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons
+                name="directions-run"
+                size={18}
+                color={activityMode === 'run' ? colors.textInverse : colors.textSecondary}
+              />
+              <Text style={[styles.modeTabLabel, activityMode === 'run' && styles.modeTabLabelActive]}>
+                RUN
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeTab, activityMode === 'cycle' && styles.modeTabActive]}
+              onPress={() => setActivityMode('cycle')}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons
+                name="directions-bike"
+                size={18}
+                color={activityMode === 'cycle' ? colors.textInverse : colors.textSecondary}
+              />
+              <Text style={[styles.modeTabLabel, activityMode === 'cycle' && styles.modeTabLabelActive]}>
+                CYCLE
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Stats row — hidden for free run (no targets) */}
         {!isFreeRun && (
           <View style={styles.statsRow}>
-            <StatCard icon="straighten" label="Distance" value={formatDistance(mission.targetDistanceKm)} color={config.color} />
-            <StatCard icon="timer" label="Duration" value={`~${formatDuration(mission.targetDurationMin)}`} color={config.color} />
+            <StatCard
+              icon={activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
+              label="Distance"
+              value={formatDistance(targetDistance)}
+              color={config.color}
+            />
+            <StatCard
+              icon="timer"
+              label="Duration"
+              value={`~${formatDuration(targetDuration)}`}
+              color={config.color}
+            />
           </View>
         )}
 
@@ -121,8 +176,8 @@ export default function RunDetailScreen() {
           </View>
         ) : (
           <Button
-            label={isFreeRun ? 'Start Free Run' : 'Start Mission'}
-            icon="directions-run"
+            label={isFreeRun ? 'Start Free Run' : activityMode === 'cycle' ? 'Start Cycling' : 'Start Mission'}
+            icon={isFreeRun ? 'directions-run' : activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
             onPress={handleStartMission}
             fullWidth
             style={styles.cta}
@@ -212,6 +267,39 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingBottom: spacing.huge,
   } as ViewStyle,
+
+  // Activity mode selector
+  modeSelector: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 3,
+    gap: 3,
+  } as ViewStyle,
+  modeTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.sm,
+  } as ViewStyle,
+  modeTabActive: {
+    backgroundColor: colors.primary,
+  } as ViewStyle,
+  modeTabLabel: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  } as TextStyle,
+  modeTabLabelActive: {
+    color: colors.textInverse,
+  } as TextStyle,
 
   // Stats row
   statsRow: {

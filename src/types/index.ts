@@ -41,6 +41,8 @@ export type MissionType =
   | 'recovery'
   | 'interval';
 
+export type ActivityMode = 'run' | 'cycle';
+
 export type MissionStatus = 'completed' | 'active' | 'upcoming' | 'locked';
 
 export interface Mission {
@@ -51,6 +53,8 @@ export interface Mission {
   description: string;
   targetDistanceKm: number;
   targetDurationMin: number;
+  targetCyclingDistanceKm: number;
+  targetCyclingDurationMin: number;
   xpReward: number;
   day: DayOfWeek;
   scheduledDate: string;   // ISO date string YYYY-MM-DD
@@ -75,6 +79,7 @@ export interface CompletedRun {
   xpEarned: number;
   streakDay: number;
   goalMet: boolean;       // true = hit distance or time target; false = finished early
+  activityMode?: ActivityMode;
   path?: GpsPoint[];
 }
 

@@ -12,6 +12,7 @@ interface WeeklyProgressCardProps {
   distanceCompletedKm: number;
   distanceTargetKm: number;
   mode: 'runs' | 'distance';
+  dateRange?: string;
 }
 
 export function WeeklyProgressCard({
@@ -20,6 +21,7 @@ export function WeeklyProgressCard({
   distanceCompletedKm,
   distanceTargetKm,
   mode,
+  dateRange,
 }: WeeklyProgressCardProps) {
   const runsProgress = runsTarget > 0 ? Math.min(runsCompleted / runsTarget, 1) : 0;
   const distanceProgress = distanceTargetKm > 0 ? Math.min(distanceCompletedKm / distanceTargetKm, 1) : 0;
@@ -34,7 +36,10 @@ export function WeeklyProgressCard({
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <MaterialIcons name="calendar-today" size={18} color={colors.primary} />
-          <Text style={styles.title}>This Week</Text>
+          <View>
+            <Text style={styles.title}>This Week</Text>
+            {dateRange && <Text style={styles.dateRange}>{dateRange}</Text>}
+          </View>
         </View>
         {isComplete && (
           <View style={styles.completeBadge}>
@@ -59,7 +64,7 @@ export function WeeklyProgressCard({
           </View>
           <Text style={styles.countText}>
             <Text style={styles.countBold}>{runsCompleted}</Text>
-            <Text style={styles.countDim}> / {runsTarget} runs</Text>
+            <Text style={styles.countDim}> / {runsTarget} sorties</Text>
           </Text>
         </View>
       ) : (
@@ -106,6 +111,12 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
+  } as TextStyle,
+  dateRange: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+    marginTop: 1,
   } as TextStyle,
   completeBadge: {
     flexDirection: 'row',

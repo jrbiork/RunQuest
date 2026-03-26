@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback, useReducer } from 'react';
 import {
   ScrollView,
   View,
@@ -10,18 +10,19 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUserStore, selectWeeklyRunsTarget, selectWeeklyDistanceTarget } from '../../src/store/userStore';
 import { getLevelInfo } from '../../src/utils/xpCalculator';
-import { useMissionsStore, selectTodaysMission } from '../../src/store/missionsStore';
+import { useMissionsStore } from '../../src/store/missionsStore';
+import { getTodaysMission } from '../../src/utils/missionGenerator';
 import { useStreak } from '../../src/hooks/useStreak';
 import { DailyMissionCard } from '../../src/components/home/DailyMissionCard';
 import { WeeklyProgressCard } from '../../src/components/home/WeeklyProgressCard';
-import { LevelProgressCard } from '../../src/components/home/LevelProgressCard';
 import { CircularStatBadge } from '../../src/components/ui/CircularStatBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
+import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import {
   colors,
   spacing,
@@ -31,6 +32,8 @@ import {
 import {
   REST_DAY_MESSAGES,
 } from '../../src/constants/missions';
+import { useDevStore } from '../../src/store/devStore';
+import { getWeekStartISO, parseLocalDate } from '../../src/utils/dateUtils';
 
 function getRestMessage(): string {
   return REST_DAY_MESSAGES[Math.floor(Math.random() * REST_DAY_MESSAGES.length)] as string;
@@ -48,10 +51,26 @@ export default function HomeScreen() {
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const refreshWeekly = useUserStore((s) => s.refreshWeeklyProgressIfNeeded);
 
-  const todaysMission = useMissionsStore(selectTodaysMission);
-  const refreshMissions = useMissionsStore((s) => s.refreshIfNewWeek);
+  const weekMissions = useMissionsStore((s) => s.weekMissions);
+  const generateWeek = useMissionsStore((s) => s.generateWeek);
 
   const { streak } = useStreak();
+  const dayOffset = useDevStore((s) => s.dayOffset);
+
+  // Incrementing this forces a re-render so getTodaysMission re-evaluates
+  // with the latest getTodayISO() value, even when weekMissions hasn't changed.
+  const [dateTick, bumpDateTick] = useReducer((n: number) => n + 1, 0);
+
+  // Mirrors the Journey tab pattern: compare stored week start vs mocked week start,
+  // call generateWeek directly when they differ (avoids refreshIfNewWeek race condition).
+  function syncMissions(p: typeof profile) {
+    if (!p) return;
+    const mockedWeekStart = getWeekStartISO();
+    const storedWeekStart = useMissionsStore.getState().weekStartDate;
+    if (mockedWeekStart !== storedWeekStart) {
+      generateWeek(p);
+    }
+  }
 
   useEffect(() => {
     if (!hasSeenIntro) {
@@ -63,8 +82,39 @@ export default function HomeScreen() {
       return;
     }
     refreshWeekly();
-    refreshMissions(profile);
+    syncMissions(profile);
   }, []);
+
+  // Re-check every time the dev-tool day changes (profile tab → home tab background)
+  useEffect(() => {
+    refreshWeekly();
+    syncMissions(profile);
+    bumpDateTick();
+  }, [dayOffset]);
+
+  // Re-check every time this tab gains focus (e.g. navigating back from profile)
+  useFocusEffect(
+    useCallback(() => {
+      refreshWeekly();
+      syncMissions(profile);
+      bumpDateTick();
+    }, [dayOffset, profile]),
+  );
+
+  // dateTick is included so the computed values below refresh on each bump
+  const todaysMission = getTodaysMission(weekMissions);
+
+  // Week date range label — recomputed on every date tick
+  const weekDateRange = useMemo(() => {
+    const startIso = getWeekStartISO();
+    const start = parseLocalDate(startIso);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${fmt(start)} – ${fmt(end)}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateTick]);
 
   const runsCompleted = weeklyProgress?.runsCompleted ?? 0;
   const distanceCompleted = weeklyProgress?.distanceCompletedKm ?? 0;
@@ -97,7 +147,7 @@ export default function HomeScreen() {
             refreshing={false}
             onRefresh={() => {
               refreshWeekly();
-              if (profile) refreshMissions(profile);
+              syncMissions(profile);
             }}
             tintColor={colors.orange}
           />
@@ -139,7 +189,7 @@ export default function HomeScreen() {
           />
           <CircularStatBadge
             value={totalRuns}
-            label="Total Runs"
+            label="Sorties"
             icon="directions-run"
             ringColor={colors.primary}
             progress={Math.min(totalRuns / 50, 1)}
@@ -180,16 +230,33 @@ export default function HomeScreen() {
             distanceCompletedKm={distanceCompleted}
             distanceTargetKm={distanceTarget}
             mode={profile?.weeklyTargetMode ?? 'runs'}
+            dateRange={weekDateRange}
           />
         </View>
 
-        {/* ─── Level Progress ──────────────────────────────────────────── */}
+        {/* ─── Rank Progress ───────────────────────────────────────────── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.accentBar} />
             <Text style={styles.sectionTitle}>Rank Progress</Text>
           </View>
-          <LevelProgressCard levelInfo={levelInfo} />
+          <Card style={styles.rankCard}>
+            <View style={styles.rankRow}>
+              <MaterialIcons name="military-tech" size={15} color={colors.ochre} />
+              <Text style={styles.rankCardTitle}>
+                LVL {levelInfo.level} — {levelInfo.title}
+              </Text>
+            </View>
+            <Text style={styles.rankCardSub}>
+              {levelInfo.xpInLevel} / {levelInfo.xpToNextLevel} XP → LVL {levelInfo.level + 1}
+            </Text>
+            <ProgressBar
+              progress={levelInfo.progress}
+              color={colors.ochre}
+              backgroundColor={colors.purpleLight}
+              height={8}
+            />
+          </Card>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -297,6 +364,29 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 2,
+  } as TextStyle,
+
+  // Rank progress card
+  rankCard: {
+    gap: spacing.sm,
+  } as ViewStyle,
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  rankCardTitle: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
+  rankCardSub: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   } as TextStyle,
 
   // Rest day

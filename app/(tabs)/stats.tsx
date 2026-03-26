@@ -12,10 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
-import { useUserStore } from '../../src/store/userStore';
+import { useUserStore, selectWeeklyRunsTarget } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useDevStore } from '../../src/store/devStore';
-import { getNow, getWeekStartISO, toISODate } from '../../src/utils/dateUtils';
+import { getNow, getWeekStart, getWeekStartISO, toISODate, parseLocalDate } from '../../src/utils/dateUtils';
 import {
   getDayMap,
   getMonthStats,
@@ -341,11 +341,11 @@ function WeekRow({
             <>
               <Text style={styles.weekXp}>+{week.totalXp} XP</Text>
               <Text style={styles.weekRunCount}>
-                {week.totalRuns} run{week.totalRuns !== 1 ? 's' : ''}
+                {week.totalRuns} {week.totalRuns !== 1 ? 'sorties' : 'sortie'}
               </Text>
             </>
           ) : (
-            <Text style={styles.weekEmpty}>No runs</Text>
+            <Text style={styles.weekEmpty}>No sorties</Text>
           )}
         </View>
       </View>
@@ -366,7 +366,7 @@ function MonthSummaryRow({
     <View style={styles.summaryRow}>
       <SummaryStat value={`${totalXp}`} unit="XP" icon="star" color={colors.purple} />
       <View style={styles.summaryDivider} />
-      <SummaryStat value={`${totalRuns}`} unit="runs" icon="directions-run" color={colors.primary} />
+      <SummaryStat value={`${totalRuns}`} unit="sorties" icon="directions-run" color={colors.primary} />
       <View style={styles.summaryDivider} />
       <SummaryStat
         value={formatDistance(totalDistanceKm)}
@@ -394,6 +394,125 @@ function SummaryStat({
       <MaterialIcons name={icon as any} size={18} color={color} />
       <Text style={[styles.summaryValue, { color }]}>{value}</Text>
       <Text style={styles.summaryUnit}>{unit}</Text>
+    </View>
+  );
+}
+
+// ─── Operation History ────────────────────────────────────────────────────────
+
+function OperationHistoryList() {
+  const runHistory = useUserStore((s) => s.runHistory);
+  const weeklyProgress = useUserStore((s) => s.weeklyProgress);
+  const runsTarget = useUserStore(selectWeeklyRunsTarget);
+  const dayOffset = useDevStore((s) => s.dayOffset);
+  void dayOffset; // reactivity trigger
+
+  const weekHistory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const run of runHistory) {
+      const d = new Date(run.completedAt);
+      const ws = toISODate(getWeekStart(d));
+      map.set(ws, (map.get(ws) ?? 0) + 1);
+    }
+    const currentWeekStart = getWeekStartISO();
+    // Always include current week (from live weeklyProgress)
+    map.set(currentWeekStart, weeklyProgress?.runsCompleted ?? map.get(currentWeekStart) ?? 0);
+
+    // Fill in every week between the earliest known week and now so that
+    // weeks with 0 completed sorties appear as FAIL instead of being invisible.
+    if (map.size > 0) {
+      const allKnown = Array.from(map.keys()).sort();
+      const earliest = allKnown[0]!;
+      let cursor = parseLocalDate(earliest);
+      const currentEnd = parseLocalDate(currentWeekStart);
+      while (cursor <= currentEnd) {
+        const ws = toISODate(cursor);
+        if (!map.has(ws)) map.set(ws, 0);
+        cursor = new Date(cursor.getTime() + 7 * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    return Array.from(map.entries())
+      .map(([ws, count]) => {
+        const start = parseLocalDate(ws);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        const fmt = (d: Date) =>
+          d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return {
+          weekStartIso: ws,
+          runsCompleted: count,
+          goalMet: runsTarget > 0 && count >= runsTarget,
+          label: `${fmt(start)} – ${fmt(end)}`,
+        };
+      })
+      .sort((a, b) => b.weekStartIso.localeCompare(a.weekStartIso))
+      .slice(0, 10);
+  }, [runHistory, weeklyProgress, runsTarget, dayOffset]);
+
+  const currentWeekStart = getWeekStartISO();
+
+  if (weekHistory.length === 0) {
+    return (
+      <Text style={styles.emptyText}>No sorties recorded yet. Complete your first mission.</Text>
+    );
+  }
+
+  return (
+    <View style={styles.opHistoryList}>
+      {weekHistory.map((week, idx) => {
+        const isCurrentWeek = week.weekStartIso === currentWeekStart;
+        const progressRatio = runsTarget > 0 ? Math.min(week.runsCompleted / runsTarget, 1) : 0;
+
+        let dotStyle = styles.opDotLocked;
+        let dotIcon: 'check' | 'directions-run' | 'remove' | 'close' = 'close';
+        let badgeColor = colors.border;
+        let badgeBg = 'transparent';
+        let badgeLabel = 'FAIL';
+
+        if (week.goalMet) {
+          dotStyle = styles.opDotDone;
+          dotIcon = 'check';
+          badgeColor = colors.primary;
+          badgeBg = colors.primaryLight;
+          badgeLabel = 'DONE';
+        } else if (isCurrentWeek) {
+          dotStyle = styles.opDotCurrent;
+          dotIcon = 'directions-run';
+          badgeColor = colors.orange;
+          badgeBg = colors.orange + '22';
+          badgeLabel = 'NOW';
+        } else if (week.runsCompleted > 0) {
+          dotStyle = styles.opDotPartial;
+          dotIcon = 'remove';
+          badgeColor = colors.ochre;
+          badgeBg = colors.ochre + '22';
+          badgeLabel = 'PARTIAL';
+        }
+
+        return (
+          <View key={week.weekStartIso} style={[styles.opRow, isCurrentWeek && styles.opRowCurrent]}>
+            <View style={[styles.opDot, dotStyle]}>
+              <MaterialIcons name={dotIcon} size={11} color={colors.textInverse} />
+            </View>
+            <View style={styles.opContent}>
+              <Text style={styles.opLabel}>{week.label}</Text>
+              <View style={styles.opBar}>
+                <View style={[styles.opBarFill, {
+                  width: `${progressRatio * 100}%` as any,
+                  backgroundColor: week.goalMet ? colors.primary : isCurrentWeek ? colors.orange : week.runsCompleted > 0 ? colors.ochre : colors.textTertiary,
+                }]} />
+              </View>
+            </View>
+            <Text style={[styles.opCount, week.goalMet && { color: colors.primary }]}>
+              {week.runsCompleted}/{runsTarget}
+            </Text>
+            <View style={[styles.opBadge, { borderColor: badgeColor, backgroundColor: badgeBg }]}>
+              <Text style={[styles.opBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -611,30 +730,24 @@ export default function StatsScreen() {
               totalDistanceKm={monthStats.totalDistanceKm}
             />
           ) : (
-            <Text style={styles.emptyText}>No runs recorded this month yet.</Text>
+            <Text style={styles.emptyText}>No sorties recorded this month yet.</Text>
           )}
         </Animated.View>
 
-        {/* Weekly XP breakdown */}
+        {/* Operation History */}
         <Animated.View entering={FadeInDown.delay(200).duration(300)} style={styles.card}>
-          <Text style={styles.sectionTitle}>Weekly Breakdown</Text>
-          <View style={styles.weeksList}>
-            {monthStats.weeks.map((week) => (
-              <WeekRow
-                key={week.weekIndex}
-                week={week}
-                maxXpInMonth={maxWeekXp}
-                isCurrentWeek={todayStr >= week.startIso && todayStr <= week.endIso}
-              />
-            ))}
+          <View style={styles.cardHeader}>
+            <MaterialIcons name="history" size={15} color={colors.ochre} />
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Operation History</Text>
           </View>
+          <OperationHistoryList />
         </Animated.View>
 
         {/* Empty state for months with no data */}
         {monthStats.totalRuns === 0 && (
           <Animated.View entering={FadeInDown.delay(250).duration(300)} style={styles.emptyState}>
             <MaterialIcons name="directions-run" size={44} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No runs in {getMonthName(month)}</Text>
+            <Text style={styles.emptyTitle}>No sorties in {getMonthName(month)}</Text>
             <Text style={styles.emptySub}>
               Complete missions to see your stats appear here.
             </Text>
@@ -1003,6 +1116,76 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.textTertiary,
     paddingVertical: spacing.sm,
+  } as TextStyle,
+
+  // Operation History
+  opHistoryList: {
+    gap: spacing.md,
+  } as ViewStyle,
+  opRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xs,
+  } as ViewStyle,
+  opRowCurrent: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    marginHorizontal: -spacing.sm,
+  } as ViewStyle,
+  opDot: {
+    width: 22,
+    height: 22,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  } as ViewStyle,
+  opDotDone: { backgroundColor: colors.primary } as ViewStyle,
+  opDotCurrent: { backgroundColor: colors.orange } as ViewStyle,
+  opDotPartial: { backgroundColor: colors.ochre } as ViewStyle,
+  opDotLocked: { backgroundColor: colors.border } as ViewStyle,
+  opContent: {
+    flex: 1,
+    gap: 4,
+  } as ViewStyle,
+  opLabel: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    fontWeight: fontWeights.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  } as TextStyle,
+  opBar: {
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  } as ViewStyle,
+  opBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  } as ViewStyle,
+  opCount: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 0.5,
+    flexShrink: 0,
+  } as TextStyle,
+  opBadge: {
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    flexShrink: 0,
+  } as ViewStyle,
+  opBadgeText: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
 
   // Day detail panel

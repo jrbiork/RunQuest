@@ -35,9 +35,12 @@ export interface GpsTrackingState {
   distanceKm: number;
   elapsedSec: number;
   isTracking: boolean;
+  isPaused: boolean;
   hasPermission: boolean | null;
   start: () => Promise<void>;
   stop: () => void;
+  pause: () => Promise<void>;
+  resume: () => Promise<void>;
 }
 
 export function useGpsTracking(): GpsTrackingState {
@@ -45,67 +48,21 @@ export function useGpsTracking(): GpsTrackingState {
   const [distanceKm, setDistanceKm] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isTracking, setIsTracking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   const fgSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number | null>(null);
+  // Accumulated ms of active movement (does not count paused time)
+  const accumulatedMsRef = useRef<number>(0);
+  // Timestamp of when the current active segment started
+  const segmentStartMsRef = useRef<number | null>(null);
   const pathRef = useRef<GpsPoint[]>([]);
+  // Whether background permission was granted (needed for resume)
+  const hasBgRef = useRef(false);
 
-  const stop = useCallback(async () => {
-    // Stop foreground subscription
+  const _startForegroundWatcher = useCallback(async () => {
     fgSubscriptionRef.current?.remove();
-    fgSubscriptionRef.current = null;
-
-    // Stop background task
-    try {
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
-      if (isRegistered) {
-        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
-      }
-    } catch {
-      // ignore — task may not be running
-    }
-
-    // Clear the background buffer so it doesn't bleed into the next run
-    _backgroundBuffer.length = 0;
-
-    if (timerRef.current !== null) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setIsTracking(false);
-  }, []);
-
-  const start = useCallback(async () => {
-    // Request foreground permission first
-    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-    if (fgStatus !== 'granted') {
-      setHasPermission(false);
-      return;
-    }
-
-    // Request background permission (non-blocking — gracefully degrade if denied)
-    let hasBg = false;
-    try {
-      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-      hasBg = bgStatus === 'granted';
-    } catch {
-      // expo-location may throw if already determined on some OS versions
-    }
-
-    setHasPermission(true);
-
-    // Clear state for a fresh run
-    pathRef.current = [];
-    _backgroundBuffer.length = 0;
-    setPath([]);
-    setDistanceKm(0);
-    setElapsedSec(0);
-    setIsTracking(true);
-    startTimeRef.current = Date.now();
-
-    // ── Foreground subscription (high accuracy, real-time UI updates) ──────
     fgSubscriptionRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
@@ -124,15 +81,17 @@ export function useGpsTracking(): GpsTrackingState {
         setDistanceKm(calcDistanceKm(updated));
       },
     );
+  }, []);
 
-    // ── Background task (keeps tracking when app is minimised) ────────────
-    if (hasBg) {
-      try {
+  const _startBackgroundTask = useCallback(async () => {
+    if (!hasBgRef.current) return;
+    try {
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+      if (!isRegistered) {
         await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
           accuracy: Location.Accuracy.BestForNavigation,
           distanceInterval: 5,
           timeInterval: 3000,
-          // Show a persistent iOS notification so the system doesn't kill the task
           showsBackgroundLocationIndicator: true,
           foregroundService: {
             notificationTitle: 'RunQuest is tracking your run',
@@ -140,21 +99,98 @@ export function useGpsTracking(): GpsTrackingState {
             notificationColor: '#F68F4D',
           },
         });
-      } catch {
-        // Background task failed to start — foreground-only fallback still active
       }
+    } catch {
+      // Background task failed to start — foreground-only fallback still active
     }
+  }, []);
+
+  const _stopLocationTracking = useCallback(async () => {
+    fgSubscriptionRef.current?.remove();
+    fgSubscriptionRef.current = null;
+    try {
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+      if (isRegistered) {
+        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const stop = useCallback(async () => {
+    await _stopLocationTracking();
+    _backgroundBuffer.length = 0;
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsTracking(false);
+    setIsPaused(false);
+  }, [_stopLocationTracking]);
+
+  const pause = useCallback(async () => {
+    if (!isTracking || isPaused) return;
+    // Capture elapsed time for this active segment
+    if (segmentStartMsRef.current !== null) {
+      accumulatedMsRef.current += Date.now() - segmentStartMsRef.current;
+      segmentStartMsRef.current = null;
+    }
+    await _stopLocationTracking();
+    setIsPaused(true);
+  }, [isTracking, isPaused, _stopLocationTracking]);
+
+  const resume = useCallback(async () => {
+    if (!isTracking || !isPaused) return;
+    segmentStartMsRef.current = Date.now();
+    await _startForegroundWatcher();
+    await _startBackgroundTask();
+    setIsPaused(false);
+  }, [isTracking, isPaused, _startForegroundWatcher, _startBackgroundTask]);
+
+  const start = useCallback(async () => {
+    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      setHasPermission(false);
+      return;
+    }
+
+    let hasBg = false;
+    try {
+      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+      hasBg = bgStatus === 'granted';
+    } catch {
+      // expo-location may throw if already determined on some OS versions
+    }
+    hasBgRef.current = hasBg;
+
+    setHasPermission(true);
+
+    // Reset state for a fresh run
+    pathRef.current = [];
+    _backgroundBuffer.length = 0;
+    accumulatedMsRef.current = 0;
+    segmentStartMsRef.current = Date.now();
+    setPath([]);
+    setDistanceKm(0);
+    setElapsedSec(0);
+    setIsTracking(true);
+    setIsPaused(false);
+
+    await _startForegroundWatcher();
+    await _startBackgroundTask();
 
     // ── Timer: elapsed time + drain background buffer ─────────────────────
     timerRef.current = setInterval(() => {
-      if (startTimeRef.current !== null) {
-        setElapsedSec(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      // Only advance the clock while not paused
+      if (segmentStartMsRef.current !== null) {
+        const total = accumulatedMsRef.current + (Date.now() - segmentStartMsRef.current);
+        setElapsedSec(Math.floor(total / 1000));
       }
 
       // Merge any background points that arrived while app was minimised
       if (_backgroundBuffer.length > 0) {
         const newPoints = _backgroundBuffer.splice(0, _backgroundBuffer.length);
-        // De-duplicate by timestamp (foreground and background may overlap briefly)
         const existingTimestamps = new Set(pathRef.current.map((p) => p.timestamp));
         const unique = newPoints.filter((p) => !existingTimestamps.has(p.timestamp));
         if (unique.length > 0) {
@@ -165,19 +201,18 @@ export function useGpsTracking(): GpsTrackingState {
         }
       }
     }, 1000);
-  }, []);
+  }, [_startForegroundWatcher, _startBackgroundTask]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       fgSubscriptionRef.current?.remove();
       if (timerRef.current !== null) clearInterval(timerRef.current);
-      // Stop background task on unmount (safety net — active.tsx also calls stop())
       TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK).then((registered) => {
         if (registered) Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(() => {});
       });
     };
   }, []);
 
-  return { path, distanceKm, elapsedSec, isTracking, hasPermission, start, stop };
+  return { path, distanceKm, elapsedSec, isTracking, isPaused, hasPermission, start, stop, pause, resume };
 }

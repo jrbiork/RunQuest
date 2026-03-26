@@ -73,44 +73,69 @@ export function getRunsForMonth(
 }
 
 /**
- * Groups runs into 4–5 calendar weeks for the given month.
- * Week 1 starts on the 1st of the month; each week spans Mon–Sun aligned to
- * calendar rows (same as the heatmap grid).
+ * Groups runs into real Monday-aligned calendar weeks that overlap with the
+ * given month. startIso/endIso are the full Mon–Sun boundaries (may extend
+ * outside the month); dateRange is clamped to the month for display.
+ * A new week only starts on Monday — Sunday belongs to the previous week.
  */
 export function getWeeklyBreakdown(
   runs: CompletedRun[],
   year: number,
   month: number,
 ): WeekStats[] {
-  const totalDays = daysInMonth(year, month);
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const mName = monthNames[month] ?? '';
 
-  // Build 7-day chunks starting from day 1
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+
+  // Find the Monday on or before the 1st of the month
+  const dow = firstOfMonth.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daysToMonday = dow === 0 ? 6 : dow - 1;
+  const firstMonday = new Date(firstOfMonth);
+  firstMonday.setDate(firstMonday.getDate() - daysToMonday);
+
   const weeks: WeekStats[] = [];
   let weekIndex = 1;
-  for (let startDay = 1; startDay <= totalDays; startDay += 7) {
-    const endDay = Math.min(startDay + 6, totalDays);
+  let cursor = new Date(firstMonday);
+
+  while (cursor <= lastOfMonth) {
+    const weekStart = new Date(cursor);
+    const weekEnd = new Date(cursor);
+    weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+
+    // Clamp display range to this month's days
+    const displayStart = weekStart < firstOfMonth ? firstOfMonth : weekStart;
+    const displayEnd = weekEnd > lastOfMonth ? lastOfMonth : weekEnd;
+
+    // Collect runs that fall anywhere in the full Mon–Sun span
     const weekRuns = runs.filter((run) => {
       const d = new Date(run.completedAt);
-      const day = d.getDate();
-      return day >= startDay && day <= endDay;
+      return d >= weekStart && d <= weekEnd;
     });
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const monthStr = pad(month + 1);
+
+    // Build display date range label (clamped to month)
+    const startDay = displayStart.getDate();
+    const endDay = displayEnd.getDate();
+    const dateRange = startDay === endDay
+      ? `${mName} ${startDay}`
+      : `${mName} ${startDay}–${endDay}`;
+
     weeks.push({
       weekIndex,
       weekLabel: `Week ${weekIndex}`,
-      dateRange: `${mName} ${startDay}–${endDay}`,
-      startIso: `${year}-${monthStr}-${pad(startDay)}`,
-      endIso: `${year}-${monthStr}-${pad(endDay)}`,
+      dateRange,
+      startIso: toLocalDateStr(weekStart),   // actual Monday (may be prior month)
+      endIso: toLocalDateStr(weekEnd),        // actual Sunday (may be next month)
       runs: weekRuns,
       totalXp: weekRuns.reduce((s, r) => s + r.xpEarned, 0),
       totalRuns: weekRuns.length,
       totalDistanceKm: weekRuns.reduce((s, r) => s + r.distanceKm, 0),
-      xpFraction: 0, // filled after max is known
+      xpFraction: 0,
     });
+
     weekIndex++;
+    cursor.setDate(cursor.getDate() + 7);
   }
 
   // Normalise bar widths relative to the best week

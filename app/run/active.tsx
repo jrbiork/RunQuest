@@ -32,15 +32,30 @@ import { useGpsTracking } from '../../src/hooks/useGpsTracking';
 import { playGoalReachedSound, speakRunCue } from '../../src/services/audioService';
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
 import { MISSION_AUDIO_CUES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import type { ActivityMode } from '../../src/types';
 
 export default function ActiveRunScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, activityMode: activityModeParam } = useLocalSearchParams<{ id: string; activityMode?: string }>();
+  const activityMode: ActivityMode = activityModeParam === 'cycle' ? 'cycle' : 'run';
+
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
-  const { path, distanceKm, elapsedSec, isTracking, hasPermission, start, stop } =
+  const { path, distanceKm, elapsedSec, isTracking, isPaused, hasPermission, start, stop, pause, resume } =
     useGpsTracking();
+
+  // Determine targets based on activity mode
+  const targetDistanceKm = isFreeRun
+    ? 0
+    : activityMode === 'cycle'
+    ? (mission?.targetCyclingDistanceKm ?? 0)
+    : (mission?.targetDistanceKm ?? 0);
+  const targetDurationMin = isFreeRun
+    ? 0
+    : activityMode === 'cycle'
+    ? (mission?.targetCyclingDurationMin ?? 0)
+    : (mission?.targetDurationMin ?? 0);
 
   const goalReachedFired = useRef(false);
   const startCueFired = useRef(false);
@@ -102,8 +117,8 @@ export default function ActiveRunScreen() {
     if (!mission || !isTracking || isFreeRun) return;
 
     const cues = MISSION_AUDIO_CUES[mission.type];
-    const distRatio = mission.targetDistanceKm > 0 ? distanceKm / mission.targetDistanceKm : 0;
-    const timeRatio = mission.targetDurationMin > 0 ? elapsedSec / (mission.targetDurationMin * 60) : 0;
+    const distRatio = targetDistanceKm > 0 ? distanceKm / targetDistanceKm : 0;
+    const timeRatio = targetDurationMin > 0 ? elapsedSec / (targetDurationMin * 60) : 0;
     const progress = Math.max(distRatio, timeRatio);
 
     if (!milestone25Fired.current && progress >= 0.25) {
@@ -123,7 +138,7 @@ export default function ActiveRunScreen() {
       speakRunCue(cues.complete);
       triggerGoalReached(mission.title);
     }
-  }, [distanceKm, elapsedSec, isTracking, isFreeRun, mission, triggerGoalReached]);
+  }, [distanceKm, elapsedSec, isTracking, isFreeRun, mission, targetDistanceKm, targetDurationMin, triggerGoalReached]);
 
   // Pan map to follow latest GPS point
   useEffect(() => {
@@ -155,9 +170,18 @@ export default function ActiveRunScreen() {
         durationMin: String(durationMin),
         pathJson: sampled.length >= 2 ? JSON.stringify(sampled) : '',
         goalMet: goalReachedFired.current ? '1' : '0',
+        activityMode,
       },
     });
   };
+
+  const handlePauseResume = useCallback(() => {
+    if (isPaused) {
+      resume();
+    } else {
+      pause();
+    }
+  }, [isPaused, pause, resume]);
 
   const confirmAbort = useCallback(() => {
     Alert.alert(
@@ -218,11 +242,12 @@ export default function ActiveRunScreen() {
   }
 
   const config = missionConfig[mission.type];
-  const distanceProgress = Math.min(distanceKm / Math.max(mission.targetDistanceKm, 0.01), 1);
-  const timeProgress = Math.min(elapsedSec / Math.max(mission.targetDurationMin * 60, 1), 1);
+  const distanceProgress = targetDistanceKm > 0 ? Math.min(distanceKm / targetDistanceKm, 1) : 0;
+  const timeProgress = targetDurationMin > 0 ? Math.min(elapsedSec / (targetDurationMin * 60), 1) : 0;
   const overallProgress = Math.max(distanceProgress, timeProgress);
   const goalHit = goalReachedFired.current;
 
+  const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
   const polylineCoords = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
   const initialRegion = path.length > 0
     ? { latitude: path[0]!.latitude, longitude: path[0]!.longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }
@@ -234,17 +259,25 @@ export default function ActiveRunScreen() {
       <Animated.View entering={FadeIn.duration(400)} style={[styles.header, { borderBottomColor: config.color }]}>
         {/* Left: type pill */}
         <View style={[styles.typePill, { borderColor: config.color }]}>
-          <MaterialIcons name={config.icon as any} size={12} color={config.color} />
-          <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
+          <MaterialIcons name={activityIcon} size={12} color={config.color} />
+          <Text style={[styles.typeLabel, { color: config.color }]}>
+            {activityMode === 'cycle' ? 'CYCLE' : config.label}
+          </Text>
         </View>
 
         {/* Center: mission title */}
         <Text style={styles.missionTitle} numberOfLines={1}>{mission.title}</Text>
 
         {/* Right: elapsed time badge */}
-        <View style={styles.elapsedBadge}>
-          <MaterialIcons name="timer" size={12} color={colors.textSecondary} />
-          <Text style={styles.elapsedText}>{formatElapsed(elapsedSec)}</Text>
+        <View style={[styles.elapsedBadge, isPaused && styles.elapsedBadgePaused]}>
+          <MaterialIcons
+            name={isPaused ? 'pause' : 'timer'}
+            size={12}
+            color={isPaused ? colors.orange : colors.textSecondary}
+          />
+          <Text style={[styles.elapsedText, isPaused && styles.elapsedTextPaused]}>
+            {isPaused ? 'PAUSED' : formatElapsed(elapsedSec)}
+          </Text>
         </View>
       </Animated.View>
 
@@ -275,9 +308,17 @@ export default function ActiveRunScreen() {
           <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
             <MaterialIcons name="emoji-events" size={18} color={colors.primary} />
             <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
-            <Text style={styles.goalBannerSub}>Keep pushing or finish the run</Text>
+            <Text style={styles.goalBannerSub}>Goal reached — tap Finish when ready</Text>
           </Animated.View>
         </Animated.View>
+
+        {/* Paused overlay */}
+        {isPaused && (
+          <View style={styles.pauseOverlay} pointerEvents="none">
+            <MaterialIcons name="pause-circle-filled" size={56} color={colors.orange} style={{ opacity: 0.85 }} />
+            <Text style={styles.pauseOverlayText}>MISSION PAUSED</Text>
+          </View>
+        )}
       </View>
 
       {/* ─── Bottom HUD ───────────────────────────────────────────── */}
@@ -287,7 +328,7 @@ export default function ActiveRunScreen() {
           <View style={styles.statsRow}>
             <StatTile label="TIME" value={formatElapsed(elapsedSec)} icon="timer" accent={colors.blue} />
             <View style={styles.statDivider} />
-            <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon="straighten" accent={config.color} large />
+            <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon={activityIcon} accent={config.color} large />
             <View style={styles.statDivider} />
             <StatTile label="PACE" value={formatPace(distanceKm, elapsedSec)} icon="speed" accent={colors.ochre} />
           </View>
@@ -298,7 +339,7 @@ export default function ActiveRunScreen() {
               <View style={styles.targetRow}>
                 <Text style={styles.targetLabel}>TARGET</Text>
                 <Text style={styles.targetValue}>
-                  {formatDistance(mission.targetDistanceKm)} · ~{mission.targetDurationMin} min
+                  {formatDistance(targetDistanceKm)} · ~{targetDurationMin} min
                 </Text>
                 <Text style={[styles.progressPercent, goalHit && styles.progressPercentDone]}>
                   {goalHit ? '✓ COMPLETE' : `${Math.round(overallProgress * 100)}%`}
@@ -313,21 +354,66 @@ export default function ActiveRunScreen() {
             </View>
           )}
 
-          {/* Finish button */}
-          <TouchableOpacity
-            style={[styles.finishBtn, (goalHit || isFreeRun) && styles.finishBtnGoal]}
-            onPress={handleFinish}
-            activeOpacity={0.85}
-          >
-            <MaterialIcons
-              name={isFreeRun ? 'stop' : goalHit ? 'emoji-events' : 'flag'}
-              size={20}
-              color={colors.textInverse}
-            />
-            <Text style={[styles.finishBtnText, (goalHit || isFreeRun) && styles.finishBtnTextGoal]}>
-              {isFreeRun ? 'FINISH FREE RUN' : goalHit ? 'COMPLETE MISSION' : 'FINISH EARLY'}
-            </Text>
-          </TouchableOpacity>
+          {/* Controls: Pause/Resume always visible; Finish only after goal */}
+          <View style={styles.controls}>
+            {/* Finish button — only appears after goal is reached (or for free run) */}
+            {(goalHit || isFreeRun) && (
+              <TouchableOpacity
+                style={[styles.finishBtn, styles.finishBtnGoal]}
+                onPress={handleFinish}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons
+                  name={isFreeRun ? 'stop' : 'emoji-events'}
+                  size={20}
+                  color={colors.textInverse}
+                />
+                <Text style={[styles.finishBtnText, styles.finishBtnTextGoal]}>
+                  {isFreeRun ? 'FINISH FREE RUN' : 'COMPLETE MISSION'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Pause / Resume button — hidden once goal is reached */}
+            {!isFreeRun && !goalHit && (
+              <TouchableOpacity
+                style={[
+                  styles.pauseResumeBtn,
+                  isPaused && styles.pauseResumeBtnResume,
+                  goalHit && styles.pauseResumeBtnSmall,
+                ]}
+                onPress={handlePauseResume}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons
+                  name={isPaused ? 'play-arrow' : 'pause'}
+                  size={20}
+                  color={isPaused ? colors.textInverse : colors.textSecondary}
+                />
+                <Text style={[styles.pauseResumeBtnText, isPaused && styles.pauseResumeBtnTextResume]}>
+                  {isPaused ? 'RESUME MISSION' : 'PAUSE'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Free run: show pause/resume too */}
+            {isFreeRun && (
+              <TouchableOpacity
+                style={[styles.pauseResumeBtn, isPaused && styles.pauseResumeBtnResume, styles.pauseResumeBtnSmall]}
+                onPress={handlePauseResume}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons
+                  name={isPaused ? 'play-arrow' : 'pause'}
+                  size={18}
+                  color={isPaused ? colors.textInverse : colors.textSecondary}
+                />
+                <Text style={[styles.pauseResumeBtnText, isPaused && styles.pauseResumeBtnTextResume]}>
+                  {isPaused ? 'RESUME' : 'PAUSE'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </SafeAreaView>
     </SafeAreaView>
@@ -445,12 +531,20 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     flexShrink: 0,
   } as ViewStyle,
+  elapsedBadgePaused: {
+    borderColor: colors.orange,
+    backgroundColor: colors.orange + '22',
+  } as ViewStyle,
   elapsedText: {
     fontSize: 11,
     fontWeight: fontWeights.bold,
     color: colors.textSecondary,
     letterSpacing: 0.5,
     fontVariant: ['tabular-nums'],
+  } as TextStyle,
+  elapsedTextPaused: {
+    color: colors.orange,
+    letterSpacing: 1,
   } as TextStyle,
 
   // ─── Map wrapper ──────────────────────────────────────────────────────────
@@ -460,12 +554,29 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   } as ViewStyle,
 
+  // ─── Pause overlay ────────────────────────────────────────────────────────
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    zIndex: 5,
+  } as ViewStyle,
+  pauseOverlayText: {
+    fontSize: fontSizes.xl,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+  } as TextStyle,
+
   // ─── Goal reached banner (floats over map) ────────────────────────────────
   goalBanner: {
     position: 'absolute',
     bottom: spacing.xxl,
-    left: spacing.xl,
-    right: spacing.xl,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     zIndex: 10,
   } as ViewStyle,
@@ -475,6 +586,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+    alignSelf: 'center',
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.sm,
@@ -578,7 +690,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
   } as TextStyle,
 
-  // Finish button
+  // Controls area
+  controls: {
+    gap: spacing.sm,
+  } as ViewStyle,
+
+  // Finish button — shown only when goal is reached
   finishBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -589,7 +706,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingVertical: spacing.lg,
-    marginTop: spacing.xs,
   } as ViewStyle,
   finishBtnGoal: {
     backgroundColor: colors.primary,
@@ -603,6 +719,36 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   } as TextStyle,
   finishBtnTextGoal: {
+    color: colors.textInverse,
+  } as TextStyle,
+
+  // Pause / Resume button
+  pauseResumeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.lg,
+  } as ViewStyle,
+  pauseResumeBtnResume: {
+    backgroundColor: colors.orange,
+    borderColor: colors.orange,
+  } as ViewStyle,
+  pauseResumeBtnSmall: {
+    paddingVertical: spacing.md,
+  } as ViewStyle,
+  pauseResumeBtnText: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+  } as TextStyle,
+  pauseResumeBtnTextResume: {
     color: colors.textInverse,
   } as TextStyle,
 });

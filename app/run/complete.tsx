@@ -63,12 +63,13 @@ const gpsStyles = StyleSheet.create({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function RunCompleteScreen() {
-  const { id, distanceKm: distKmParam, durationMin: durMinParam, pathJson, goalMet: goalMetParam } =
-    useLocalSearchParams<{ id: string; distanceKm?: string; durationMin?: string; pathJson?: string; goalMet?: string }>();
+  const { id, distanceKm: distKmParam, durationMin: durMinParam, pathJson, goalMet: goalMetParam, activityMode: activityModeParam } =
+    useLocalSearchParams<{ id: string; distanceKm?: string; durationMin?: string; pathJson?: string; goalMet?: string; activityMode?: string }>();
 
   const actualDistanceKm = distKmParam ? parseFloat(distKmParam) : undefined;
   const actualDurationMin = durMinParam ? parseFloat(durMinParam) : undefined;
   const goalMet = goalMetParam === '1';
+  const activityMode = activityModeParam === 'cycle' ? 'cycle' as const : 'run' as const;
   const gpsPath = useMemo<GpsPoint[]>(() => {
     if (!pathJson) return [];
     try { return JSON.parse(pathJson) as GpsPoint[]; } catch { return []; }
@@ -99,7 +100,7 @@ export default function RunCompleteScreen() {
     alreadyCompleted.current = true;
 
     completeMission(mission.id);
-    completeRun(mission.id, mission.type, actualDistanceKm, actualDurationMin, gpsPath.length >= 2 ? gpsPath : undefined, goalMet);
+    completeRun(mission.id, mission.type, actualDistanceKm, actualDurationMin, gpsPath.length >= 2 ? gpsPath : undefined, goalMet, activityMode);
 
     const updated = weekMissions.filter((m) => m.status === 'completed').length + 1;
     if (updated === weekMissions.length && !(weeklyProgress?.bonusXpAwarded)) {

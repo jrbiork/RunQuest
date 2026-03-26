@@ -36,23 +36,25 @@ export function DailyMissionCard({ mission, onStartRun }: DailyMissionCardProps)
         <Text style={styles.title}>{mission.title}</Text>
         <Text style={styles.subtitle}>{mission.subtitle}</Text>
 
-        {/* Stats row */}
+        {/* Stats row — one group per activity */}
         <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <MaterialIcons name="straighten" size={16} color="rgba(255,255,255,0.8)" />
+          <View style={styles.activityGroup}>
+            <MaterialIcons name="directions-run" size={16} color="rgba(255,255,255,0.8)" />
             <Text style={styles.statValue}>{formatDistance(mission.targetDistanceKm)}</Text>
+            <Text style={styles.statDim}>~{formatDuration(mission.targetDurationMin)}</Text>
           </View>
           <View style={styles.divider} />
-          <View style={styles.stat}>
-            <MaterialIcons name="timer" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.statValue}>~{formatDuration(mission.targetDurationMin)}</Text>
+          <View style={styles.activityGroup}>
+            <MaterialIcons name="directions-bike" size={16} color="rgba(255,255,255,0.8)" />
+            <Text style={styles.statValue}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
+            <Text style={styles.statDim}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
           </View>
         </View>
 
         {/* CTA */}
         <TouchableOpacity style={styles.startButton} onPress={onStartRun} activeOpacity={0.9}>
           <MaterialIcons name="play-arrow" size={22} color={config.color} />
-          <Text style={[styles.startLabel, { color: config.color }]}>Start Run</Text>
+          <Text style={[styles.startLabel, { color: config.color }]}>Start Mission</Text>
         </TouchableOpacity>
       </LinearGradient>
     </View>
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     gap: spacing.md,
   } as ViewStyle,
-  stat: {
+  activityGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -118,6 +120,11 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: '#fff',
+  } as TextStyle,
+  statDim: {
+    fontSize: fontSizes.xs,
+    color: 'rgba(255,255,255,0.65)',
+    fontWeight: fontWeights.medium,
   } as TextStyle,
   divider: {
     width: 1,
