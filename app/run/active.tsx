@@ -31,16 +31,21 @@ import { formatElapsed, formatPace } from '../../src/utils/haversine';
 import { useGpsTracking } from '../../src/hooks/useGpsTracking';
 import { playGoalReachedSound, speakRunCue } from '../../src/services/audioService';
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
-import { MISSION_AUDIO_CUES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import { MISSION_AUDIO_CUES, FUN_RUN_ID, FUN_RUN_MISSION, pickCue } from '../../src/constants/missions';
+import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
 import type { ActivityMode } from '../../src/types';
 
 export default function ActiveRunScreen() {
-  const { id, activityMode: activityModeParam } = useLocalSearchParams<{ id: string; activityMode?: string }>();
+  const params = useLocalSearchParams<{ id: string; activityMode?: string }>();
+  const id = normalizeRouteParam(params.id);
+  const activityModeParam = normalizeRouteParam(params.activityMode);
   const activityMode: ActivityMode = activityModeParam === 'cycle' ? 'cycle' : 'run';
 
+  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
+  const failMission = useMissionsStore((s) => s.failMission);
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
+  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
   const { path, distanceKm, elapsedSec, isTracking, isPaused, hasPermission, start, stop, pause, resume } =
     useGpsTracking();
@@ -107,7 +112,7 @@ export default function ActiveRunScreen() {
     const cues = MISSION_AUDIO_CUES[mission.type];
     const timer = setTimeout(() => {
       startCueFired.current = true;
-      speakRunCue(cues.start);
+      speakRunCue(pickCue(cues.start));
     }, 2000);
     return () => clearTimeout(timer);
   }, [isTracking, mission, isFreeRun]);
@@ -123,19 +128,19 @@ export default function ActiveRunScreen() {
 
     if (!milestone25Fired.current && progress >= 0.25) {
       milestone25Fired.current = true;
-      speakRunCue(cues.quarter);
+      speakRunCue(pickCue(cues.quarter));
     }
     if (!milestone50Fired.current && progress >= 0.5) {
       milestone50Fired.current = true;
-      speakRunCue(cues.half);
+      speakRunCue(pickCue(cues.half));
     }
     if (!milestone75Fired.current && progress >= 0.75) {
       milestone75Fired.current = true;
-      speakRunCue(cues.threeQuarter);
+      speakRunCue(pickCue(cues.threeQuarter));
     }
     if (!goalReachedFired.current && progress >= 1.0) {
       goalReachedFired.current = true;
-      speakRunCue(cues.complete);
+      speakRunCue(pickCue(cues.complete));
       triggerGoalReached(mission.title);
     }
   }, [distanceKm, elapsedSec, isTracking, isFreeRun, mission, targetDistanceKm, targetDurationMin, triggerGoalReached]);
@@ -184,23 +189,43 @@ export default function ActiveRunScreen() {
   }, [isPaused, pause, resume]);
 
   const confirmAbort = useCallback(() => {
+    if (isFreeRun) {
+      Alert.alert(
+        'End free run?',
+        'Your route will not be saved.',
+        [
+          { text: 'Keep going', style: 'cancel' },
+          {
+            text: 'End',
+            style: 'destructive',
+            onPress: () => {
+              setRunActive(false);
+              stop();
+              router.replace('/(tabs)/journey');
+            },
+          },
+        ],
+      );
+      return;
+    }
     Alert.alert(
-      'Abandon Mission?',
-      'GPS progress will be lost. The zone stays dark.',
+      'Abort mission?',
+      'GPS progress will be lost. This mission will be marked failed — you can retry from Journey.',
       [
-        { text: 'Keep Running', style: 'cancel' },
+        { text: 'Keep going', style: 'cancel' },
         {
           text: 'Abort',
           style: 'destructive',
           onPress: () => {
             setRunActive(false);
             stop();
-            router.back();
+            if (mission) failMission(mission.id);
+            router.replace('/(tabs)/journey');
           },
         },
       ],
     );
-  }, [stop]);
+  }, [stop, isFreeRun, mission, failMission, setRunActive]);
 
   useEffect(() => {
     if (!isTracking) return;
@@ -354,9 +379,9 @@ export default function ActiveRunScreen() {
             </View>
           )}
 
-          {/* Controls: Pause/Resume always visible; Finish only after goal */}
+          {/* Controls: Finish when goal reached; Pause + Abort only while goal is pending */}
           <View style={styles.controls}>
-            {/* Finish button — only appears after goal is reached (or for free run) */}
+            {/* Finish button — goal reached or free run */}
             {(goalHit || isFreeRun) && (
               <TouchableOpacity
                 style={[styles.finishBtn, styles.finishBtnGoal]}
@@ -374,44 +399,36 @@ export default function ActiveRunScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Pause / Resume button — hidden once goal is reached */}
-            {!isFreeRun && !goalHit && (
-              <TouchableOpacity
-                style={[
-                  styles.pauseResumeBtn,
-                  isPaused && styles.pauseResumeBtnResume,
-                  goalHit && styles.pauseResumeBtnSmall,
-                ]}
-                onPress={handlePauseResume}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons
-                  name={isPaused ? 'play-arrow' : 'pause'}
-                  size={20}
-                  color={isPaused ? colors.textInverse : colors.textSecondary}
-                />
-                <Text style={[styles.pauseResumeBtnText, isPaused && styles.pauseResumeBtnTextResume]}>
-                  {isPaused ? 'RESUME MISSION' : 'PAUSE'}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Free run: show pause/resume too */}
-            {isFreeRun && (
-              <TouchableOpacity
-                style={[styles.pauseResumeBtn, isPaused && styles.pauseResumeBtnResume, styles.pauseResumeBtnSmall]}
-                onPress={handlePauseResume}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons
-                  name={isPaused ? 'play-arrow' : 'pause'}
-                  size={18}
-                  color={isPaused ? colors.textInverse : colors.textSecondary}
-                />
-                <Text style={[styles.pauseResumeBtnText, isPaused && styles.pauseResumeBtnTextResume]}>
-                  {isPaused ? 'RESUME' : 'PAUSE'}
-                </Text>
-              </TouchableOpacity>
+            {/* Pause + Abort — hidden once the goal is reached for non-free-run missions */}
+            {(isFreeRun || !goalHit) && (
+              <View style={styles.pauseAbortRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.pauseResumeBtn,
+                    styles.pauseAbortHalf,
+                    isPaused && styles.pauseResumeBtnResume,
+                  ]}
+                  onPress={handlePauseResume}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons
+                    name={isPaused ? 'play-arrow' : 'pause'}
+                    size={20}
+                    color={isPaused ? colors.textInverse : colors.textSecondary}
+                  />
+                  <Text style={[styles.pauseResumeBtnText, isPaused && styles.pauseResumeBtnTextResume]}>
+                    {isPaused ? 'RESUME' : 'PAUSE'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.abortBtn, styles.pauseAbortHalf]}
+                  onPress={confirmAbort}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons name="close" size={20} color={colors.orange} />
+                  <Text style={styles.abortBtnText}>{isFreeRun ? 'END' : 'ABORT'}</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         </View>
@@ -589,7 +606,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
+    maxWidth: '80%',
     ...shadows.lg,
   } as ViewStyle,
   goalBannerTitle: {
@@ -750,5 +769,33 @@ const styles = StyleSheet.create({
   } as TextStyle,
   pauseResumeBtnTextResume: {
     color: colors.textInverse,
+  } as TextStyle,
+
+  pauseAbortRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  } as ViewStyle,
+  pauseAbortHalf: {
+    flex: 1,
+    minWidth: 0,
+  } as ViewStyle,
+  abortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    paddingVertical: spacing.lg,
+  } as ViewStyle,
+  abortBtnText: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   } as TextStyle,
 });

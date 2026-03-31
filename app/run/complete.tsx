@@ -40,6 +40,7 @@ import { MISSION_TEMPLATES, MISSION_IMPACT_MESSAGES, FUN_RUN_ID, FUN_RUN_MISSION
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
 import type { GpsPoint } from '../../src/types';
+import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
 import ViewShot from 'react-native-view-shot';
 
 // ─── GPS stat tile ────────────────────────────────────────────────────────────
@@ -63,8 +64,14 @@ const gpsStyles = StyleSheet.create({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function RunCompleteScreen() {
-  const { id, distanceKm: distKmParam, durationMin: durMinParam, pathJson, goalMet: goalMetParam, activityMode: activityModeParam } =
+  const rawParams =
     useLocalSearchParams<{ id: string; distanceKm?: string; durationMin?: string; pathJson?: string; goalMet?: string; activityMode?: string }>();
+  const id = normalizeRouteParam(rawParams.id);
+  const distKmParam = normalizeRouteParam(rawParams.distanceKm as string | string[] | undefined);
+  const durMinParam = normalizeRouteParam(rawParams.durationMin as string | string[] | undefined);
+  const pathJson = normalizeRouteParam(rawParams.pathJson as string | string[] | undefined);
+  const goalMetParam = normalizeRouteParam(rawParams.goalMet as string | string[] | undefined);
+  const activityModeParam = normalizeRouteParam(rawParams.activityMode as string | string[] | undefined);
 
   const actualDistanceKm = distKmParam ? parseFloat(distKmParam) : undefined;
   const actualDurationMin = durMinParam ? parseFloat(durMinParam) : undefined;
@@ -79,7 +86,9 @@ export default function RunCompleteScreen() {
   const [isSharing, setIsSharing] = useState(false);
 
   const weekMissions = useMissionsStore((s) => s.weekMissions);
+  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const completeMission = useMissionsStore((s) => s.completeMission);
+  const failMission = useMissionsStore((s) => s.failMission);
   const allComplete = useMissionsStore(selectAllComplete);
 
   const completeRun = useUserStore((s) => s.completeRun);
@@ -91,7 +100,7 @@ export default function RunCompleteScreen() {
   const levelInfoAfter = useMemo(() => getLevelInfo(xpBefore), [xpBefore]);
 
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
+  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const alreadyCompleted = useRef(false);
 
   useEffect(() => {
@@ -99,11 +108,16 @@ export default function RunCompleteScreen() {
     if (!mission || isFreeRun || alreadyCompleted.current) return;
     alreadyCompleted.current = true;
 
-    completeMission(mission.id);
+    if (goalMet) {
+      completeMission(mission.id, xpEarned);
+    } else {
+      failMission(mission.id);
+    }
     completeRun(mission.id, mission.type, actualDistanceKm, actualDurationMin, gpsPath.length >= 2 ? gpsPath : undefined, goalMet, activityMode);
 
-    const updated = weekMissions.filter((m) => m.status === 'completed').length + 1;
-    if (updated === weekMissions.length && !(weeklyProgress?.bonusXpAwarded)) {
+    const allMissions = campaignMissions.length > 0 ? campaignMissions : weekMissions;
+    const updated = allMissions.filter((m) => m.status === 'completed').length + (goalMet ? 1 : 0);
+    if (updated === allMissions.length && !(weeklyProgress?.bonusXpAwarded)) {
       markWeeklyBonus();
     }
   }, []);
@@ -143,7 +157,7 @@ export default function RunCompleteScreen() {
 
   const hasGpsData = actualDistanceKm !== undefined && actualDurationMin !== undefined;
   const newStreak = streak + 1;
-  const weeklyRunsCompleted = (weeklyProgress?.runsCompleted ?? 0) + 1;
+  const weeklyRunsCompleted = weeklyProgress?.runsCompleted ?? 0;
   const weeklyRunsTarget = 3;
   const weeklyProg = Math.min(weeklyRunsCompleted / Math.max(weeklyRunsTarget, 1), 1);
 
@@ -161,7 +175,9 @@ export default function RunCompleteScreen() {
             <MaterialIcons name={config.icon as any} size={12} color={config.color} />
             <Text style={[styles.missionTypeText, { color: config.color }]}>{config.label}</Text>
           </View>
-          <Text style={styles.missionCompleteLabel}>{isFreeRun ? 'FREE RUN COMPLETE' : 'MISSION COMPLETE'}</Text>
+          <Text style={[styles.missionCompleteLabel, !isFreeRun && !goalMet && styles.missionFailLabel]}>
+            {isFreeRun ? 'FREE RUN COMPLETE' : goalMet ? 'MISSION COMPLETE' : 'MISSION FAILED'}
+          </Text>
           <Text style={styles.missionTitle}>{mission.title}</Text>
         </Animated.View>
 
@@ -194,7 +210,7 @@ export default function RunCompleteScreen() {
               <Text style={styles.worldSub}>
                 {goalMet
                   ? 'Zone fully restored. Another victory for the Runners.'
-                  : 'Zone partially restored. Every mission counts.'}
+                  : 'MISSION FAILED — Zone lost. Retry the mission to recover it.'}
               </Text>
             </Card>
           </Animated.View>
@@ -379,6 +395,9 @@ const styles = StyleSheet.create({
     color: colors.orange,
     letterSpacing: 4,
     textTransform: 'uppercase',
+  } as TextStyle,
+  missionFailLabel: {
+    color: colors.red,
   } as TextStyle,
   missionTitle: {
     fontSize: fontSizes.xxl,

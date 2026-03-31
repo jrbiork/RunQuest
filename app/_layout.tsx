@@ -11,7 +11,10 @@ import { useRunSessionStore } from '../src/store/runSessionStore';
 // Import side-effect: registers the background location task with expo-task-manager
 import '../src/hooks/useGpsTracking';
 
-// Keep splash screen up while fonts load
+/** Matches app.json splash.backgroundColor — avoids a flash of a different tone under the native splash. */
+const SPLASH_BG = '#0E1210';
+
+// Keep native splash visible until we explicitly hide (after fonts + short minimum time)
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -21,9 +24,11 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if (!fontsLoaded && !fontError) return;
+    const id = setTimeout(() => {
       SplashScreen.hideAsync();
-    }
+    }, 450);
+    return () => clearTimeout(id);
   }, [fontsLoaded, fontError]);
 
   useEffect(() => {
@@ -31,7 +36,11 @@ export default function RootLayout() {
   }, []);
 
   if (!fontsLoaded && !fontError) {
-    return null;
+    return (
+      <View style={styles.bootPlaceholder}>
+        <StatusBar style="light" />
+      </View>
+    );
   }
 
   return (
@@ -45,8 +54,8 @@ export default function RootLayout() {
         <Stack.Screen
           name="run"
           options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
+            presentation: 'card',
+            animation: 'slide_from_right',
             gestureEnabled: !isRunActive,
           }}
         />
@@ -59,5 +68,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  bootPlaceholder: {
+    flex: 1,
+    backgroundColor: SPLASH_BG,
   },
 });

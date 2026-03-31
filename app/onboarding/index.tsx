@@ -4,64 +4,49 @@ import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
 import { OptionCard } from '../../src/components/onboarding/OptionCard';
 import { useOnboardingDraft } from './_layout';
-import type { ExperienceLevel } from '../../src/types';
+import type { PersonaId } from '../../src/types';
+import { PERSONA_LABELS } from '../../src/constants/campaigns';
 import { spacing } from '../../src/constants/theme';
 
-const OPTIONS: { value: ExperienceLevel; label: string; description: string; icon: string }[] = [
-  {
-    value: 'beginner',
-    label: 'RECRUIT',
-    description: 'Minimal experience. Focus on evasion and survival.',
-    icon: 'military-tech',
-  },
-  {
-    value: 'intermediate',
-    label: 'OPERATIVE',
-    description: 'Consistent sorties. A conditioned, reliable runner.',
-    icon: 'security',
-  },
-  {
-    value: 'advanced',
-    label: 'VANGUARD',
-    description: 'High-endurance asset. Elite operational status.',
-    icon: 'whatshot',
-  },
-];
+const PERSONAS: PersonaId[] = ['ghost', 'scout', 'operative', 'elite', 'vanguard'];
 
-export default function ExperienceScreen() {
+export default function PersonaScreen() {
   const draft = useOnboardingDraft();
-  const [selected, setSelected] = useState<ExperienceLevel | null>(
-    draft.current.experienceLevel ?? null,
+  const [selected, setSelected] = useState<PersonaId | null>(
+    draft.current.personaId ?? null,
   );
 
   const handleNext = () => {
     if (!selected) return;
-    draft.current.experienceLevel = selected;
-    router.push('/onboarding/goal');
+    draft.current.personaId = selected;
+    router.push('/onboarding/run-days');
   };
 
   return (
     <OnboardingLayout
       step={1}
-      totalSteps={5}
-      title="Classification"
-      subtitle="Asset Assessment"
+      totalSteps={3}
+      title="Field Classification"
+      subtitle="Choose Your Operative"
       onNext={handleNext}
-      nextLabel="Confirm Classification"
+      nextLabel="Confirm Persona"
       nextDisabled={!selected}
       showBack={false}
     >
       <View style={styles.options}>
-        {OPTIONS.map((opt) => (
-          <OptionCard
-            key={opt.value}
-            label={opt.label}
-            description={opt.description}
-            icon={opt.icon}
-            selected={selected === opt.value}
-            onPress={() => setSelected(opt.value)}
-          />
-        ))}
+        {PERSONAS.map((persona) => {
+          const meta = PERSONA_LABELS[persona];
+          return (
+            <OptionCard
+              key={persona}
+              label={meta.label}
+              description={meta.description}
+              icon={meta.icon}
+              selected={selected === persona}
+              onPress={() => setSelected(persona)}
+            />
+          );
+        })}
       </View>
     </OnboardingLayout>
   );

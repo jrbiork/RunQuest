@@ -10,6 +10,8 @@ import { useMissionsStore } from '../../store/missionsStore';
 import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/theme';
 import RunShareCard from '../share/RunShareCard';
 import { shareCard } from '../../services/shareService';
+import { findMissionById } from '../../utils/missionLookup';
+
 
 interface JourneyPathProps {
   missions: Mission[];
@@ -19,6 +21,9 @@ interface JourneyPathProps {
 export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   const runHistory = useUserStore((s) => s.runHistory);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
+  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
+
+  const retryMission = useMissionsStore((s) => s.retryMission);
 
   const shareRef = useRef<ViewShot>(null);
   const [sharingMissionId, setSharingMissionId] = useState<string | null>(null);
@@ -44,7 +49,9 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   }, []);
 
   const sharingRun = sharingMissionId ? completedRunByMission.get(sharingMissionId) : undefined;
-  const sharingMission = sharingMissionId ? weekMissions.find((m) => m.id === sharingMissionId) : undefined;
+  const sharingMission = sharingMissionId
+    ? findMissionById(campaignMissions, weekMissions, sharingMissionId)
+    : undefined;
 
   if (missions.length === 0) {
     return (
@@ -83,6 +90,11 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
             onShare={
               mission.status === 'completed'
                 ? () => handleShare(mission.id)
+                : undefined
+            }
+            onRetry={
+              mission.status === 'failed'
+                ? () => retryMission(mission.id)
                 : undefined
             }
           />

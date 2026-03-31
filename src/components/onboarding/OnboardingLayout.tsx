@@ -27,6 +27,8 @@ interface OnboardingLayoutProps {
   nextLabel?: string;
   nextDisabled?: boolean;
   showBack?: boolean;
+  /** When true, the SafeAreaView background is transparent so a parent ImageBackground shows through */
+  transparent?: boolean;
 }
 
 export function OnboardingLayout({
@@ -39,9 +41,10 @@ export function OnboardingLayout({
   nextLabel = 'Continue',
   nextDisabled = false,
   showBack = true,
+  transparent = false,
 }: OnboardingLayoutProps) {
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.safe, transparent && styles.safeTransparent]} edges={['top', 'bottom']}>
       {/* Subtle horizontal grid lines — distressed texture */}
       {[0.15, 0.35, 0.55, 0.75].map((frac) => (
         <View key={frac} style={[styles.gridLine, { top: `${frac * 100}%` as any }]} pointerEvents="none" />
@@ -122,6 +125,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     overflow: 'hidden',
+  } as ViewStyle,
+  safeTransparent: {
+    backgroundColor: 'transparent',
   } as ViewStyle,
   flex: { flex: 1 } as ViewStyle,
 

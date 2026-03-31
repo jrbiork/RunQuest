@@ -26,7 +26,7 @@ const ALL_DAYS: { value: DayOfWeek; full: string }[] = [
 
 export default function RunDaysScreen() {
   const draft = useOnboardingDraft();
-  const targetRuns = draft.current.weeklyTargetRuns ?? 3;
+  const MIN_DAYS = 3;
 
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>(
     draft.current.preferredDays ?? [],
@@ -39,19 +39,19 @@ export default function RunDaysScreen() {
     });
   };
 
-  const isValid = selectedDays.length >= targetRuns;
+  const isValid = selectedDays.length >= MIN_DAYS;
 
   const handleNext = () => {
     if (!isValid) return;
     const ordered = ALL_DAYS.map((d) => d.value).filter((d) => selectedDays.includes(d));
     draft.current.preferredDays = ordered;
-    router.push('/onboarding/pace');
+    router.push('/onboarding/mode' as any);
   };
 
   return (
     <OnboardingLayout
-      step={4}
-      totalSteps={5}
+      step={2}
+      totalSteps={3}
       title="Deployment Schedule"
       subtitle="Active Operation Days"
       onNext={handleNext}
@@ -90,13 +90,8 @@ export default function RunDaysScreen() {
       <View style={styles.counter}>
         <Text style={styles.counterText}>
           <Text style={styles.counterBold}>{selectedDays.length}</Text>
-          <Text style={styles.counterDim}> / {targetRuns} DAYS ACTIVE</Text>
+          <Text style={styles.counterDim}> DAYS SELECTED (min {MIN_DAYS})</Text>
         </Text>
-        {selectedDays.length > targetRuns && (
-          <Text style={styles.counterExtra}>
-            +{selectedDays.length - targetRuns} extra — first {targetRuns} days will be prioritized
-          </Text>
-        )}
       </View>
     </OnboardingLayout>
   );

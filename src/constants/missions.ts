@@ -156,51 +156,172 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
 };
 
 // ─── In-Run Audio Cues per Mission Type ──────────────────────────────────────
-// Five cues per mission: [start, 25%, 50%, 75%, 100%]
+// Each slot holds multiple variants — one is picked at random each run.
+// Cues are written to match the specific demands of each mission type.
 
 export interface MissionAudioCues {
-  start: string;
-  quarter: string;
-  half: string;
-  threeQuarter: string;
-  complete: string;
+  start: string[];
+  quarter: string[];
+  half: string[];
+  threeQuarter: string[];
+  complete: string[];
+}
+
+/** Pick a random line from a cue variants array. */
+export function pickCue(variants: string[]): string {
+  return variants[Math.floor(Math.random() * variants.length)] ?? variants[0] ?? '';
 }
 
 export const MISSION_AUDIO_CUES: Record<MissionType, MissionAudioCues> = {
+
+  // ── Easy ─────────────────────────────────────────────────────────────────
+  // Relaxed steady-state run. Cues reinforce comfortable effort and rhythm.
   easy: {
-    start:        'Grid Patrol initiated. Steady pace, Runner. Let the zone feel your presence.',
-    quarter:      'Signal is faint but rising. Keep your rhythm. Every step charges the grid.',
-    half:         'Halfway. Power levels climbing. The sector is starting to respond.',
-    threeQuarter: 'Almost there. Three quarters done. The grid lights are flickering on ahead.',
-    complete:     'Grid restored. Sector online. Mission complete, Runner. Well done.',
+    start: [
+      'Grid Patrol initiated. Settle in, Runner. Easy effort today — let the zone feel your presence.',
+      'Patrol route active. Find a comfortable pace and hold it. Rhythm over speed.',
+      'Zone patrol underway. Keep it conversational. Conserve the grid, one steady step at a time.',
+    ],
+    quarter: [
+      'First sector cleared. Signal rising. Stay at this effort — no need to push harder.',
+      'Twenty-five percent. You are in your groove. Patrol continues — hold the pace steady.',
+      'Quarter done. Grid responding. Keep the effort light and sustainable.',
+    ],
+    half: [
+      'Halfway through the patrol. Power levels climbing. Your rhythm is working — maintain it.',
+      'Midpoint reached. Good consistency, Runner. Stay relaxed and keep the grid moving.',
+      'Half done. The sector is responding. Comfortable effort — you have got plenty left.',
+    ],
+    threeQuarter: [
+      'Three quarters done. Grid lights are coming on ahead. Stay easy — almost home.',
+      'Final sector incoming. Keep the same effort. No need to accelerate yet.',
+      'Seventy-five percent. Steady to the finish. Same pace, same breathing.',
+    ],
+    complete: [
+      'Grid restored. Sector online. Well-executed patrol, Runner.',
+      'Patrol complete. Zone fully charged. Solid base work today.',
+      'Mission accomplished. Grid is live. Easy run filed — base fitness building.',
+    ],
   },
+
+  // ── Tempo ─────────────────────────────────────────────────────────────────
+  // Sustained hard effort at threshold. Cues push pace and reinforce discomfort is expected.
   tempo: {
-    start:        'Signal Rush protocol active. Push hard and hold it, Runner. The tower is counting on you.',
-    quarter:      'Tower signal at twenty-five percent. Keep the pace high. No backing down now.',
-    half:         'Halfway through the push. Signal is building. Hold this frequency — do not drop it.',
-    threeQuarter: 'Final surge incoming. Three quarters done. Dig deep. The tower is almost back online.',
-    complete:     'Tower online. Full signal restored. Threshold run complete. The network is expanding.',
+    start: [
+      'Signal Rush protocol active. Push hard and hold it, Runner. Find your threshold and live there.',
+      'Tempo protocol engaged. This is supposed to feel hard — that is the point. Hold the line.',
+      'Threshold run initiated. Push into the discomfort and stay there. The tower is counting on you.',
+    ],
+    quarter: [
+      'Tower signal at twenty-five percent. Hold this pace — no backing down now.',
+      'First quarter done. You are at threshold — good. Do not ease off. Maintain the frequency.',
+      'Quarter through. Signal rising. This is hard — stay hard. Do not let the pace slip.',
+    ],
+    half: [
+      'Halfway through the push. This is where tempo hurts. Embrace it — this is raising your ceiling.',
+      'Midpoint reached. Half the push behind you. Hold the pace — the tower needs full signal.',
+      'Fifty percent. Pain is expected. Dropping pace is not an option. Stay at threshold.',
+    ],
+    threeQuarter: [
+      'Final surge incoming. Three quarters done. Dig deeper — do not drop pace now.',
+      'Seventy-five percent. Last section. Give everything you have left — leave nothing.',
+      'Three quarters done. Your threshold is rising. One more push and it is locked in.',
+    ],
+    complete: [
+      'Tower online. Full signal restored. Threshold run complete — your ceiling just got higher.',
+      'Tempo protocol complete. Network expanding. Speed capacity upgraded, Runner.',
+      'Threshold locked. Mission complete. That was hard — and that is exactly why it worked.',
+    ],
   },
+
+  // ── Long ──────────────────────────────────────────────────────────────────
+  // Extended endurance run. Cues reinforce patience, energy conservation, and the long game.
   long: {
-    start:        'Cross-zone delivery underway. Settle into your pace, Runner. This is a long road — respect it.',
-    quarter:      'First zone crossed. Supplies secure. Stay relaxed. The survivors are waiting.',
-    half:         'Halfway across. You are carrying more than supplies — you are carrying hope. Keep going.',
-    threeQuarter: 'Almost at the destination. Three zones down. One more push and the delivery is complete.',
-    complete:     'Delivery complete. Zone seven has what it needs. Outstanding endurance, Runner.',
+    start: [
+      'Cross-zone delivery underway. Settle in, Runner. Go out easy — you have a long road ahead.',
+      'Long route activated. Start conservative. First kilometre is always slower — that is correct.',
+      'Endurance mission underway. Relax into it. This is about time on your feet, not speed.',
+    ],
+    quarter: [
+      'First zone crossed. Supplies secure. Stay relaxed — pace should feel almost too easy right now.',
+      'Twenty-five percent. Good start. Conserve energy — the back half will test you.',
+      'Quarter done. Legs feeling good? Keep them that way. Do not spend what you will need later.',
+    ],
+    half: [
+      'Halfway across. You are carrying more than supplies — you are carrying your own endurance. Keep going.',
+      'Midpoint. Check in — legs, breathing, effort. Adjust and continue. Long runs reward patience.',
+      'Half done. The real work starts here. Stay steady. Every kilometre now builds the engine.',
+    ],
+    threeQuarter: [
+      'Three zones down. One more push and delivery is complete. Dig into your reserves.',
+      'Seventy-five percent. You have done the hard work. Now bring it home.',
+      'Final leg. Three quarters done. The distance is yours — own it to the end.',
+    ],
+    complete: [
+      'Delivery complete. Outstanding endurance, Runner. That is real aerobic work in the bank.',
+      'Long route complete. You just extended your range. Every long run makes the next one easier.',
+      'Cross-zone mission filed. Distance covered. Your engine just got bigger.',
+    ],
   },
+
+  // ── Recovery ──────────────────────────────────────────────────────────────
+  // Active recovery run. Cues are calm, gentle, and reinforce that easy IS the goal.
   recovery: {
-    start:        'Scout patrol initiated. Easy movement, Runner. Eyes open, pace light. Survey everything.',
-    quarter:      'Perimeter quarter mapped. Good intel so far. Stay loose — recovery is the mission today.',
-    half:         'Halfway through the recon. Your body is thanking you. Keep it easy. Every step counts.',
-    threeQuarter: 'Almost done with the sweep. Three quarters of the perimeter secured. Nearly there.',
-    complete:     'Recon complete. Perimeter mapped. Intel filed. Smart work, Runner. Rest earned.',
+    start: [
+      'Recovery patrol active. Super easy today, Runner. This run is about healing, not speed.',
+      'Scout sweep initiated. Your only mission — move gently. Let your body restore itself.',
+      'Active recovery underway. Stay well within your limits. Light feet, loose arms, easy breathing.',
+    ],
+    quarter: [
+      'First quarter done. Breathing easy? Good. This pace is exactly right — stay here.',
+      'Perimeter clearing. Legs loosening up. Keep it gentle — recovery is the entire mission today.',
+      'Twenty-five percent. Your muscles are thanking you. Light effort, keep moving.',
+    ],
+    half: [
+      'Halfway through the sweep. Body absorbing the work. Perfect recovery pace — do not break it.',
+      'Midpoint. You are doing this right. Slow and steady is winning today.',
+      'Half done. Blood flowing, tension releasing. This is what smart training looks like.',
+    ],
+    threeQuarter: [
+      'Three quarters complete. Almost done. Light legs all the way to the end.',
+      'Final stretch of the sweep. Stay loose. Finish as easy as you started.',
+      'Seventy-five percent. Recovery run nearly done. No heroics — stay comfortable.',
+    ],
+    complete: [
+      'Scout patrol complete. Perimeter secured. Smart work, Runner — your body is restored.',
+      'Recovery run filed. Your system will be ready for the next hard effort. Well done.',
+      'Recon complete. Intel filed. That run just made your next hard session better.',
+    ],
   },
+
+  // ── Interval ──────────────────────────────────────────────────────────────
+  // Speed work with alternating hard and easy efforts. Cues coach the push-recover cycle.
   interval: {
-    start:        'Surge Protocol activated. Get ready to push hard, Runner. Bursts of speed, then recover — repeat.',
-    quarter:      'First surge done. Good output. Recover now — you will need that energy for the next push.',
-    half:         'Halfway through the anomaly response. The surges are working. Stay sharp and keep the pattern.',
-    threeQuarter: 'Final surge incoming. Three quarters down. One last hard push and the anomaly is contained.',
-    complete:     'Surge Protocol complete. Anomaly suppressed. Speed capacity upgraded. Outstanding effort, Runner.',
+    start: [
+      'Surge Protocol activated. First effort coming up — go hard, then recover. Alternate and repeat.',
+      'Interval sequence initiated. Push maximum effort on the surges, then flush it out on recovery. Let us go.',
+      'Speed work underway. Short bursts, full effort. First surge — hit it hard, Runner.',
+    ],
+    quarter: [
+      'First surge sequence done. Good output. Recover now — flush the legs. Next push is coming.',
+      'Twenty-five percent. You have got the pattern. Hard surge, active recovery. Keep repeating.',
+      'Quarter through. Intervals working. The rest between surges is part of the mission — use it.',
+    ],
+    half: [
+      'Halfway through the surge protocol. Anomaly is responding. Stay sharp — keep the pattern.',
+      'Midpoint. Speed work is accumulating. Each surge trains a faster you. One more set.',
+      'Fifty percent. Hard surges are working. Keep quality high on each effort — no coasting.',
+    ],
+    threeQuarter: [
+      'Final surge incoming. Three quarters down. One last hard push — maximum effort, Runner.',
+      'Seventy-five percent. Last set. Make these surges count — finish strong.',
+      'Three quarters complete. Final interval sequence. Everything you have left — now.',
+    ],
+    complete: [
+      'Surge Protocol complete. Anomaly suppressed. Speed capacity upgraded. Outstanding effort, Runner.',
+      'All intervals done. Speed work filed. Your fast-twitch fibres just got faster.',
+      'Interval mission complete. Top-end pace improved. That is how you get quicker.',
+    ],
   },
 };
 

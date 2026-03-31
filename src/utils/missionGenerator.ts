@@ -178,8 +178,8 @@ function buildMission(
 
 export function generateWeekMissions(profile: UserProfile): Mission[] {
   const {
-    experienceLevel,
-    runningGoal,
+    experienceLevel = 'beginner',
+    runningGoal = 'consistency',
     weeklyTargetMode,
     weeklyTargetRuns,
     preferredDays,
@@ -187,8 +187,8 @@ export function generateWeekMissions(profile: UserProfile): Mission[] {
 
   const runsPerWeek =
     weeklyTargetMode === 'runs'
-      ? Math.min(weeklyTargetRuns, preferredDays.length)
-      : Math.min(3, preferredDays.length); // default 3 if distance-based
+      ? Math.min(weeklyTargetRuns ?? preferredDays.length, preferredDays.length)
+      : Math.min(preferredDays.length, preferredDays.length); // default: use all preferred days
 
   // Trim days to the target run count (take first N preferred days)
   const activeDays = preferredDays.slice(0, runsPerWeek);

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { UserProfile, UserState, WeeklyProgress, CompletedRun, GpsPoint } from '../types';
+import type { UserProfile, UserState, WeeklyProgress, CompletedRun, GpsPoint, PersonaId } from '../types';
 import {
   calculateXpEarned,
   getLevelInfo,
@@ -32,6 +32,7 @@ interface UserActions {
   updateProfile: (updates: Partial<UserProfile>) => void;
   resetOnboarding: () => void;
   refreshWeeklyProgressIfNeeded: () => void;
+  incrementCampaignsCompleted: () => void;
 }
 
 type UserStore = UserState & UserActions;
@@ -60,6 +61,8 @@ export const useUserStore = create<UserStore>()(
       longestStreak: 0,
       weeklyProgress: null,
       runHistory: [],
+      personaId: null,
+      totalCampaignsCompleted: 0,
 
       // ─── Actions ────────────────────────────────────────────────────────
 
@@ -74,13 +77,14 @@ export const useUserStore = create<UserStore>()(
           profile,
           hasCompletedOnboarding: true,
           weeklyProgress: initialWeeklyProgress(),
+          personaId: profile.personaId,
         });
       },
 
       completeRun: (missionId, missionType, actualDistanceKm, actualDurationMin, path, goalMet, activityMode) => {
         const state = get();
         const today = getTodayISO();
-        const level = state.profile?.experienceLevel ?? 'beginner';
+        const level = ((state.profile?.experienceLevel) ?? 'beginner') as 'beginner' | 'intermediate' | 'advanced';
 
         // Streak logic
         const alive = isStreakAlive(state.lastRunDate);
@@ -165,6 +169,8 @@ export const useUserStore = create<UserStore>()(
           longestStreak: 0,
           weeklyProgress: null,
           runHistory: [],
+          personaId: null,
+          totalCampaignsCompleted: 0,
         });
       },
 
@@ -178,6 +184,9 @@ export const useUserStore = create<UserStore>()(
           set({ weeklyProgress: initialWeeklyProgress() });
         }
       },
+
+      incrementCampaignsCompleted: () =>
+        set((state) => ({ totalCampaignsCompleted: state.totalCampaignsCompleted + 1 })),
     }),
     {
       name: 'runquest-user',
@@ -195,14 +204,16 @@ export const selectLevelInfo = (state: UserStore) => getLevelInfo(state.xp);
 
 export const selectWeeklyRunsTarget = (state: UserStore): number => {
   if (!state.profile) return 3;
+  // New persona-based system: use preferredDays length
+  if (state.profile.preferredDays?.length > 0) return state.profile.preferredDays.length;
   if (state.profile.weeklyTargetMode === 'runs') return state.profile.weeklyTargetRuns;
   return 3;
 };
 
 export const selectWeeklyDistanceTarget = (state: UserStore): number => {
   if (!state.profile) return 15;
-  if (state.profile.weeklyTargetMode === 'distance') return state.profile.weeklyTargetDistance;
-  return state.profile.weeklyTargetRuns * 5;
+  if (state.profile.weeklyTargetMode === 'distance') return state.profile.weeklyTargetDistance ?? 15;
+  return (state.profile.weeklyTargetRuns ?? state.profile.preferredDays.length) * 5;
 };
 
 // ─── Helpers (duplicated here to avoid circular dep) ─────────────────────────

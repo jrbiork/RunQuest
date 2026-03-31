@@ -22,7 +22,7 @@ import { WeeklyProgressCard } from '../../src/components/home/WeeklyProgressCard
 import { CircularStatBadge } from '../../src/components/ui/CircularStatBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
-import { ProgressBar } from '../../src/components/ui/ProgressBar';
+import { CampaignProgressCard, OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
 import {
   colors,
   spacing,
@@ -51,14 +51,16 @@ export default function HomeScreen() {
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const refreshWeekly = useUserStore((s) => s.refreshWeeklyProgressIfNeeded);
 
+  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
+  const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
 
   const { streak } = useStreak();
   const dayOffset = useDevStore((s) => s.dayOffset);
 
   // Incrementing this forces a re-render so getTodaysMission re-evaluates
-  // with the latest getTodayISO() value, even when weekMissions hasn't changed.
+  // with the latest getTodayISO() value, even when mission lists haven't changed.
   const [dateTick, bumpDateTick] = useReducer((n: number) => n + 1, 0);
 
   // Mirrors the Journey tab pattern: compare stored week start vs mocked week start,
@@ -101,8 +103,12 @@ export default function HomeScreen() {
     }, [dayOffset, profile]),
   );
 
-  // dateTick is included so the computed values below refresh on each bump
-  const todaysMission = getTodaysMission(weekMissions);
+  // Match Journey: campaign list when active, else weekly missions
+  const todaysMission = useMemo(() => {
+    const list = campaignMissions.length > 0 ? campaignMissions : weekMissions;
+    return getTodaysMission(list);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateTick, campaignMissions, weekMissions]);
 
   // Week date range label — recomputed on every date tick
   const weekDateRange = useMemo(() => {
@@ -234,30 +240,27 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* ─── Rank Progress ───────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.accentBar} />
-            <Text style={styles.sectionTitle}>Rank Progress</Text>
-          </View>
-          <Card style={styles.rankCard}>
-            <View style={styles.rankRow}>
-              <MaterialIcons name="military-tech" size={15} color={colors.ochre} />
-              <Text style={styles.rankCardTitle}>
-                LVL {levelInfo.level} — {levelInfo.title}
-              </Text>
+        {/* ─── Campaign progress (below weekly goal; scroll if needed) ─ */}
+        {profile?.personaId && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.accentBar} />
+              <Text style={styles.sectionTitle}>Campaign</Text>
             </View>
-            <Text style={styles.rankCardSub}>
-              {levelInfo.xpInLevel} / {levelInfo.xpToNextLevel} XP → LVL {levelInfo.level + 1}
-            </Text>
-            <ProgressBar
-              progress={levelInfo.progress}
-              color={colors.ochre}
-              backgroundColor={colors.purpleLight}
-              height={8}
+            <CampaignProgressCard
+              profile={profile}
+              xp={xp}
+              currentCampaignIndex={currentCampaignIndex}
             />
-          </Card>
-        </View>
+          </View>
+        )}
+
+        {/* ─── Operative file ─────────────────────────────────────────── */}
+        {profile && (
+          <View style={styles.section}>
+            <OperativeFileCard profile={profile} />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -364,29 +367,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 2,
-  } as TextStyle,
-
-  // Rank progress card
-  rankCard: {
-    gap: spacing.sm,
-  } as ViewStyle,
-  rankRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  } as ViewStyle,
-  rankCardTitle: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
-  rankCardSub: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
   } as TextStyle,
 
   // Rest day

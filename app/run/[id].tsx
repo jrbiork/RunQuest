@@ -9,14 +9,17 @@ import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../src/constants/theme';
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
-import { MISSION_TEMPLATES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
 import type { ActivityMode } from '../../src/types';
 
 export default function RunDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = normalizeRouteParam(params.id);
+  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : weekMissions.find((m) => m.id === id);
+  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const [activityMode, setActivityMode] = useState<ActivityMode>('run');
 
   if (!mission) {
@@ -33,10 +36,6 @@ export default function RunDetailScreen() {
   }
 
   const config = missionConfig[mission.type];
-  const template = MISSION_TEMPLATES[mission.type];
-  const motivational = template.motivationalFraming[
-    Math.floor(Math.random() * template.motivationalFraming.length)
-  ] as string;
 
   const isCompleted = mission.status === 'completed';
 
@@ -156,17 +155,6 @@ export default function RunDetailScreen() {
           <Text style={styles.descTitle}>{isFreeRun ? 'Field Note' : 'Mission Briefing'}</Text>
           <Text style={styles.descText}>{mission.description}</Text>
         </Card>
-
-        {/* Intelligence / motivational framing — hidden for free run */}
-        {!isFreeRun && (
-          <View style={styles.intelCard}>
-            <View style={styles.intelHeader}>
-              <MaterialIcons name="radio" size={14} color={colors.orange} />
-              <Text style={styles.intelHeaderText}>Intel Received</Text>
-            </View>
-            <Text style={styles.intelQuote}>"{motivational}"</Text>
-          </View>
-        )}
 
         {/* CTA */}
         {isCompleted ? (
@@ -368,34 +356,6 @@ const styles = StyleSheet.create({
   } as TextStyle,
   descText: {
     fontSize: fontSizes.md,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  } as TextStyle,
-
-  // Intel card
-  intelCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.orange,
-    padding: spacing.xl,
-    gap: spacing.md,
-  } as ViewStyle,
-  intelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  } as ViewStyle,
-  intelHeaderText: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extrabold,
-    color: colors.orange,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  } as TextStyle,
-  intelQuote: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
     lineHeight: 24,
   } as TextStyle,

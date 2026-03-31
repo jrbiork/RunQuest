@@ -33,7 +33,8 @@ import {
   shadows,
   missionConfig,
 } from '../../src/constants/theme';
-import type { CompletedRun, MissionType } from '../../src/types';
+import type { CompletedRun, Mission, MissionType } from '../../src/types';
+import { findMissionById } from '../../src/utils/missionLookup';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import MonthShareCard from '../../src/components/share/MonthShareCard';
 import { shareCard } from '../../src/services/shareService';
@@ -48,9 +49,10 @@ const CELL_SIZE = Math.floor((SCREEN_WIDTH - spacing.xl * 2 - spacing.sm * 6) / 
 
 function getMissionTypeFromId(
   missionId: string,
-  weekMissions: ReturnType<typeof useMissionsStore.getState>['weekMissions'],
+  campaignMissions: Mission[],
+  weekMissions: Mission[],
 ): MissionType | null {
-  const m = weekMissions.find((w) => w.id === missionId);
+  const m = findMissionById(campaignMissions, weekMissions, missionId);
   return m?.type ?? null;
 }
 
@@ -182,13 +184,15 @@ function formatPaceDisplay(distanceKm: number, durationMin: number): string {
 function DayDetailPanel({
   dateStr,
   runs,
+  campaignMissions,
   weekMissions,
   onDismiss,
   onShare,
 }: {
   dateStr: string;
   runs: CompletedRun[];
-  weekMissions: ReturnType<typeof useMissionsStore.getState>['weekMissions'];
+  campaignMissions: Mission[];
+  weekMissions: Mission[];
   onDismiss: () => void;
   onShare: () => void;
 }) {
@@ -199,7 +203,7 @@ function DayDetailPanel({
 
   return (
     <Animated.View
-      entering={SlideInDown.springify().damping(18).stiffness(200)}
+      entering={SlideInDown.duration(220)}
       exiting={SlideOutDown.duration(200)}
       style={styles.detailPanel}
     >
@@ -230,7 +234,7 @@ function DayDetailPanel({
       ) : (
         /* Run(s) on this day */
         runs.map((run, idx) => {
-          const mission = weekMissions.find((m) => m.id === run.missionId);
+          const mission = findMissionById(campaignMissions, weekMissions, run.missionId);
           const mType = mission?.type ?? 'easy';
           const config = missionConfig[mType];
           return (
@@ -532,6 +536,7 @@ export default function StatsScreen() {
   const [isMonthSharing, setIsMonthSharing] = useState(false);
 
   const runHistory = useUserStore((s) => s.runHistory);
+  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
 
   const dayShareRef = useRef<ViewShot>(null);
@@ -665,7 +670,7 @@ export default function StatsScreen() {
               const hasRun = runsOnDay.length > 0;
               const firstRun = runsOnDay[0];
               const mType = firstRun
-                ? getMissionTypeFromId(firstRun.missionId, weekMissions)
+                ? getMissionTypeFromId(firstRun.missionId, campaignMissions, weekMissions)
                 : null;
               const inCurrentWeek = dateStr >= weekStartStr && dateStr <= weekEndStr;
               return (
@@ -699,6 +704,7 @@ export default function StatsScreen() {
           <DayDetailPanel
             dateStr={selectedDate}
             runs={selectedRuns}
+            campaignMissions={campaignMissions}
             weekMissions={weekMissions}
             onDismiss={() => setSelectedDate(null)}
             onShare={handleDayShare}
@@ -760,7 +766,7 @@ export default function StatsScreen() {
         {/* Day share card — shows first run of the selected day */}
         {selectedDate !== null && selectedRuns.length > 0 && (() => {
           const run = selectedRuns[0]!;
-          const mission = weekMissions.find((m) => m.id === run.missionId);
+          const mission = findMissionById(campaignMissions, weekMissions, run.missionId);
           return (
             <RunShareCard
               ref={dayShareRef}

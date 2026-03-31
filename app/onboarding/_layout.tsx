@@ -19,7 +19,11 @@ export default function OnboardingLayout() {
 
   return (
     <OnboardingContext.Provider value={{ draft }}>
-      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }} />
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="run-days" />
+        <Stack.Screen name="mode" />
+      </Stack>
     </OnboardingContext.Provider>
   );
 }

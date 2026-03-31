@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableWithoutFeedback,
+  ImageBackground,
   StyleSheet,
   Dimensions,
   ViewStyle,
@@ -24,6 +25,11 @@ import Animated, {
 import { useUserStore } from '../src/store/userStore';
 import { Button } from '../src/components/ui/Button';
 import { colors, fontSizes, fontWeights, spacing, radii } from '../src/constants/theme';
+
+const WORLD_BG = require('../assets/world_dark.png');
+const RUNNERS_BG = require('../assets/runners.png');
+const EVERY_RUN_BG = require('../assets/every_run.png');
+const FINAL_ONBOARD_BG = require('../assets/final_onboard.png');
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -48,21 +54,21 @@ const SLIDES: Slide[] = [
   {
     icon: 'directions-run',
     iconColor: colors.orange,
-    headline: 'Runners kept it alive.',
+    headline: 'Survivors kept it alive.',
     body: 'Moving between zones.\nCarrying what the world needs.\nOne run at a time.',
     accentColor: colors.orange,
   },
   {
     icon: 'bolt',
     iconColor: colors.yellow,
-    headline: 'Every run restores something.',
-    body: 'A power grid.\nA signal tower.\nA community.',
+    headline: 'Every mission helps the community.',
+    body: 'Deliver messages.\nCarry medication.\nAvoid being caught.',
     accentColor: colors.yellow,
   },
   {
     icon: 'public',
     iconColor: colors.primary,
-    headline: 'You are a Runner.',
+    headline: 'You are a Survivor.',
     body: 'Your first mission awaits.\nThe world is counting on you.',
     accentColor: colors.primary,
   },
@@ -266,11 +272,58 @@ export default function IntroScreen() {
 
   const slide = SLIDES[slideIndex]!;
 
+  const isFirstSlide = slideIndex === 0;
+  const isSurvivorsSlide = slideIndex === 1;
+  const isMissionSlide = slideIndex === 2;
+  const isFinalIntroSlide = slideIndex === 3;
+
   return (
     <TouchableWithoutFeedback
       onPress={slideIndex < SLIDES.length - 1 ? handleNext : undefined}
     >
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Full-screen backgrounds: world_dark, runners, every_run, final_onboard */}
+        {isFirstSlide ? (
+          <ImageBackground
+            source={WORLD_BG}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            pointerEvents="none"
+          >
+            <View style={styles.bgOverlay} />
+          </ImageBackground>
+        ) : null}
+        {isSurvivorsSlide ? (
+          <ImageBackground
+            source={RUNNERS_BG}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            pointerEvents="none"
+          >
+            <View style={styles.bgOverlaySurvivors} />
+          </ImageBackground>
+        ) : null}
+        {isMissionSlide ? (
+          <ImageBackground
+            source={EVERY_RUN_BG}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            pointerEvents="none"
+          >
+            <View style={styles.bgOverlayMission} />
+          </ImageBackground>
+        ) : null}
+        {isFinalIntroSlide ? (
+          <ImageBackground
+            source={FINAL_ONBOARD_BG}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            pointerEvents="none"
+          >
+            <View style={styles.bgOverlayFinal} />
+          </ImageBackground>
+        ) : null}
+
         {/* Background grid lines */}
         <View style={styles.gridOverlay} pointerEvents="none">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -318,6 +371,22 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
+  } as ViewStyle,
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 12, 8, 0.58)',
+  } as ViewStyle,
+  bgOverlaySurvivors: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(6, 8, 12, 0.52)',
+  } as ViewStyle,
+  bgOverlayMission: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10, 8, 6, 0.54)',
+  } as ViewStyle,
+  bgOverlayFinal: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(4, 8, 6, 0.5)',
   } as ViewStyle,
 
   // Subtle background grid

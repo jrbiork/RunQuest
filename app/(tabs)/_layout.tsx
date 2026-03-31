@@ -37,10 +37,10 @@ function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
 
   function handleTabPress(routeName: string) {
     const routeIndex = tabRoutes.findIndex((r) => r.name === routeName);
-    if (routeIndex === -1) return;
+    if (routeIndex === -1 || !tabRoutes[routeIndex]) return;
     const event = navigation.emit({
       type: 'tabPress',
-      target: tabRoutes[routeIndex].key,
+      target: tabRoutes[routeIndex]!.key,
       canPreventDefault: true,
     });
     if (!event.defaultPrevented) {

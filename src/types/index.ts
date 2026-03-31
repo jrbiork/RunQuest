@@ -22,14 +22,23 @@ export type DayOfWeek =
   | 'Sat'
   | 'Sun';
 
+export type PersonaId = 'ghost' | 'scout' | 'operative' | 'elite' | 'vanguard';
+
+export type ActivityMode = 'run' | 'cycle';
+
 export interface UserProfile {
-  experienceLevel: ExperienceLevel;
-  runningGoal: RunningGoal;
-  weeklyTargetMode: WeeklyTargetMode;
-  weeklyTargetRuns: number;       // 1–7
-  weeklyTargetDistance: number;   // km
+  // Persona-based (new system)
+  personaId: PersonaId;
+  defaultActivityMode: ActivityMode;
   preferredDays: DayOfWeek[];
-  paceLevel: PaceLevel;
+  weeklyTargetRuns: number;        // derived from preferredDays.length
+
+  // Legacy fields kept for backward compat (optional so old profiles don't crash)
+  experienceLevel?: ExperienceLevel;
+  runningGoal?: RunningGoal;
+  weeklyTargetMode?: WeeklyTargetMode;
+  weeklyTargetDistance?: number;
+  paceLevel?: PaceLevel;
 }
 
 // ─── Missions ────────────────────────────────────────────────────────────────
@@ -41,9 +50,7 @@ export type MissionType =
   | 'recovery'
   | 'interval';
 
-export type ActivityMode = 'run' | 'cycle';
-
-export type MissionStatus = 'completed' | 'active' | 'upcoming' | 'locked';
+export type MissionStatus = 'completed' | 'active' | 'upcoming' | 'locked' | 'failed';
 
 export interface Mission {
   id: string;
@@ -59,6 +66,29 @@ export interface Mission {
   day: DayOfWeek;
   scheduledDate: string;   // ISO date string YYYY-MM-DD
   status: MissionStatus;
+  // Campaign references
+  campaignIndex?: number;  // 0-based campaign index
+  campaignMissionIndex?: number;  // index within the campaign
+}
+
+// ─── Campaign Types ──────────────────────────────────────────────────────────
+
+export interface CampaignMissionTemplate {
+  type: MissionType;
+  title: string;
+  subtitle: string;
+  targetDistanceKm: number;
+  targetDurationMin: number;
+  targetCyclingDistanceKm: number;
+  targetCyclingDurationMin: number;
+  xpReward: number;
+}
+
+export interface CampaignTemplate {
+  index: number;   // 1-based (1–10)
+  title: string;
+  subtitle: string;
+  missionTemplates: CampaignMissionTemplate[];
 }
 
 // ─── GPS Tracking ─────────────────────────────────────────────────────────────
@@ -119,21 +149,30 @@ export interface UserState {
   longestStreak: number;
   weeklyProgress: WeeklyProgress | null;
   runHistory: CompletedRun[];
+  personaId: PersonaId | null;
+  totalCampaignsCompleted: number;
 }
 
 export interface MissionsState {
   weekMissions: Mission[];
   weekStartDate: string | null;  // ISO date YYYY-MM-DD (Monday this week started)
+  // Campaign state
+  currentCampaignIndex: number;   // 0-based
+  campaignMissions: Mission[];
+  campaignStartDate: string | null;
 }
 
 // ─── Onboarding Temp State ───────────────────────────────────────────────────
 
 export interface OnboardingDraft {
+  personaId?: PersonaId;
+  preferredDays?: DayOfWeek[];
+  defaultActivityMode?: ActivityMode;
+  // Legacy fields for backward compat
   experienceLevel?: ExperienceLevel;
   runningGoal?: RunningGoal;
   weeklyTargetMode?: WeeklyTargetMode;
   weeklyTargetRuns?: number;
   weeklyTargetDistance?: number;
-  preferredDays?: DayOfWeek[];
   paceLevel?: PaceLevel;
 }
