@@ -30,6 +30,7 @@ import {
 } from '../../src/constants/theme';
 import { getLevelInfo, formatDistance } from '../../src/utils/xpCalculator';
 import { useDevStore, getMockedDateLabel } from '../../src/store/devStore';
+import { CampaignProgressCard, OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
 const RANK_TITLES = [
   'Field Recruit',
   'Patrol Runner',
@@ -67,6 +68,7 @@ export default function ProfileScreen() {
   const adjustDay = useDevStore((s) => s.adjustDay);
   const resetDateOffset = useDevStore((s) => s.resetDateOffset);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
+  const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
 
   const [showGoalEditor, setShowGoalEditor] = useState(false);
   void showGoalEditor;
@@ -141,36 +143,64 @@ export default function ProfileScreen() {
         </View>
 
         {/* ─── Stats grid ───────────────────────────────────────────── */}
-        <View style={styles.statsGrid}>
-          <StatBlock
-            label="Sorties"
-            value={totalRuns.toString()}
-            icon="directions-run"
-            iconColor={colors.primary}
-          />
-          <StatBlock
-            label="Distance"
-            value={formatDistance(totalDistanceKm)}
-            icon="straighten"
-            iconColor={colors.blue}
-          />
-          <StatBlock
-            label="Mission Complete"
-            value={missionsCompleted.toString()}
-            icon="task-alt"
-            iconColor={colors.orange}
-          />
-          <StatBlock
-            label="Campaign Complete"
-            value={totalCampaignsCompleted.toString()}
-            icon="public"
-            iconColor={colors.yellow}
-          />
+        <View style={styles.statsSection}>
+          <View style={styles.statsSectionTitleRow}>
+            <View style={styles.campaignAccent} />
+            <Text style={styles.campaignTitle}>Overall Performance</Text>
+          </View>
+          <View style={styles.statsGrid}>
+            <StatBlock
+              label="Sorties"
+              value={totalRuns.toString()}
+              icon="directions-run"
+              iconColor={colors.primary}
+            />
+            <StatBlock
+              label="Distance"
+              value={formatDistance(totalDistanceKm)}
+              icon="straighten"
+              iconColor={colors.blue}
+            />
+            <StatBlock
+              label="Mission"
+              value={missionsCompleted.toString()}
+              icon="task-alt"
+              iconColor={colors.orange}
+            />
+            <StatBlock
+              label="Campaign"
+              value={totalCampaignsCompleted.toString()}
+              icon="public"
+              iconColor={colors.yellow}
+            />
+          </View>
         </View>
+
+        {/* ─── Campaign (from home) ─────────────────────────────────── */}
+        {profile?.personaId && (
+          <View style={styles.campaignBlock}>
+            <View style={styles.campaignTitleRow}>
+              <View style={styles.campaignAccent} />
+              <Text style={styles.campaignTitle}>Campaign</Text>
+            </View>
+            <CampaignProgressCard
+              profile={profile}
+              xp={xp}
+              currentCampaignIndex={currentCampaignIndex}
+            />
+          </View>
+        )}
+
+        {/* ─── Operative file ─────────────────────────────────────────── */}
+        {profile && (
+          <View style={styles.campaignBlock}>
+            <OperativeFileCard profile={profile} />
+          </View>
+        )}
 
         {/* ─── Settings ────────────────────────────────────────────── */}
         <Card style={styles.settingsCard}>
-          <Text style={styles.sectionHeader}>SETTINGS</Text>
+          <Text style={styles.settingsSectionTitle}>SETTINGS</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <MaterialIcons
@@ -411,6 +441,14 @@ const styles = StyleSheet.create({
   } as TextStyle,
 
   // Stats grid
+  statsSection: {
+    gap: spacing.md,
+  } as ViewStyle,
+  statsSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -439,6 +477,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  } as TextStyle,
+
+  campaignBlock: {
+    gap: spacing.md,
+    paddingVertical: spacing.xs,
+  } as ViewStyle,
+  campaignTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  campaignAccent: {
+    width: 3,
+    height: 16,
+    backgroundColor: colors.ochre,
+    borderRadius: 2,
+  } as ViewStyle,
+  campaignTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   } as TextStyle,
 
   // Week card
@@ -520,7 +581,7 @@ const styles = StyleSheet.create({
 
   // Settings card
   settingsCard: { gap: spacing.md } as ViewStyle,
-  sectionHeader: {
+  settingsSectionTitle: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
     color: colors.orange,

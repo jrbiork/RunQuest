@@ -39,6 +39,23 @@ npx expo start
 > - **Expo Go SDK 55 TestFlight (iOS):** Join the beta at https://testflight.apple.com/join/GZJxxfUU
 > - **Expo Go SDK 55 on Android:** `npx expo start` then press `a` — Expo CLI will install the correct version.
 
+### iOS dev build: “No script URL provided”
+
+Debug builds load JavaScript from the **Metro bundler** and do **not** embed `main.jsbundle`. If you kill the app and reopen while Metro is not running (or the device cannot reach it), React Native shows a red error: *No script URL provided*.
+
+- **Fix during development:** Run `npx expo start` before opening the app; keep the device on the same network or use a tunnel.
+- **Standalone installs (no Metro):** Run a **Release** build from Xcode or ship via EAS so the JS bundle is embedded at build time.
+
+### Optional: map polyline snapping (OpenRouteService)
+
+Road snapping on the active run map uses [OpenRouteService](https://openrouteservice.org/). Set a public API key when starting Expo:
+
+```bash
+EXPO_PUBLIC_OPENROUTESERVICE_KEY=your_key npx expo start
+```
+
+The app reads it from `expo.extra` via [`app.config.js`](app.config.js). Without a key, the map falls back to raw GPS points.
+
 ---
 
 ## Project Structure

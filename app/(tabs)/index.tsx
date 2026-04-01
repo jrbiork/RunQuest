@@ -22,7 +22,6 @@ import { WeeklyProgressCard } from '../../src/components/home/WeeklyProgressCard
 import { CircularStatBadge } from '../../src/components/ui/CircularStatBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
-import { CampaignProgressCard, OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
 import {
   colors,
   spacing,
@@ -54,8 +53,6 @@ export default function HomeScreen() {
   const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
-  const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
-
   const { streak } = useStreak();
   const dayOffset = useDevStore((s) => s.dayOffset);
 
@@ -240,27 +237,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* ─── Campaign progress (below weekly goal; scroll if needed) ─ */}
-        {profile?.personaId && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.accentBar} />
-              <Text style={styles.sectionTitle}>Campaign</Text>
-            </View>
-            <CampaignProgressCard
-              profile={profile}
-              xp={xp}
-              currentCampaignIndex={currentCampaignIndex}
-            />
-          </View>
-        )}
-
-        {/* ─── Operative file ─────────────────────────────────────────── */}
-        {profile && (
-          <View style={styles.section}>
-            <OperativeFileCard profile={profile} />
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,13 +1,21 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { UserProfile, UserState, WeeklyProgress, CompletedRun, GpsPoint, PersonaId } from '../types';
+import type {
+  UserProfile,
+  UserState,
+  WeeklyProgress,
+  CompletedRun,
+  GpsPoint,
+  PersonaId,
+  MissionOutcome,
+} from '../types';
 import {
   calculateXpEarned,
   getLevelInfo,
   WEEKLY_BONUS_XP,
 } from '../utils/xpCalculator';
-import { setAudioMutedFlag } from '../services/audioService';
+import { setAudioMutedFlag, syncOnboardingAmbientWithMute } from '../services/audioService';
 import {
   getTodayISO,
   getWeekStartISO,
@@ -28,6 +36,8 @@ interface UserActions {
     goalMet?: boolean,
     activityMode?: import('../types').ActivityMode,
   ) => CompletedRun;
+  /** Log-only entry (e.g. aborted mid-run): no XP, streak, or weekly progress. */
+  appendRunHistoryEntry: (run: CompletedRun) => void;
   markWeeklyBonusAwarded: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   resetOnboarding: () => void;
@@ -70,6 +80,7 @@ export const useUserStore = create<UserStore>()(
       setAudioMuted: (muted) => {
         setAudioMutedFlag(muted);
         set({ audioMuted: muted });
+        syncOnboardingAmbientWithMute();
       },
 
       completeOnboarding: (profile: UserProfile) => {
@@ -115,6 +126,8 @@ export const useUserStore = create<UserStore>()(
           missionsCompleted: [...currentWp.missionsCompleted, missionId],
         };
 
+        const met = goalMet ?? false;
+        const outcome: MissionOutcome = met ? 'success' : 'failed_goal';
         const completedRun: CompletedRun = {
           missionId,
           completedAt: new Date().toISOString(),
@@ -122,7 +135,8 @@ export const useUserStore = create<UserStore>()(
           durationMin: durMin,
           xpEarned,
           streakDay: newStreak,
-          goalMet: goalMet ?? false,
+          goalMet: met,
+          outcome,
           ...(activityMode ? { activityMode } : {}),
           ...(path && path.length > 0 ? { path } : {}),
         };
@@ -139,6 +153,12 @@ export const useUserStore = create<UserStore>()(
         });
 
         return completedRun;
+      },
+
+      appendRunHistoryEntry: (run) => {
+        set((state) => ({
+          runHistory: [...state.runHistory, run],
+        }));
       },
 
       markWeeklyBonusAwarded: () => {
@@ -193,6 +213,7 @@ export const useUserStore = create<UserStore>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (state?.audioMuted) setAudioMutedFlag(state.audioMuted);
+        syncOnboardingAmbientWithMute();
       },
     },
   ),

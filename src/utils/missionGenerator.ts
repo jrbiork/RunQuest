@@ -145,6 +145,7 @@ function buildMission(
 ): Mission {
   const template = MISSION_TEMPLATES[type];
   const targets = getTargets(type, level);
+  const variant = template.variants?.length ? pick(template.variants) : null;
 
   let status: Mission['status'];
   if (scheduledDate < todayISO) {
@@ -160,9 +161,10 @@ function buildMission(
   return {
     id: `mission-${scheduledDate}-${type}-${index}`,
     type,
-    title: pick(template.titles),
-    subtitle: pick(template.subtitles),
-    description: pick(template.descriptions),
+    title: variant?.title ?? pick(template.titles),
+    subtitle: variant?.subtitle ?? pick(template.subtitles),
+    description: variant?.description ?? pick(template.descriptions),
+    ...(variant?.audioCues ? { audioCues: variant.audioCues } : {}),
     targetDistanceKm: targets.distanceKm,
     targetDurationMin: targets.durationMin,
     targetCyclingDistanceKm: targets.cyclingDistanceKm,

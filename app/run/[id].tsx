@@ -13,6 +13,16 @@ import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
 import type { ActivityMode } from '../../src/types';
 
+/** Darken a #RRGGBB hex for button borders on colored fills. */
+function darkenHex(hex: string, factor = 0.74): string {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return hex;
+  const r = Math.round(parseInt(h.slice(0, 2), 16) * factor);
+  const g = Math.round(parseInt(h.slice(2, 4), 16) * factor);
+  const b = Math.round(parseInt(h.slice(4, 6), 16) * factor);
+  return `#${[r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export default function RunDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = normalizeRouteParam(params.id);
@@ -36,6 +46,8 @@ export default function RunDetailScreen() {
   }
 
   const config = missionConfig[mission.type];
+  const accent = config.color;
+  const accentBtnBorder = darkenHex(accent);
 
   const isCompleted = mission.status === 'completed';
 
@@ -53,12 +65,12 @@ export default function RunDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* ─── Dark industrial header ────────────────────────────────── */}
-      <View style={[styles.hero, { borderBottomColor: config.color }]}>
+      <View style={[styles.hero, { borderBottomColor: accent }]}>
         {/* Close + type pill row */}
         <View style={styles.heroTopRow}>
-          <View style={[styles.typePill, { borderColor: config.color }]}>
-            <MaterialIcons name={config.icon as any} size={12} color={config.color} />
-            <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
+          <View style={[styles.typePill, { borderColor: accent }]}>
+            <MaterialIcons name={config.icon as any} size={12} color={accent} />
+            <Text style={[styles.typeLabel, { color: accent }]}>{config.label}</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
             <MaterialIcons name="close" size={20} color={colors.textSecondary} />
@@ -77,9 +89,9 @@ export default function RunDetailScreen() {
 
         {/* Activity mode selector — hidden for free run */}
         {!isFreeRun && (
-          <View style={styles.modeSelector}>
+          <View style={[styles.modeSelector, { borderColor: `${accent}55`, backgroundColor: config.bgColor }]}>
             <TouchableOpacity
-              style={[styles.modeTab, activityMode === 'run' && styles.modeTabActive]}
+              style={[styles.modeTab, activityMode === 'run' && { backgroundColor: accent }]}
               onPress={() => setActivityMode('run')}
               activeOpacity={0.8}
             >
@@ -93,7 +105,7 @@ export default function RunDetailScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modeTab, activityMode === 'cycle' && styles.modeTabActive]}
+              style={[styles.modeTab, activityMode === 'cycle' && { backgroundColor: accent }]}
               onPress={() => setActivityMode('cycle')}
               activeOpacity={0.8}
             >
@@ -116,30 +128,30 @@ export default function RunDetailScreen() {
               icon={activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
               label="Distance"
               value={formatDistance(targetDistance)}
-              color={config.color}
+              color={accent}
             />
             <StatCard
               icon="timer"
               label="Duration"
               value={`~${formatDuration(targetDuration)}`}
-              color={config.color}
+              color={accent}
             />
           </View>
         )}
 
         {/* Mission reward — hidden for free run */}
         {!isFreeRun ? (
-          <Card accentTop={colors.ochre} style={styles.xpCard}>
+          <Card accentTop={accent} style={styles.xpCard}>
             <View style={styles.xpRow}>
               <View style={styles.xpLeft}>
                 <Text style={styles.xpTitle}>Mission Reward</Text>
                 <Text style={styles.xpSub}>Streak bonus may increase XP</Text>
               </View>
-              <XPBadge xp={mission.xpReward} size="lg" />
+              <XPBadge xp={mission.xpReward} size="lg" accentColor={accent} />
             </View>
           </Card>
         ) : (
-          <Card accentTop={colors.border} style={styles.xpCard}>
+          <Card accentTop={accent} style={styles.xpCard}>
             <View style={styles.xpRow}>
               <MaterialIcons name="self-improvement" size={24} color={colors.textSecondary} />
               <View style={styles.xpLeft}>
@@ -151,16 +163,21 @@ export default function RunDetailScreen() {
         )}
 
         {/* Briefing */}
-        <Card accentTop={colors.border} style={styles.descCard}>
+        <Card accentTop={accent} style={styles.descCard}>
           <Text style={styles.descTitle}>{isFreeRun ? 'Field Note' : 'Mission Briefing'}</Text>
           <Text style={styles.descText}>{mission.description}</Text>
         </Card>
 
         {/* CTA */}
         {isCompleted ? (
-          <View style={styles.completedState}>
-            <MaterialIcons name="check-circle" size={26} color={colors.primary} />
-            <Text style={styles.completedText}>Mission Completed</Text>
+          <View
+            style={[
+              styles.completedState,
+              { backgroundColor: `${accent}18`, borderColor: accent },
+            ]}
+          >
+            <MaterialIcons name="check-circle" size={26} color={accent} />
+            <Text style={[styles.completedText, { color: accent }]}>Mission Completed</Text>
           </View>
         ) : (
           <Button
@@ -168,7 +185,7 @@ export default function RunDetailScreen() {
             icon={isFreeRun ? 'directions-run' : activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
             onPress={handleStartMission}
             fullWidth
-            style={styles.cta}
+            style={{ ...styles.cta, backgroundColor: accent, borderColor: accentBtnBorder }}
           />
         )}
       </ScrollView>
@@ -275,9 +292,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radii.sm,
   } as ViewStyle,
-  modeTabActive: {
-    backgroundColor: colors.primary,
-  } as ViewStyle,
   modeTabLabel: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
@@ -368,15 +382,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.lg,
-    backgroundColor: colors.primaryLight,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.primary,
   } as ViewStyle,
   completedText: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
-    color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   } as TextStyle,

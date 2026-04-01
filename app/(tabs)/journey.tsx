@@ -49,7 +49,6 @@ export default function JourneyScreen() {
 
   const missions = campaignMissions.length > 0 ? campaignMissions : weekMissions;
   const allComplete = missions.length > 0 && missions.every((m) => m.status === 'completed');
-  const hasFailed = missions.some((m) => m.status === 'failed');
   const totalMissions = missions.length;
 
   const useCampaigns = !!profile?.personaId && campaignMissions.length > 0;
@@ -189,13 +188,13 @@ export default function JourneyScreen() {
           </View>
         )}
 
-        {/* Failed mission warning */}
-        {hasFailed && (
-          <View style={styles.failedWarning}>
-            <MaterialIcons name="warning" size={16} color={colors.red} />
-            <Text style={styles.failedWarningText}>
-              One or more missions failed. Retry them to advance to the next campaign.
-            </Text>
+        {/* Missions section */}
+        {totalMissions > 0 && (
+          <View style={styles.missionsSection}>
+            <View style={styles.missionsSectionHeader}>
+              <View style={styles.accentBar} />
+              <Text style={styles.missionsSectionTitle}>Missions</Text>
+            </View>
           </View>
         )}
 
@@ -203,7 +202,7 @@ export default function JourneyScreen() {
         <JourneyPath missions={missions} allComplete={allComplete} />
 
         {/* Intel tip */}
-        {!allComplete && totalMissions > 0 && completedCount < totalMissions && !hasFailed && (
+        {!allComplete && totalMissions > 0 && completedCount < totalMissions && (
           <View style={styles.tip}>
             <MaterialIcons name="radio" size={16} color={colors.blue} />
             <Text style={styles.tipText}>
@@ -335,21 +334,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   } as TextStyle,
-  failedWarning: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.redLight,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.red,
-    padding: spacing.lg,
+  missionsSection: {
     gap: spacing.sm,
   } as ViewStyle,
-  failedWarningText: {
-    flex: 1,
-    fontSize: fontSizes.sm,
-    color: colors.red,
-    lineHeight: 18,
+  missionsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  accentBar: {
+    width: 3,
+    height: 16,
+    backgroundColor: colors.ochre,
+    borderRadius: 2,
+  } as ViewStyle,
+  missionsSectionTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   } as TextStyle,
   tip: {
     flexDirection: 'row',

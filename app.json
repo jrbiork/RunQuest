@@ -5,11 +5,11 @@
     "version": "1.0.0",
     "scheme": "runquest",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/ios_icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#0E1210"
     },
     "ios": {
@@ -18,24 +18,25 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "backgroundColor": "#FAFAFA"
+        "foregroundImage": "./assets/ios_icon.png",
+        "backgroundColor": "#0E1210"
       },
       "package": "com.runquest.app"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/ios_icon.png"
     },
     "plugins": [
       [
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
-          "resizeMode": "cover",
-          "backgroundColor": "#0E1210"
+          "resizeMode": "contain",
+          "backgroundColor": "#0E1210",
+          "enableFullScreenImage_legacy": false,
+          "imageWidth": 200
         }
       ],
       "expo-router",

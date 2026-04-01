@@ -16,7 +16,7 @@ const _backgroundBuffer: GpsPoint[] = [];
 
 // ─── Register background task (must be at module top-level, outside any component) ─
 
-TaskManager.defineTask(BACKGROUND_LOCATION_TASK, ({ data, error }) => {
+TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   if (error) return;
   const { locations } = data as { locations: Location.LocationObject[] };
   for (const loc of locations) {

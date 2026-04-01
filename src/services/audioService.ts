@@ -1,4 +1,4 @@
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import { OPENAI_API_KEY, TTS_VOICE, TTS_MODEL } from '../constants/openaiConfig';
@@ -7,6 +7,69 @@ import { OPENAI_API_KEY, TTS_VOICE, TTS_MODEL } from '../constants/openaiConfig'
 let _muted = false;
 export function setAudioMutedFlag(muted: boolean) { _muted = muted; }
 export function isAudioMuted() { return _muted; }
+
+let onboardingAmbientPlayer: AudioPlayer | null = null;
+const ONBOARDING_AMBIENT_VOLUME = 0.32;
+
+/**
+ * Looped ambient bed for the intro carousel **first slide only** (see `app/intro.tsx`).
+ * Replace `assets/sounds/onboarding.mp3` to change the mood; playback stops when
+ * the user leaves slide 1 or taps Begin.
+ */
+export async function startOnboardingAmbient(): Promise<void> {
+  if (_muted) return;
+  if (onboardingAmbientPlayer) {
+    try {
+      if (!onboardingAmbientPlayer.playing) onboardingAmbientPlayer.play();
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  try {
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'duckOthers',
+    });
+    const player = createAudioPlayer(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../assets/sounds/onboarding.mp3'),
+    );
+    player.loop = true;
+    player.volume = ONBOARDING_AMBIENT_VOLUME;
+    player.play();
+    onboardingAmbientPlayer = player;
+  } catch {
+    // optional — never block intro/onboarding
+  }
+}
+
+export function stopOnboardingAmbient(): void {
+  if (!onboardingAmbientPlayer) return;
+  try {
+    onboardingAmbientPlayer.pause();
+    onboardingAmbientPlayer.release();
+  } catch {
+    // ignore
+  }
+  onboardingAmbientPlayer = null;
+}
+
+/** When global mute toggles while ambient may be playing. */
+export function syncOnboardingAmbientWithMute(): void {
+  if (!onboardingAmbientPlayer) return;
+  try {
+    if (_muted) {
+      onboardingAmbientPlayer.pause();
+    } else {
+      onboardingAmbientPlayer.volume = ONBOARDING_AMBIENT_VOLUME;
+      onboardingAmbientPlayer.play();
+    }
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Play the goal-reached chime and trigger haptic feedback.
@@ -55,8 +118,14 @@ export async function playGoalReachedSound(): Promise<void> {
  * Silent-fails on any error so it never disrupts the run screen.
  * Requires OPENAI_API_KEY to be set in src/constants/openaiConfig.ts.
  */
+/** Keep TTS input short; one sentence is ideal for in-run cues. */
+const MAX_TTS_CHARS = 220;
+
 export async function speakRunCue(line: string): Promise<void> {
   if (!OPENAI_API_KEY || _muted) return;
+
+  const text =
+    line.length > MAX_TTS_CHARS ? `${line.slice(0, MAX_TTS_CHARS - 1).trimEnd()}…` : line;
 
   try {
     // 1. Call OpenAI TTS
@@ -69,7 +138,7 @@ export async function speakRunCue(line: string): Promise<void> {
       body: JSON.stringify({
         model: TTS_MODEL,
         voice: TTS_VOICE,
-        input: line,
+        input: text,
         response_format: 'mp3',
       }),
     });

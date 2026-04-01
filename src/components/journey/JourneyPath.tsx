@@ -93,7 +93,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
                 : undefined
             }
             onRetry={
-              mission.status === 'failed'
+              mission.status === 'failed' || mission.status === 'aborted'
                 ? () => retryMission(mission.id)
                 : undefined
             }

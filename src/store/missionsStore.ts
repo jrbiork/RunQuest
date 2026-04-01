@@ -6,14 +6,16 @@ import { useUserStore } from './userStore';
 import { generateWeekMissions, getTodaysMission } from '../utils/missionGenerator';
 import { getWeekStartISO, isNewWeek, getTodayISO, getScheduledDatesForWeek, getWeekStart, getNow } from '../utils/dateUtils';
 import { PERSONA_CAMPAIGNS } from '../constants/campaigns';
-import { MISSION_TEMPLATES } from '../constants/missions';
 import { BASE_XP } from '../utils/xpCalculator';
+import { narrativeForCampaignMission } from '../utils/campaignMissionNarrative';
 
 interface MissionsActions {
   // Legacy weekly generation (free run compatibility)
   generateWeek: (profile: UserProfile) => void;
   completeMission: (missionId: string, xpEarned?: number) => void;
   failMission: (missionId: string) => void;
+  /** User stopped the run from the active screen — distinct from failing the goal on complete. */
+  abortMission: (missionId: string) => void;
   retryMission: (missionId: string) => void;
   refreshIfNewWeek: (profile: UserProfile) => void;
 
@@ -24,10 +26,6 @@ interface MissionsActions {
 }
 
 type MissionsStore = MissionsState & MissionsActions;
-
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)] as T;
-}
 
 function buildCampaignMissions(
   profile: UserProfile,
@@ -42,8 +40,13 @@ function buildCampaignMissions(
   return preferredDays.map((day, dayIdx) => {
     const templateIdx = dayIdx % campaign.missionTemplates.length;
     const template = campaign.missionTemplates[templateIdx]!;
-    const missionCopy = MISSION_TEMPLATES[template.type];
     const scheduledDate = scheduledDates[dayIdx] ?? today;
+    const generated = narrativeForCampaignMission(
+      template.type,
+      template.title,
+      template.subtitle,
+      campaign.title,
+    );
 
     let status: Mission['status'];
     if (scheduledDate < today) {
@@ -59,11 +62,12 @@ function buildCampaignMissions(
       type: template.type,
       title: template.title,
       subtitle: template.subtitle,
-      description: pick(missionCopy.descriptions),
-      targetDistanceKm: 1,
-      targetDurationMin: 5,
-      targetCyclingDistanceKm: 1,
-      targetCyclingDurationMin: 5,
+      description: template.description ?? generated.description,
+      audioCues: template.audioCues ?? generated.audioCues,
+      targetDistanceKm: template.targetDistanceKm,
+      targetDurationMin: template.targetDurationMin,
+      targetCyclingDistanceKm: template.targetCyclingDistanceKm,
+      targetCyclingDurationMin: template.targetCyclingDurationMin,
       xpReward: template.xpReward,
       day,
       scheduledDate,
@@ -129,10 +133,25 @@ export const useMissionsStore = create<MissionsStore>()(
         });
       },
 
+      abortMission: (missionId: string) => {
+        set((state) => {
+          const updateList = (list: Mission[]) =>
+            list.map((m) => (m.id === missionId ? { ...m, status: 'aborted' as const } : m));
+          return {
+            weekMissions: updateList(state.weekMissions),
+            campaignMissions: updateList(state.campaignMissions),
+          };
+        });
+      },
+
       retryMission: (missionId: string) => {
         set((state) => {
           const updateList = (list: Mission[]) =>
-            list.map((m) => (m.id === missionId && m.status === 'failed' ? { ...m, status: 'active' as const } : m));
+            list.map((m) =>
+              m.id === missionId && (m.status === 'failed' || m.status === 'aborted')
+                ? { ...m, status: 'active' as const }
+                : m,
+            );
           return {
             weekMissions: updateList(state.weekMissions),
             campaignMissions: updateList(state.campaignMissions),
@@ -209,7 +228,9 @@ export const useMissionsStore = create<MissionsStore>()(
       canAdvanceCampaign: () => {
         const { campaignMissions } = get();
         if (campaignMissions.length === 0) return false;
-        const hasFailed = campaignMissions.some((m) => m.status === 'failed');
+        const hasFailed = campaignMissions.some(
+          (m) => m.status === 'failed' || m.status === 'aborted',
+        );
         const hasActive = campaignMissions.some(
           (m) => m.status === 'active' || m.status === 'upcoming',
         );
@@ -251,13 +272,18 @@ export const selectNextMission = (state: MissionsStore): Mission | null => {
     (m) => m.scheduledDate === today && m.status === 'active',
   );
   if (todayActive) return todayActive;
-  // Today's failed mission (for retry — same day, should still be attempted)
+  // Today's failed or aborted mission (for retry — same day, should still be attempted)
   const todayFailed = missions.find(
-    (m) => m.scheduledDate === today && m.status === 'failed',
+    (m) =>
+      m.scheduledDate === today && (m.status === 'failed' || m.status === 'aborted'),
   );
   if (todayFailed) return todayFailed;
-  // Next future non-completed, non-failed mission
-  return missions.find((m) => m.status !== 'completed' && m.status !== 'failed') ?? null;
+  // Next future non-completed, non-terminal mission
+  return (
+    missions.find(
+      (m) => m.status !== 'completed' && m.status !== 'failed' && m.status !== 'aborted',
+    ) ?? null
+  );
 };
 
 export const selectCampaignXpEarned = (state: MissionsStore): number =>

@@ -4,6 +4,10 @@ import type { PersonaId, CampaignTemplate } from '../types';
 // 4 personas × 10 campaigns each. Each campaign has up to 7 mission templates.
 // When generating for a user, templates are matched 1:1 to preferredDays in order,
 // cycling through templates if there are more days than templates.
+//
+// Mission Briefing + in-run TTS: missionsStore merges each row with
+// narrativeForCampaignMission (see src/utils/campaignMissionNarrative.ts).
+// Optional per-row overrides: add description and/or audioCues on a template.
 
 const GHOST_CAMPAIGNS: CampaignTemplate[] = [
   {

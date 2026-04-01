@@ -6,12 +6,22 @@ interface XPBadgeProps {
   xp: number;
   size?: 'sm' | 'md' | 'lg';
   style?: ViewStyle;
+  /** When set (e.g. mission accent), badge matches that color instead of default XP purple. */
+  accentColor?: string;
 }
 
-export function XPBadge({ xp, size = 'md', style }: XPBadgeProps) {
+export function XPBadge({ xp, size = 'md', style, accentColor }: XPBadgeProps) {
+  const accentText = accentColor ?? colors.purple;
   return (
-    <View style={[styles.badge, styles[size], style]}>
-      <Text style={[styles.text, styles[`text_${size}`]]}>
+    <View
+      style={[
+        styles.badge,
+        styles[size],
+        accentColor != null ? { backgroundColor: `${accentColor}22` } : null,
+        style,
+      ]}
+    >
+      <Text style={[styles.text, styles[`text_${size}`], { color: accentText }]}>
         +{xp} XP
       </Text>
     </View>

@@ -1,11 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableWithoutFeedback,
   ImageBackground,
   StyleSheet,
   Dimensions,
+  PanResponder,
   ViewStyle,
   TextStyle,
 } from 'react-native';
@@ -18,11 +18,18 @@ import Animated, {
   withTiming,
   withSequence,
   withDelay,
+  withRepeat,
   Easing,
   FadeIn,
-  FadeOut,
+  SlideInRight,
+  SlideOutLeft,
 } from 'react-native-reanimated';
 import { useUserStore } from '../src/store/userStore';
+import {
+  startOnboardingAmbient,
+  stopOnboardingAmbient,
+  syncOnboardingAmbientWithMute,
+} from '../src/services/audioService';
 import { Button } from '../src/components/ui/Button';
 import { colors, fontSizes, fontWeights, spacing, radii } from '../src/constants/theme';
 
@@ -41,6 +48,8 @@ interface Slide {
   headline: string;
   body: string;
   accentColor: string;
+  bg: ReturnType<typeof require>;
+  bgOverlay: string;
 }
 
 const SLIDES: Slide[] = [
@@ -50,6 +59,8 @@ const SLIDES: Slide[] = [
     headline: 'The world went dark.',
     body: 'Cities abandoned.\nSystems down.\nEverything silent.',
     accentColor: colors.red,
+    bg: WORLD_BG,
+    bgOverlay: 'rgba(8, 12, 8, 0.58)',
   },
   {
     icon: 'directions-run',
@@ -57,6 +68,8 @@ const SLIDES: Slide[] = [
     headline: 'Survivors kept it alive.',
     body: 'Moving between zones.\nCarrying what the world needs.\nOne run at a time.',
     accentColor: colors.orange,
+    bg: RUNNERS_BG,
+    bgOverlay: 'rgba(6, 8, 12, 0.52)',
   },
   {
     icon: 'bolt',
@@ -64,6 +77,8 @@ const SLIDES: Slide[] = [
     headline: 'Every mission helps the community.',
     body: 'Deliver messages.\nCarry medication.\nAvoid being caught.',
     accentColor: colors.yellow,
+    bg: EVERY_RUN_BG,
+    bgOverlay: 'rgba(10, 8, 6, 0.54)',
   },
   {
     icon: 'public',
@@ -71,6 +86,8 @@ const SLIDES: Slide[] = [
     headline: 'You are a Survivor.',
     body: 'Your first mission awaits.\nThe world is counting on you.',
     accentColor: colors.primary,
+    bg: FINAL_ONBOARD_BG,
+    bgOverlay: 'rgba(4, 8, 6, 0.5)',
   },
 ];
 
@@ -110,20 +127,73 @@ const scanStyles = StyleSheet.create({
   } as ViewStyle,
 });
 
+/** Looping finger sliding left to reinforce “swipe left”. */
+function SwipeFingerCue() {
+  const x = useSharedValue(22);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    x.value = withRepeat(
+      withSequence(
+        withTiming(-34, { duration: 580, easing: Easing.out(Easing.cubic) }),
+        withDelay(280, withTiming(22, { duration: 0 })),
+      ),
+      -1,
+      false,
+    );
+  }, [x]);
+
+  const fingerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }],
+  }));
+
+  return (
+    <View style={fingerCue.track} pointerEvents="none">
+      <Animated.View style={[fingerCue.fingerWrap, fingerStyle]}>
+        <MaterialIcons name="touch-app" size={30} color={colors.orange} />
+      </Animated.View>
+    </View>
+  );
+}
+
+const fingerCue = StyleSheet.create({
+  track: {
+    width: 88,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  } as ViewStyle,
+  fingerWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+});
+
 // ─── Single Slide ─────────────────────────────────────────────────────────────
 
-function SlideView({ slide, isLast, onNext, onBegin }: {
+function SlideView({ slide, isLast, onBegin }: {
   slide: Slide;
   isLast: boolean;
-  onNext: () => void;
   onBegin: () => void;
 }) {
   return (
     <Animated.View
-      entering={FadeIn.duration(500)}
-      exiting={FadeOut.duration(300)}
+      entering={SlideInRight.duration(380)}
+      exiting={SlideOutLeft.duration(280)}
       style={slideStyles.container}
     >
+      {/* Full-bleed background — travels with the slide */}
+      <ImageBackground
+        source={slide.bg}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: slide.bgOverlay }]} />
+      </ImageBackground>
+
       {/* Scan lines */}
       {[0.18, 0.38, 0.55, 0.72].map((frac, i) => (
         <ScanLine key={i} delay={i * 200} top={SCREEN_H * frac} />
@@ -142,21 +212,25 @@ function SlideView({ slide, isLast, onNext, onBegin }: {
       {/* Body */}
       <Text style={slideStyles.body}>{slide.body}</Text>
 
-      {/* CTA / tap hint */}
+      {/* CTA / swipe hint */}
       {isLast ? (
         <Button
-          label="Begin the Mission"
+          label="Begin your journey"
           onPress={onBegin}
           fullWidth
           style={slideStyles.beginBtn}
         />
       ) : (
-        <TouchableWithoutFeedback onPress={onNext}>
-          <View style={slideStyles.tapHint}>
-            <Text style={slideStyles.tapText}>Tap to continue</Text>
-            <MaterialIcons name="chevron-right" size={18} color={colors.textTertiary} />
+        <View
+          style={slideStyles.swipeHint}
+          accessibilityLabel="Swipe left to continue"
+        >
+          <SwipeFingerCue />
+          <View style={slideStyles.swipeHintRow}>
+            <MaterialIcons name="arrow-back" size={18} color={colors.textTertiary} />
+            <Text style={slideStyles.swipeHintText}>Swipe left to continue</Text>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       )}
     </Animated.View>
   );
@@ -164,7 +238,7 @@ function SlideView({ slide, isLast, onNext, onBegin }: {
 
 const slideStyles = StyleSheet.create({
   container: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxxl,
@@ -201,13 +275,17 @@ const slideStyles = StyleSheet.create({
     lineHeight: 28,
     letterSpacing: 0.2,
   } as TextStyle,
-  tapHint: {
+  swipeHint: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  } as ViewStyle,
+  swipeHintRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.lg,
+    gap: spacing.sm,
   } as ViewStyle,
-  tapText: {
+  swipeHintText: {
     fontSize: fontSizes.sm,
     color: colors.textTertiary,
     letterSpacing: 0.5,
@@ -258,71 +336,64 @@ const dotStyles = StyleSheet.create({
 export default function IntroScreen() {
   const [slideIndex, setSlideIndex] = useState(0);
   const markIntroSeen = useUserStore((s) => s.markIntroSeen);
+  const audioMuted = useUserStore((s) => s.audioMuted);
 
-  const handleNext = useCallback(() => {
-    if (slideIndex < SLIDES.length - 1) {
-      setSlideIndex(slideIndex + 1);
+  const swipeForward = useCallback(() => {
+    setSlideIndex((i) => (i < SLIDES.length - 1 ? i + 1 : i));
+  }, []);
+
+  const isLastSlide = slideIndex === SLIDES.length - 1;
+
+  // Refs so PanResponder always reads the latest values without recreating.
+  const swipeForwardRef = useRef(swipeForward);
+  swipeForwardRef.current = swipeForward;
+  const isLastSlideRef = useRef(isLastSlide);
+  isLastSlideRef.current = isLastSlide;
+
+  /** Swipe left anywhere on the screen to advance (disabled on final slide). */
+  const panResponder = useRef(
+    PanResponder.create({
+      // Claim the responder immediately on slides 1–3 so move events are received.
+      // On the final slide stay hands-off so the "Begin" button works normally.
+      onStartShouldSetPanResponder: () => !isLastSlideRef.current,
+      onMoveShouldSetPanResponder: () => !isLastSlideRef.current,
+      onPanResponderRelease: (_, gs) => {
+        if (!isLastSlideRef.current && gs.dx < -30) {
+          swipeForwardRef.current();
+        }
+      },
+    }),
+  ).current;
+
+  /** Ambient bed: first intro slide only. */
+  useEffect(() => {
+    if (slideIndex === 0) {
+      startOnboardingAmbient();
+    } else {
+      stopOnboardingAmbient();
     }
   }, [slideIndex]);
 
+  useEffect(() => {
+    syncOnboardingAmbientWithMute();
+  }, [audioMuted]);
+
+  useEffect(() => {
+    return () => stopOnboardingAmbient();
+  }, []);
+
   const handleBegin = useCallback(() => {
+    stopOnboardingAmbient();
     markIntroSeen();
     router.replace('/onboarding');
   }, [markIntroSeen]);
 
   const slide = SLIDES[slideIndex]!;
 
-  const isFirstSlide = slideIndex === 0;
-  const isSurvivorsSlide = slideIndex === 1;
-  const isMissionSlide = slideIndex === 2;
-  const isFinalIntroSlide = slideIndex === 3;
-
   return (
-    <TouchableWithoutFeedback
-      onPress={slideIndex < SLIDES.length - 1 ? handleNext : undefined}
-    >
+    <View style={styles.gestureHost} {...panResponder.panHandlers}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        {/* Full-screen backgrounds: world_dark, runners, every_run, final_onboard */}
-        {isFirstSlide ? (
-          <ImageBackground
-            source={WORLD_BG}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-            pointerEvents="none"
-          >
-            <View style={styles.bgOverlay} />
-          </ImageBackground>
-        ) : null}
-        {isSurvivorsSlide ? (
-          <ImageBackground
-            source={RUNNERS_BG}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-            pointerEvents="none"
-          >
-            <View style={styles.bgOverlaySurvivors} />
-          </ImageBackground>
-        ) : null}
-        {isMissionSlide ? (
-          <ImageBackground
-            source={EVERY_RUN_BG}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-            pointerEvents="none"
-          >
-            <View style={styles.bgOverlayMission} />
-          </ImageBackground>
-        ) : null}
-        {isFinalIntroSlide ? (
-          <ImageBackground
-            source={FINAL_ONBOARD_BG}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-            pointerEvents="none"
-          >
-            <View style={styles.bgOverlayFinal} />
-          </ImageBackground>
-        ) : null}
+        <View style={styles.gestureFill}>
 
         {/* Background grid lines */}
         <View style={styles.gridOverlay} pointerEvents="none">
@@ -351,7 +422,6 @@ export default function IntroScreen() {
           key={slideIndex}
           slide={slide}
           isLast={slideIndex === SLIDES.length - 1}
-          onNext={handleNext}
           onBegin={handleBegin}
         />
 
@@ -359,8 +429,10 @@ export default function IntroScreen() {
         <View style={styles.dotsWrapper}>
           <Dots count={SLIDES.length} active={slideIndex} />
         </View>
+
+        </View>
       </SafeAreaView>
-    </TouchableWithoutFeedback>
+    </View>
   );
 }
 
@@ -368,27 +440,17 @@ const cornerSize = 20;
 const cornerThickness = 2;
 
 const styles = StyleSheet.create({
+  gestureHost: {
+    flex: 1,
+  } as ViewStyle,
+  gestureFill: {
+    flex: 1,
+    overflow: 'hidden',
+  } as ViewStyle,
   safe: {
     flex: 1,
     backgroundColor: colors.background,
   } as ViewStyle,
-  bgOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8, 12, 8, 0.58)',
-  } as ViewStyle,
-  bgOverlaySurvivors: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(6, 8, 12, 0.52)',
-  } as ViewStyle,
-  bgOverlayMission: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10, 8, 6, 0.54)',
-  } as ViewStyle,
-  bgOverlayFinal: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(4, 8, 6, 0.5)',
-  } as ViewStyle,
-
   // Subtle background grid
   gridOverlay: {
     position: 'absolute',

@@ -4,49 +4,57 @@ import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
 import { OptionCard } from '../../src/components/onboarding/OptionCard';
 import { useOnboardingDraft } from './_layout';
-import type { PersonaId } from '../../src/types';
-import { PERSONA_LABELS } from '../../src/constants/campaigns';
+import type { ActivityMode } from '../../src/types';
 import { spacing } from '../../src/constants/theme';
 
-const PERSONAS: PersonaId[] = ['ghost', 'scout', 'operative', 'elite', 'vanguard'];
+const OPTIONS: { value: ActivityMode; label: string; description: string; icon: string }[] = [
+  {
+    value: 'run',
+    label: 'RUNNING',
+    description: 'On foot. Every step restores a zone.',
+    icon: 'directions-run',
+  },
+  {
+    value: 'cycle',
+    label: 'CYCLING',
+    description: 'On wheels. Cover more ground, faster.',
+    icon: 'directions-bike',
+  },
+];
 
-export default function PersonaScreen() {
+export default function OnboardingFocusScreen() {
   const draft = useOnboardingDraft();
-  const [selected, setSelected] = useState<PersonaId | null>(
-    draft.current.personaId ?? null,
+  const [selected, setSelected] = useState<ActivityMode>(
+    draft.current.defaultActivityMode ?? 'run',
   );
 
   const handleNext = () => {
-    if (!selected) return;
-    draft.current.personaId = selected;
-    router.push('/onboarding/run-days');
+    draft.current.defaultActivityMode = selected;
+    router.push('/onboarding/frequency' as any);
   };
 
   return (
     <OnboardingLayout
       step={1}
-      totalSteps={3}
-      title="Field Classification"
-      subtitle="Choose Your Operative"
+      totalSteps={5}
+      title="What do you want to focus on?"
+      subtitle="Training focus"
       onNext={handleNext}
-      nextLabel="Confirm Persona"
-      nextDisabled={!selected}
+      nextLabel="Continue"
+      nextDisabled={false}
       showBack={false}
     >
       <View style={styles.options}>
-        {PERSONAS.map((persona) => {
-          const meta = PERSONA_LABELS[persona];
-          return (
-            <OptionCard
-              key={persona}
-              label={meta.label}
-              description={meta.description}
-              icon={meta.icon}
-              selected={selected === persona}
-              onPress={() => setSelected(persona)}
-            />
-          );
-        })}
+        {OPTIONS.map((opt) => (
+          <OptionCard
+            key={opt.value}
+            label={opt.label}
+            description={opt.description}
+            icon={opt.icon}
+            selected={selected === opt.value}
+            onPress={() => setSelected(opt.value)}
+          />
+        ))}
       </View>
     </OnboardingLayout>
   );

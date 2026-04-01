@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import Constants from 'expo-constants';
 import { MaterialIcons } from '@expo/vector-icons';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import Animated, {
@@ -24,6 +25,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
+import { useUserStore } from '../../src/store/userStore';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig } from '../../src/constants/theme';
 import { formatDistance } from '../../src/utils/xpCalculator';
@@ -33,6 +35,7 @@ import { playGoalReachedSound, speakRunCue } from '../../src/services/audioServi
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
 import { MISSION_AUDIO_CUES, FUN_RUN_ID, FUN_RUN_MISSION, pickCue } from '../../src/constants/missions';
 import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
+import { snapPathForMapDisplay } from '../../src/services/routeSnapService';
 import type { ActivityMode } from '../../src/types';
 
 export default function ActiveRunScreen() {
@@ -43,7 +46,8 @@ export default function ActiveRunScreen() {
 
   const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const failMission = useMissionsStore((s) => s.failMission);
+  const abortMission = useMissionsStore((s) => s.abortMission);
+  const appendRunHistoryEntry = useUserStore((s) => s.appendRunHistoryEntry);
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
@@ -68,6 +72,14 @@ export default function ActiveRunScreen() {
   const milestone50Fired = useRef(false);
   const milestone75Fired = useRef(false);
   const mapRef = useRef<MapView>(null);
+  const [snappedPolyline, setSnappedPolyline] = useState<
+    { latitude: number; longitude: number }[] | null
+  >(null);
+  const snapDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapGenRef = useRef(0);
+  const orsApiKey = (
+    Constants.expoConfig?.extra?.openRouteServiceApiKey as string | undefined
+  )?.trim();
 
   // Reanimated values for goal-reached banner
   const bannerScale = useSharedValue(0);
@@ -109,7 +121,7 @@ export default function ActiveRunScreen() {
   // 2-second start cue (skip for free run — no narrative)
   useEffect(() => {
     if (!mission || !isTracking || isFreeRun || startCueFired.current) return;
-    const cues = MISSION_AUDIO_CUES[mission.type];
+    const cues = mission.audioCues ?? MISSION_AUDIO_CUES[mission.type];
     const timer = setTimeout(() => {
       startCueFired.current = true;
       speakRunCue(pickCue(cues.start));
@@ -121,7 +133,7 @@ export default function ActiveRunScreen() {
   useEffect(() => {
     if (!mission || !isTracking || isFreeRun) return;
 
-    const cues = MISSION_AUDIO_CUES[mission.type];
+    const cues = mission.audioCues ?? MISSION_AUDIO_CUES[mission.type];
     const distRatio = targetDistanceKm > 0 ? distanceKm / targetDistanceKm : 0;
     const timeRatio = targetDurationMin > 0 ? elapsedSec / (targetDurationMin * 60) : 0;
     const progress = Math.max(distRatio, timeRatio);
@@ -210,7 +222,7 @@ export default function ActiveRunScreen() {
     }
     Alert.alert(
       'Abort mission?',
-      'GPS progress will be lost. This mission will be marked failed — you can retry from Journey.',
+      'GPS progress will be lost. This mission will be marked aborted — you can retry from Journey.',
       [
         { text: 'Keep going', style: 'cancel' },
         {
@@ -219,13 +231,26 @@ export default function ActiveRunScreen() {
           onPress: () => {
             setRunActive(false);
             stop();
-            if (mission) failMission(mission.id);
+            if (mission) {
+              abortMission(mission.id);
+              appendRunHistoryEntry({
+                missionId: mission.id,
+                completedAt: new Date().toISOString(),
+                distanceKm: 0,
+                durationMin: 0,
+                xpEarned: 0,
+                streakDay: useUserStore.getState().streak,
+                goalMet: false,
+                outcome: 'aborted',
+                activityMode,
+              });
+            }
             router.replace('/(tabs)/journey');
           },
         },
       ],
     );
-  }, [stop, isFreeRun, mission, failMission, setRunActive]);
+  }, [stop, isFreeRun, mission, abortMission, appendRunHistoryEntry, activityMode, setRunActive]);
 
   useEffect(() => {
     if (!isTracking) return;
@@ -233,6 +258,37 @@ export default function ActiveRunScreen() {
     const sub = BackHandler.addEventListener('hardwareBackPress', handler);
     return () => sub.remove();
   }, [isTracking, confirmAbort]);
+
+  // Debounced road snap for map polyline (ORS); distance still uses raw GPS path.
+  useEffect(() => {
+    if (path.length < 2) {
+      setSnappedPolyline(null);
+      return;
+    }
+    if (!orsApiKey) {
+      setSnappedPolyline(null);
+      return;
+    }
+    if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
+    snapDebounceRef.current = setTimeout(() => {
+      const gen = ++snapGenRef.current;
+      const ac = new AbortController();
+      snapPathForMapDisplay(path, activityMode, orsApiKey, ac.signal)
+        .then((coords) => {
+          if (gen === snapGenRef.current) setSnappedPolyline(coords);
+        })
+        .catch(() => {});
+    }, 3200);
+    return () => {
+      if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
+    };
+  }, [path, activityMode, orsApiKey]);
+
+  const polylineCoords = useMemo(() => {
+    const raw = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
+    if (!orsApiKey || !snappedPolyline || snappedPolyline.length < 2) return raw;
+    return snappedPolyline;
+  }, [path, snappedPolyline, orsApiKey]);
 
   // ─── Error states ─────────────────────────────────────────────────────────
 
@@ -273,7 +329,6 @@ export default function ActiveRunScreen() {
   const goalHit = goalReachedFired.current;
 
   const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
-  const polylineCoords = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
   const initialRegion = path.length > 0
     ? { latitude: path[0]!.latitude, longitude: path[0]!.longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }
     : undefined;
@@ -421,12 +476,12 @@ export default function ActiveRunScreen() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.abortBtn, styles.pauseAbortHalf]}
+                  style={[styles.pauseResumeBtn, styles.pauseAbortHalf]}
                   onPress={confirmAbort}
                   activeOpacity={0.85}
                 >
-                  <MaterialIcons name="close" size={20} color={colors.orange} />
-                  <Text style={styles.abortBtnText}>{isFreeRun ? 'END' : 'ABORT'}</Text>
+                  <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+                  <Text style={styles.pauseResumeBtnText}>{isFreeRun ? 'END' : 'ABORT'}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -780,22 +835,4 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   } as ViewStyle,
-  abortBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.orange,
-    paddingVertical: spacing.lg,
-  } as ViewStyle,
-  abortBtnText: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.extrabold,
-    color: colors.orange,
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-  } as TextStyle,
 });

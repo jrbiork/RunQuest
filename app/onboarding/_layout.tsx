@@ -21,8 +21,10 @@ export default function OnboardingLayout() {
     <OnboardingContext.Provider value={{ draft }}>
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         <Stack.Screen name="index" />
-        <Stack.Screen name="run-days" />
-        <Stack.Screen name="mode" />
+        <Stack.Screen name="frequency" />
+        <Stack.Screen name="distance" />
+        <Stack.Screen name="experience" />
+        <Stack.Screen name="goal" />
       </Stack>
     </OnboardingContext.Provider>
   );

@@ -33,7 +33,7 @@ import {
   shadows,
   missionConfig,
 } from '../../src/constants/theme';
-import type { CompletedRun, Mission, MissionType } from '../../src/types';
+import type { CompletedRun, Mission, MissionOutcome, MissionType } from '../../src/types';
 import { findMissionById } from '../../src/utils/missionLookup';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import MonthShareCard from '../../src/components/share/MonthShareCard';
@@ -402,6 +402,79 @@ function SummaryStat({
   );
 }
 
+// ─── Mission log (all outcomes) ─────────────────────────────────────────────
+
+function resolveOutcome(run: CompletedRun): MissionOutcome {
+  if (run.outcome) return run.outcome;
+  return run.goalMet ? 'success' : 'failed_goal';
+}
+
+function MissionLogList({
+  runs,
+  campaignMissions,
+  weekMissions,
+}: {
+  runs: CompletedRun[];
+  campaignMissions: Mission[];
+  weekMissions: Mission[];
+}) {
+  const sorted = useMemo(
+    () => [...runs].sort((a, b) => b.completedAt.localeCompare(a.completedAt)),
+    [runs],
+  );
+
+  if (sorted.length === 0) {
+    return (
+      <Text style={styles.emptyText}>No mission attempts yet.</Text>
+    );
+  }
+
+  return (
+    <View style={styles.missionLogList}>
+      {sorted.map((run) => {
+        const mission = findMissionById(campaignMissions, weekMissions, run.missionId);
+        const title = mission?.title ?? run.missionId;
+        const outcome = resolveOutcome(run);
+        const label =
+          outcome === 'success' ? 'SUCCEEDED' : outcome === 'aborted' ? 'ABORTED' : 'FAILED';
+        const badgeStyle =
+          outcome === 'success'
+            ? styles.missionLogBadgeOk
+            : outcome === 'aborted'
+              ? styles.missionLogBadgeAbort
+              : styles.missionLogBadgeFail;
+        const when = new Date(run.completedAt);
+        const dateStr = when.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        return (
+          <View key={`${run.missionId}-${run.completedAt}`} style={styles.missionLogRow}>
+            <View style={styles.missionLogLeft}>
+              <Text style={styles.missionLogTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={styles.missionLogMeta}>{dateStr}</Text>
+              {outcome !== 'aborted' && (
+                <Text style={styles.missionLogMeta}>
+                  {formatDistance(run.distanceKm)} · {Math.round(run.durationMin)} min
+                  {run.xpEarned > 0 ? ` · +${run.xpEarned} XP` : ''}
+                </Text>
+              )}
+            </View>
+            <View style={[styles.missionLogBadge, badgeStyle]}>
+              <Text style={styles.missionLogBadgeText}>{label}</Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ─── Operation History ────────────────────────────────────────────────────────
 
 function OperationHistoryList() {
@@ -470,8 +543,8 @@ function OperationHistoryList() {
 
         let dotStyle = styles.opDotLocked;
         let dotIcon: 'check' | 'directions-run' | 'remove' | 'close' = 'close';
-        let badgeColor = colors.border;
-        let badgeBg = 'transparent';
+        let badgeColor: string = colors.border;
+        let badgeBg: string = 'transparent';
         let badgeLabel = 'FAIL';
 
         if (week.goalMet) {
@@ -711,6 +784,19 @@ export default function StatsScreen() {
           />
         )}
 
+        {/* Mission log — all attempts */}
+        <Animated.View entering={FadeInDown.delay(120).duration(300)} style={styles.card}>
+          <View style={[styles.cardHeader, styles.cardHeaderCluster]}>
+            <MaterialIcons name="assignment" size={15} color={colors.orange} />
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Missions</Text>
+          </View>
+          <MissionLogList
+            runs={runHistory}
+            campaignMissions={campaignMissions}
+            weekMissions={weekMissions}
+          />
+        </Animated.View>
+
         {/* Monthly summary */}
         <Animated.View entering={FadeInDown.delay(150).duration(300)} style={styles.card}>
           <View style={styles.cardHeader}>
@@ -883,6 +969,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  } as ViewStyle,
+  cardHeaderCluster: {
+    justifyContent: 'flex-start',
+    gap: spacing.sm,
   } as ViewStyle,
   sectionTitle: {
     fontSize: fontSizes.xs,
@@ -1122,6 +1212,58 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.textTertiary,
     paddingVertical: spacing.sm,
+  } as TextStyle,
+
+  missionLogList: {
+    gap: spacing.sm,
+  } as ViewStyle,
+  missionLogRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  } as ViewStyle,
+  missionLogLeft: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  } as ViewStyle,
+  missionLogTitle: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
+  missionLogMeta: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
+  } as TextStyle,
+  missionLogBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    flexShrink: 0,
+  } as ViewStyle,
+  missionLogBadgeOk: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  } as ViewStyle,
+  missionLogBadgeFail: {
+    borderColor: colors.red,
+    backgroundColor: colors.redLight,
+  } as ViewStyle,
+  missionLogBadgeAbort: {
+    borderColor: colors.textTertiary,
+    backgroundColor: colors.surfaceElevated,
+  } as ViewStyle,
+  missionLogBadgeText: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    letterSpacing: 1,
   } as TextStyle,
 
   // Operation History

@@ -26,6 +26,12 @@ export type PersonaId = 'ghost' | 'scout' | 'operative' | 'elite' | 'vanguard';
 
 export type ActivityMode = 'run' | 'cycle';
 
+/** Onboarding / persona survey (also used by `personaScoring`). */
+export type RunDistanceAnswer = 'lt3' | '3-5' | '5-10' | '10plus';
+export type CycleDistanceAnswer = 'lt10' | '10-25' | '25-60' | '60plus';
+export type ExperienceAnswer = 'never' | 'lt3m' | '3-12m' | '1-3y' | '3yplus';
+export type GoalAnswer = 'started' | 'fit' | 'endurance' | 'speed' | 'event';
+
 export interface UserProfile {
   // Persona-based (new system)
   personaId: PersonaId;
@@ -50,7 +56,22 @@ export type MissionType =
   | 'recovery'
   | 'interval';
 
-export type MissionStatus = 'completed' | 'active' | 'upcoming' | 'locked' | 'failed';
+export type MissionStatus =
+  | 'completed'
+  | 'active'
+  | 'upcoming'
+  | 'locked'
+  | 'failed'
+  | 'aborted';
+
+/** In-run TTS cue variants per progress milestone (pickCue chooses one string per phase). */
+export interface MissionAudioCueSet {
+  start: string[];
+  quarter: string[];
+  half: string[];
+  threeQuarter: string[];
+  complete: string[];
+}
 
 export interface Mission {
   id: string;
@@ -66,6 +87,8 @@ export interface Mission {
   day: DayOfWeek;
   scheduledDate: string;   // ISO date string YYYY-MM-DD
   status: MissionStatus;
+  /** When set (e.g. campaign missions), overrides type-based MISSION_AUDIO_CUES during the run. */
+  audioCues?: MissionAudioCueSet;
   // Campaign references
   campaignIndex?: number;  // 0-based campaign index
   campaignMissionIndex?: number;  // index within the campaign
@@ -77,6 +100,10 @@ export interface CampaignMissionTemplate {
   type: MissionType;
   title: string;
   subtitle: string;
+  /** When set, overrides auto-generated briefing. */
+  description?: string;
+  /** When set, overrides auto-generated in-run TTS. */
+  audioCues?: MissionAudioCueSet;
   targetDistanceKm: number;
   targetDurationMin: number;
   targetCyclingDistanceKm: number;
@@ -101,6 +128,9 @@ export interface GpsPoint {
 
 // ─── Run / Completion ────────────────────────────────────────────────────────
 
+/** How a mission attempt ended for history / stats. Omitted on older persisted runs. */
+export type MissionOutcome = 'success' | 'failed_goal' | 'aborted';
+
 export interface CompletedRun {
   missionId: string;
   completedAt: string;    // ISO timestamp
@@ -108,9 +138,11 @@ export interface CompletedRun {
   durationMin: number;
   xpEarned: number;
   streakDay: number;
-  goalMet: boolean;       // true = hit distance or time target; false = finished early
+  goalMet: boolean;       // true = hit distance or time target; false = finished early or aborted
   activityMode?: ActivityMode;
   path?: GpsPoint[];
+  /** When set, overrides inference from goalMet for stats. */
+  outcome?: MissionOutcome;
 }
 
 // ─── XP / Levels ─────────────────────────────────────────────────────────────
@@ -168,6 +200,12 @@ export interface OnboardingDraft {
   personaId?: PersonaId;
   preferredDays?: DayOfWeek[];
   defaultActivityMode?: ActivityMode;
+  /** 0–7 from onboarding slider */
+  trainingDaysPerWeek?: number;
+  runDistance?: RunDistanceAnswer;
+  cycleDistance?: CycleDistanceAnswer;
+  experience?: ExperienceAnswer;
+  goal?: GoalAnswer;
   // Legacy fields for backward compat
   experienceLevel?: ExperienceLevel;
   runningGoal?: RunningGoal;

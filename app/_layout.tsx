@@ -1,7 +1,9 @@
+import 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -37,18 +39,19 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) {
     return (
-      <View style={styles.bootPlaceholder}>
+      <GestureHandlerRootView style={styles.bootPlaceholder}>
         <StatusBar style="light" />
-      </View>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <View style={styles.root}>
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
-        <Stack.Screen name="intro" />
+        {/* Avoid native back-swipe competing with intro’s left swipe */}
+        <Stack.Screen name="intro" options={{ gestureEnabled: false }} />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
@@ -60,7 +63,7 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
