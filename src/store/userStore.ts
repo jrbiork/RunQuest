@@ -19,9 +19,13 @@ import { setAudioMutedFlag, syncOnboardingAmbientWithMute } from '../services/au
 import {
   getTodayISO,
   getWeekStartISO,
+  getNowISOString,
   isStreakAlive,
   isNewWeek,
 } from '../utils/dateUtils';
+
+/** Run or cycle at least this long (seconds) counts a sortie and can advance the day streak. */
+export const MIN_EFFORT_SECONDS = 5 * 60;
 
 interface UserActions {
   completeOnboarding: (profile: UserProfile) => void;
@@ -35,9 +39,13 @@ interface UserActions {
     path?: GpsPoint[],
     goalMet?: boolean,
     activityMode?: import('../types').ActivityMode,
+    /** When set, effort eligibility uses raw GPS seconds (≥300 = 5 min). */
+    elapsedSec?: number,
   ) => CompletedRun;
-  /** Log-only entry (e.g. aborted mid-run): no XP, streak, or weekly progress. */
+  /** Log-only entry (e.g. aborted mid-run): no XP, streak, or weekly progress; adds distance to lifetime total. */
   appendRunHistoryEntry: (run: CompletedRun) => void;
+  /** +1 sortie and day streak (if not already counted today) when moving ≥ MIN_EFFORT_SECONDS. Mission completion uses completeRun instead. */
+  recordEffortFromElapsedSec: (elapsedSec: number) => void;
   markWeeklyBonusAwarded: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   resetOnboarding: () => void;
@@ -92,21 +100,35 @@ export const useUserStore = create<UserStore>()(
         });
       },
 
-      completeRun: (missionId, missionType, actualDistanceKm, actualDurationMin, path, goalMet, activityMode) => {
+      completeRun: (missionId, missionType, actualDistanceKm, actualDurationMin, path, goalMet, activityMode, elapsedSec) => {
         const state = get();
         const today = getTodayISO();
         const level = ((state.profile?.experienceLevel) ?? 'beginner') as 'beginner' | 'intermediate' | 'advanced';
 
-        // Streak logic
-        const alive = isStreakAlive(state.lastRunDate);
-        const alreadyRanToday = state.lastRunDate === today;
-        const newStreak = alreadyRanToday
-          ? state.streak
-          : alive
-          ? state.streak + 1
-          : 1;
+        const met = goalMet ?? false;
 
-        const streakForXp = alreadyRanToday ? state.streak : newStreak;
+        // Sorties + day streak: reward ≥5 min of moving (run or cycle), once per streak rule per day.
+        const effortQualifies =
+          elapsedSec != null
+            ? elapsedSec >= MIN_EFFORT_SECONDS
+            : (actualDurationMin ?? 0) * 60 >= MIN_EFFORT_SECONDS;
+
+        /** Count toward totalRuns / world restoration when effort is long enough OR the mission goal was met (short missions can finish under 5 min). */
+        const countsAsSortie = effortQualifies || met;
+
+        let newStreak = state.streak;
+        let streakForXp = state.streak;
+        if (effortQualifies) {
+          const alreadyStreakToday = state.lastRunDate === today;
+          const alive = isStreakAlive(state.lastRunDate);
+          newStreak = alreadyStreakToday
+            ? state.streak
+            : alive
+              ? state.streak + 1
+              : 1;
+          streakForXp = alreadyStreakToday ? state.streak : newStreak;
+        }
+
         const xpEarned = calculateXpEarned(missionType, streakForXp);
         const newXp = state.xp + xpEarned;
 
@@ -126,11 +148,10 @@ export const useUserStore = create<UserStore>()(
           missionsCompleted: [...currentWp.missionsCompleted, missionId],
         };
 
-        const met = goalMet ?? false;
         const outcome: MissionOutcome = met ? 'success' : 'failed_goal';
         const completedRun: CompletedRun = {
           missionId,
-          completedAt: new Date().toISOString(),
+          completedAt: getNowISOString(),
           distanceKm: distKm,
           durationMin: durMin,
           xpEarned,
@@ -144,10 +165,12 @@ export const useUserStore = create<UserStore>()(
         set({
           xp: newXp,
           streak: newStreak,
-          lastRunDate: today,
-          totalRuns: state.totalRuns + 1,
+          lastRunDate: effortQualifies ? today : state.lastRunDate,
+          totalRuns: state.totalRuns + (countsAsSortie ? 1 : 0),
           totalDistanceKm: state.totalDistanceKm + distKm,
-          longestStreak: Math.max(state.longestStreak, newStreak),
+          longestStreak: effortQualifies
+            ? Math.max(state.longestStreak, newStreak)
+            : state.longestStreak,
           weeklyProgress: updatedWp,
           runHistory: [...state.runHistory, completedRun],
         });
@@ -158,7 +181,27 @@ export const useUserStore = create<UserStore>()(
       appendRunHistoryEntry: (run) => {
         set((state) => ({
           runHistory: [...state.runHistory, run],
+          totalDistanceKm: state.totalDistanceKm + run.distanceKm,
         }));
+      },
+
+      recordEffortFromElapsedSec: (elapsedSec) => {
+        if (elapsedSec < MIN_EFFORT_SECONDS) return;
+        const today = getTodayISO();
+        set((state) => {
+          const alreadyStreakToday = state.lastRunDate === today;
+          const alive = isStreakAlive(state.lastRunDate);
+          let newStreak = state.streak;
+          if (!alreadyStreakToday) {
+            newStreak = alive ? state.streak + 1 : 1;
+          }
+          return {
+            totalRuns: state.totalRuns + 1,
+            streak: newStreak,
+            lastRunDate: today,
+            longestStreak: Math.max(state.longestStreak, newStreak),
+          };
+        });
       },
 
       markWeeklyBonusAwarded: () => {
@@ -177,10 +220,13 @@ export const useUserStore = create<UserStore>()(
       },
 
       resetOnboarding: () => {
+        setAudioMutedFlag(false);
+        syncOnboardingAmbientWithMute();
         set({
           profile: null,
           hasCompletedOnboarding: false,
           hasSeenIntro: false,
+          audioMuted: false,
           xp: 0,
           streak: 0,
           lastRunDate: null,

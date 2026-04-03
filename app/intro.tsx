@@ -27,7 +27,6 @@ import Animated, {
 import { useUserStore } from '../src/store/userStore';
 import {
   startOnboardingAmbient,
-  stopOnboardingAmbient,
   syncOnboardingAmbientWithMute,
 } from '../src/services/audioService';
 import { Button } from '../src/components/ui/Button';
@@ -365,25 +364,16 @@ export default function IntroScreen() {
     }),
   ).current;
 
-  /** Ambient bed: first intro slide only. */
+  /** Ambient bed: plays through all intro slides until “Begin your journey”. */
   useEffect(() => {
-    if (slideIndex === 0) {
-      startOnboardingAmbient();
-    } else {
-      stopOnboardingAmbient();
-    }
-  }, [slideIndex]);
+    startOnboardingAmbient();
+  }, []);
 
   useEffect(() => {
     syncOnboardingAmbientWithMute();
   }, [audioMuted]);
 
-  useEffect(() => {
-    return () => stopOnboardingAmbient();
-  }, []);
-
   const handleBegin = useCallback(() => {
-    stopOnboardingAmbient();
     markIntroSeen();
     router.replace('/onboarding');
   }, [markIntroSeen]);

@@ -14,6 +14,7 @@ import {
   getTodayISO,
   getNow,
 } from './dateUtils';
+import { stripEmojis } from './stripEmojis';
 
 // ─── Mission Mix Rules ────────────────────────────────────────────────────────
 
@@ -141,29 +142,24 @@ function buildMission(
   scheduledDate: string,
   level: ExperienceLevel,
   index: number,
-  todayISO: string,
 ): Mission {
   const template = MISSION_TEMPLATES[type];
   const targets = getTargets(type, level);
   const variant = template.variants?.length ? pick(template.variants) : null;
 
-  let status: Mission['status'];
-  if (scheduledDate < todayISO) {
-    status = 'upcoming'; // past but not completed yet — shown as available
-  } else if (scheduledDate === todayISO) {
-    status = 'active';
-  } else if (index === 0) {
-    status = 'active';
-  } else {
-    status = 'upcoming';
-  }
+  // Sequential path only — Run / Journey use first incomplete mission, not calendar day.
+  const status: Mission['status'] = index === 0 ? 'active' : 'upcoming';
+
+  const rawTitle = variant?.title ?? pick(template.titles);
+  const rawSubtitle = variant?.subtitle ?? pick(template.subtitles);
+  const rawDescription = variant?.description ?? pick(template.descriptions);
 
   return {
     id: `mission-${scheduledDate}-${type}-${index}`,
     type,
-    title: variant?.title ?? pick(template.titles),
-    subtitle: variant?.subtitle ?? pick(template.subtitles),
-    description: variant?.description ?? pick(template.descriptions),
+    title: stripEmojis(rawTitle),
+    subtitle: stripEmojis(rawSubtitle),
+    description: stripEmojis(rawDescription),
     ...(variant?.audioCues ? { audioCues: variant.audioCues } : {}),
     targetDistanceKm: targets.distanceKm,
     targetDurationMin: targets.durationMin,
@@ -202,24 +198,23 @@ export function generateWeekMissions(profile: UserProfile): Mission[] {
   return missionMix.map((type, idx) => {
     const date = scheduledDates[idx] ?? scheduledDates[0] ?? today;
     const day = activeDays[idx] ?? activeDays[0] ?? 'Mon';
-    return buildMission(type, day, date, experienceLevel, idx, today);
+    return buildMission(type, day, date, experienceLevel, idx);
   });
 }
 
-// ─── Derive today's mission from the week list ────────────────────────────────
+// ─── Next mission in journey order (same order as Journey list) ───────────────
 
+/** First mission in list order that is not completed (skips locked). Ignores calendar dates. */
+export function getNextIncompleteMission(missions: Mission[]): Mission | null {
+  const next = missions.find(
+    (m) => m.status !== 'completed' && m.status !== 'locked',
+  );
+  return next ?? null;
+}
+
+/** @deprecated Use getNextIncompleteMission — name kept for older call sites */
 export function getTodaysMission(missions: Mission[]): Mission | null {
-  const today = getTodayISO();
-  // Prefer exact date match
-  const exact = missions.find(
-    (m) => m.scheduledDate === today && m.status !== 'completed',
-  );
-  if (exact) return exact;
-  // Next incomplete upcoming
-  const upcoming = missions.find(
-    (m) => m.status !== 'completed' && m.scheduledDate >= today,
-  );
-  return upcoming ?? null;
+  return getNextIncompleteMission(missions);
 }
 
 export function getNextMission(

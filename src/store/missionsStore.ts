@@ -3,11 +3,12 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Mission, MissionsState, UserProfile, PersonaId, CampaignTemplate } from '../types';
 import { useUserStore } from './userStore';
-import { generateWeekMissions, getTodaysMission } from '../utils/missionGenerator';
+import { generateWeekMissions, getNextIncompleteMission } from '../utils/missionGenerator';
 import { getWeekStartISO, isNewWeek, getTodayISO, getScheduledDatesForWeek, getWeekStart, getNow } from '../utils/dateUtils';
 import { PERSONA_CAMPAIGNS } from '../constants/campaigns';
 import { BASE_XP } from '../utils/xpCalculator';
 import { narrativeForCampaignMission } from '../utils/campaignMissionNarrative';
+import { stripEmojis } from '../utils/stripEmojis';
 
 interface MissionsActions {
   // Legacy weekly generation (free run compatibility)
@@ -23,6 +24,8 @@ interface MissionsActions {
   initCampaign: (profile: UserProfile) => void;
   advanceCampaign: (profile: UserProfile) => void;
   canAdvanceCampaign: () => boolean;
+
+  resetMissions: () => void;
 }
 
 type MissionsStore = MissionsState & MissionsActions;
@@ -41,28 +44,24 @@ function buildCampaignMissions(
     const templateIdx = dayIdx % campaign.missionTemplates.length;
     const template = campaign.missionTemplates[templateIdx]!;
     const scheduledDate = scheduledDates[dayIdx] ?? today;
+    const title = stripEmojis(template.title);
+    const subtitle = stripEmojis(template.subtitle);
     const generated = narrativeForCampaignMission(
       template.type,
-      template.title,
-      template.subtitle,
+      title,
+      subtitle,
       campaign.title,
     );
 
-    let status: Mission['status'];
-    if (scheduledDate < today) {
-      status = 'upcoming';
-    } else if (scheduledDate === today || dayIdx === 0) {
-      status = 'active';
-    } else {
-      status = 'upcoming';
-    }
+    // Sequential campaign path — Run uses first incomplete mission, not the calendar.
+    const status: Mission['status'] = dayIdx === 0 ? 'active' : 'upcoming';
 
     return {
       id: `campaign-${campaignIndex}-day-${dayIdx}`,
       type: template.type,
-      title: template.title,
-      subtitle: template.subtitle,
-      description: template.description ?? generated.description,
+      title,
+      subtitle,
+      description: stripEmojis(template.description ?? generated.description),
       audioCues: template.audioCues ?? generated.audioCues,
       targetDistanceKm: template.targetDistanceKm,
       targetDurationMin: template.targetDurationMin,
@@ -236,6 +235,16 @@ export const useMissionsStore = create<MissionsStore>()(
         );
         return !hasFailed && !hasActive;
       },
+
+      resetMissions: () => {
+        set({
+          weekMissions: [],
+          weekStartDate: null,
+          currentCampaignIndex: 0,
+          campaignMissions: [],
+          campaignStartDate: null,
+        });
+      },
     }),
     {
       name: 'runquest-missions',
@@ -252,7 +261,7 @@ function primaryMissionList(state: MissionsStore): Mission[] {
 }
 
 export const selectTodaysMission = (state: MissionsStore): Mission | null =>
-  getTodaysMission(primaryMissionList(state));
+  getNextIncompleteMission(primaryMissionList(state));
 
 export const selectCompletedCount = (state: MissionsStore): number =>
   state.campaignMissions.length > 0
@@ -264,27 +273,8 @@ export const selectAllComplete = (state: MissionsStore): boolean => {
   return missions.length > 0 && missions.every((m) => m.status === 'completed');
 };
 
-export const selectNextMission = (state: MissionsStore): Mission | null => {
-  const missions = primaryMissionList(state);
-  const today = getTodayISO();
-  // Today's active mission first
-  const todayActive = missions.find(
-    (m) => m.scheduledDate === today && m.status === 'active',
-  );
-  if (todayActive) return todayActive;
-  // Today's failed or aborted mission (for retry — same day, should still be attempted)
-  const todayFailed = missions.find(
-    (m) =>
-      m.scheduledDate === today && (m.status === 'failed' || m.status === 'aborted'),
-  );
-  if (todayFailed) return todayFailed;
-  // Next future non-completed, non-terminal mission
-  return (
-    missions.find(
-      (m) => m.status !== 'completed' && m.status !== 'failed' && m.status !== 'aborted',
-    ) ?? null
-  );
-};
+export const selectNextMission = (state: MissionsStore): Mission | null =>
+  getNextIncompleteMission(primaryMissionList(state));
 
 export const selectCampaignXpEarned = (state: MissionsStore): number =>
   state.campaignMissions

@@ -1,18 +1,13 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
 import type { Mission, CompletedRun } from '../../types';
 import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../constants/theme';
 import { XPBadge } from '../ui/XPBadge';
 import { formatDistance } from '../../utils/xpCalculator';
-import { getRelativeDateLabel, getTodayISO } from '../../utils/dateUtils';
+import { stripEmojis } from '../../utils/stripEmojis';
+import { useUserStore } from '../../store/userStore';
+import { getStreakDayIndex0 } from '../../utils/streakDisplay';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -42,20 +37,22 @@ function CompletedResultCard({
   run: CompletedRun;
   onShare: () => void;
 }) {
+  const runHistory = useUserStore((s) => s.runHistory);
+  const streakDayIndex = getStreakDayIndex0(run, runHistory);
   const config = missionConfig[mission.type];
   const goalMet = run.goalMet;
 
   return (
-    <View style={[rc.card, goalMet ? rc.cardGoal : rc.cardEarly]}>
+    <View style={[rc.card, rc.cardGoal]}>
       {/* Status banner + share button */}
       <View style={rc.bannerRow}>
-        <View style={[rc.banner, goalMet ? rc.bannerGoal : rc.bannerEarly]}>
+        <View style={[rc.banner, rc.bannerGoal]}>
           <MaterialIcons
             name={goalMet ? 'emoji-events' : 'check-circle'}
             size={14}
-            color={goalMet ? colors.textInverse : colors.primaryDark}
+            color={colors.textInverse}
           />
-          <Text style={[rc.bannerText, goalMet ? rc.bannerTextGoal : rc.bannerTextEarly]}>
+          <Text style={[rc.bannerText, rc.bannerTextGoal]}>
             {goalMet ? 'MISSION COMPLETE' : 'FINISHED EARLY'}
           </Text>
         </View>
@@ -71,10 +68,9 @@ function CompletedResultCard({
             <MaterialIcons name={config.icon as any} size={11} color={config.color} />
             <Text style={[rc.typeText, { color: config.color }]}>{config.label}</Text>
           </View>
-          <Text style={rc.dateText}>{getRelativeDateLabel(mission.scheduledDate)}</Text>
         </View>
 
-        <Text style={rc.missionTitle}>{mission.title}</Text>
+        <Text style={rc.missionTitle}>{stripEmojis(mission.title)}</Text>
 
         {/* Actual stats grid */}
         <View style={rc.statsGrid}>
@@ -91,7 +87,7 @@ function CompletedResultCard({
           <Text style={rc.xpText}>+{run.xpEarned} XP</Text>
           <View style={rc.streakPill}>
             <MaterialIcons name="local-fire-department" size={11} color={colors.orange} />
-            <Text style={rc.streakText}>DAY {run.streakDay}</Text>
+            <Text style={rc.streakText}>DAY {streakDayIndex}</Text>
           </View>
         </View>
       </View>
@@ -146,36 +142,11 @@ interface MissionNodeProps {
 
 export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, isLast = false }: MissionNodeProps) {
   const config = missionConfig[mission.type];
-  const today = getTodayISO();
   const isCompleted = mission.status === 'completed';
   const isLocked = mission.status === 'locked';
   const isFailed = mission.status === 'failed';
   const isAborted = mission.status === 'aborted';
   const needsRetry = isFailed || isAborted;
-  // Active = scheduled for today and not yet completed / failed / aborted / locked.
-  // Derived from scheduledDate so the dev-tool day offset is reflected immediately
-  // without needing a full mission regeneration.
-  const isActive =
-    mission.scheduledDate === today && !isCompleted && !needsRetry && !isLocked;
-  // Failed or aborted today — highlight for retry
-  const isTodayRetry = needsRetry && mission.scheduledDate === today;
-  /** Past scheduled day, still not completed (includes failed / active / upcoming backlog). */
-  const isLate = !isCompleted && mission.scheduledDate < today;
-
-  const scale = useSharedValue(1);
-  useEffect(() => {
-    if (isActive || isTodayRetry) {
-      scale.value = withRepeat(
-        withSequence(withTiming(1.015, { duration: 1200 }), withTiming(1, { duration: 1200 })),
-        -1,
-        false,
-      );
-    } else {
-      scale.value = 1;
-    }
-  }, [isActive, isTodayRetry, scale]);
-
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const handleRetryPress = () => {
     onRetry?.();
@@ -191,7 +162,6 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
             styles.connector,
             isCompleted && styles.connectorDone,
             isFailed && styles.connectorFailed,
-            isAborted && styles.connectorAborted,
           ]}
         />
       )}
@@ -201,95 +171,113 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
         <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.touchable}>
           <CompletedResultCard mission={mission} run={completedRun} onShare={onShare ?? (() => {})} />
         </TouchableOpacity>
+      ) : isAborted ? (
+        <View style={styles.touchable}>
+          <View style={[styles.node, styles.nodeAborted]}>
+            <View style={styles.abortedTagCorner} pointerEvents="none">
+              <View style={styles.abortedTag}>
+                <Text style={styles.abortedTagText}>ABORTED</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+              <View style={styles.nodeBody}>
+                <View style={styles.nodeTitleRow}>
+                  <View
+                    style={[
+                      styles.typeIconBlock,
+                      { backgroundColor: config.bgColor, borderColor: config.color },
+                    ]}
+                  >
+                    <MaterialIcons name={config.icon as any} size={18} color={config.color} />
+                  </View>
+                  <View style={styles.nodeTitleBlock}>
+                    <View style={styles.typeTagRow}>
+                      <View style={[styles.missionTypePill, { borderColor: config.color }]}>
+                        <MaterialIcons name={config.icon as any} size={10} color={config.color} />
+                        <Text style={[styles.missionTypePillText, { color: config.color }]}>
+                          {config.label}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.missionTitle} numberOfLines={2}>
+                      {stripEmojis(mission.title)}
+                    </Text>
+                    <Text style={styles.missionSubtitle} numberOfLines={1}>
+                      {stripEmojis(mission.subtitle)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.nodeMetaRow}>
+                  <View style={styles.distancePills}>
+                    <View style={styles.distancePill}>
+                      <MaterialIcons name="directions-run" size={12} color={colors.textSecondary} />
+                      <Text style={styles.distanceText}>{formatDistance(mission.targetDistanceKm)}</Text>
+                      <Text style={styles.durationText}>~{formatDuration(mission.targetDurationMin)}</Text>
+                    </View>
+                    <View style={styles.distancePill}>
+                      <MaterialIcons name="directions-bike" size={12} color={colors.textSecondary} />
+                      <Text style={styles.distanceText}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
+                      <Text style={styles.durationText}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
+                    </View>
+                  </View>
+                  <XPBadge xp={mission.xpReward} size="sm" />
+                </View>
+
+                <View style={styles.progressRow}>
+                  <ProgressBar progress={0} color={config.color} />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleRetryPress}
+              activeOpacity={0.85}
+              style={styles.retryBtnAbortedLight}
+            >
+              <MaterialIcons name="replay" size={18} color={colors.red} />
+              <Text style={styles.retryBtnAbortedLightText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
-        /* Active / upcoming / locked / failed / aborted — quest card */
+        /* Active / upcoming / locked / failed — quest card */
         <TouchableOpacity
           onPress={needsRetry ? handleRetryPress : onPress}
           disabled={isLocked}
           activeOpacity={0.8}
           style={styles.touchable}
         >
-          <Animated.View
-            style={[
-              styles.node,
-              isActive && [styles.nodeActive, { borderColor: config.color }],
-              isLocked && styles.nodeLocked,
-              isFailed && styles.nodeFailed,
-              isAborted && styles.nodeAborted,
-              isTodayRetry && styles.nodeTodayRetry,
-              isLate && !needsRetry && styles.nodeLate,
-              animStyle,
-            ]}
-          >
-            {/* Top: status badge + date */}
-            <View
-              style={[
-                styles.nodeTopRow,
-                isFailed && styles.nodeTopRowFailed,
-                isAborted && styles.nodeTopRowAborted,
-              ]}
-            >
-              {isLocked && (
-                <View style={styles.questBadgeLocked}>
-                  <Text style={[styles.questBadgeText, styles.textLocked]}>LOCKED</Text>
-                </View>
-              )}
-              {isFailed && (
-                <View style={styles.failBadge}>
-                  <MaterialIcons name="close" size={10} color={colors.textInverse} />
-                  <Text style={styles.failBadgeText}>FAILED</Text>
-                </View>
-              )}
-              {isAborted && (
-                <View style={styles.abortBadge}>
-                  <MaterialIcons name="stop-circle" size={10} color={colors.textInverse} />
-                  <Text style={styles.abortBadgeText}>ABORTED</Text>
-                </View>
-              )}
-              {isLate && (
-                <View style={styles.lateBadge}>
-                  <MaterialIcons name="schedule" size={10} color={colors.textInverse} />
-                  <Text style={styles.lateBadgeText}>LATE</Text>
-                </View>
-              )}
-              <Text
-                style={[
-                  styles.dateLabel,
-                  isLocked && styles.textLocked,
-                  isFailed && styles.textFailed,
-                  isAborted && styles.textAborted,
-                ]}
-              >
-                {getRelativeDateLabel(mission.scheduledDate)}
-              </Text>
-            </View>
+          <View style={[styles.node, isLocked && styles.nodeLocked, isFailed && styles.nodeFailed]}>
+            {(isLocked || isFailed) && (
+              <View style={[styles.nodeTopRow, isFailed && styles.nodeTopRowFailed]}>
+                {isLocked && (
+                  <View style={styles.questBadgeLocked}>
+                    <Text style={[styles.questBadgeText, styles.textLocked]}>LOCKED</Text>
+                  </View>
+                )}
+                {isFailed && (
+                  <View style={styles.failBadge}>
+                    <MaterialIcons name="close" size={10} color={colors.textInverse} />
+                    <Text style={styles.failBadgeText}>FAILED</Text>
+                  </View>
+                )}
+              </View>
+            )}
 
-            {/* Mission title */}
             <View style={styles.nodeBody}>
               <View style={styles.nodeTitleRow}>
-                <View style={[
-                  styles.typeIconBlock,
-                  {
-                    backgroundColor: isLocked
-                      ? colors.border
-                      : isAborted
-                        ? colors.blueLight
-                        : isFailed
-                          ? colors.redLight
-                          : config.bgColor,
-                    borderColor: isLocked
-                      ? colors.border
-                      : isAborted
-                        ? colors.blue
-                        : isFailed
-                          ? colors.red
-                          : config.color,
-                  },
-                ]}>
+                <View
+                  style={[
+                    styles.typeIconBlock,
+                    {
+                      backgroundColor: isLocked ? colors.border : isFailed ? colors.redLight : config.bgColor,
+                      borderColor: isLocked ? colors.border : isFailed ? colors.red : config.color,
+                    },
+                  ]}
+                >
                   {isLocked ? (
                     <MaterialIcons name="lock" size={18} color={colors.textTertiary} />
-                  ) : isAborted ? (
-                    <MaterialIcons name="stop-circle" size={18} color={colors.blue} />
                   ) : isFailed ? (
                     <MaterialIcons name="close" size={18} color={colors.red} />
                   ) : (
@@ -298,53 +286,33 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                 </View>
                 <View style={styles.nodeTitleBlock}>
                   <Text
-                    style={[
-                      styles.missionTitle,
-                      isLocked && styles.textLocked,
-                      isFailed && styles.textFailed,
-                      isAborted && styles.textAborted,
-                    ]}
+                    style={[styles.missionTitle, isLocked && styles.textLocked, isFailed && styles.textFailed]}
                     numberOfLines={2}
                   >
-                    {mission.title}
+                    {stripEmojis(mission.title)}
                   </Text>
                   <Text
-                    style={[
-                      styles.missionSubtitle,
-                      isLocked && styles.textLocked,
-                      isFailed && styles.textFailed,
-                      isAborted && styles.textAborted,
-                    ]}
+                    style={[styles.missionSubtitle, isLocked && styles.textLocked, isFailed && styles.textFailed]}
                     numberOfLines={1}
                   >
-                    {mission.subtitle}
+                    {stripEmojis(mission.subtitle)}
                   </Text>
                 </View>
               </View>
 
-              {/* Distance + XP row */}
               <View style={styles.nodeMetaRow}>
                 <View style={styles.distancePills}>
                   <View style={styles.distancePill}>
                     <MaterialIcons
                       name="directions-run"
                       size={12}
-                      color={
-                        isLocked
-                          ? colors.textTertiary
-                          : isAborted
-                            ? colors.blue
-                            : isFailed
-                              ? colors.red
-                              : colors.textSecondary
-                      }
+                      color={isLocked ? colors.textTertiary : isFailed ? colors.red : colors.textSecondary}
                     />
                     <Text
                       style={[
                         styles.distanceText,
                         isLocked && styles.textLocked,
                         isFailed && styles.textFailed,
-                        isAborted && styles.textAborted,
                       ]}
                     >
                       {formatDistance(mission.targetDistanceKm)}
@@ -357,22 +325,13 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     <MaterialIcons
                       name="directions-bike"
                       size={12}
-                      color={
-                        isLocked
-                          ? colors.textTertiary
-                          : isAborted
-                            ? colors.blue
-                            : isFailed
-                              ? colors.red
-                              : colors.textSecondary
-                      }
+                      color={isLocked ? colors.textTertiary : isFailed ? colors.red : colors.textSecondary}
                     />
                     <Text
                       style={[
                         styles.distanceText,
                         isLocked && styles.textLocked,
                         isFailed && styles.textFailed,
-                        isAborted && styles.textAborted,
                       ]}
                     >
                       {formatDistance(mission.targetCyclingDistanceKm)}
@@ -385,46 +344,20 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                 {!isLocked && <XPBadge xp={mission.xpReward} size="sm" />}
               </View>
 
-              {/* Progress bar */}
               {!isLocked && (
                 <View style={styles.progressRow}>
-                  <ProgressBar
-                    progress={isCompleted ? 1 : 0}
-                    color={isAborted ? colors.blue : isFailed ? colors.red : config.color}
-                  />
+                  <ProgressBar progress={isCompleted ? 1 : 0} color={isFailed ? colors.red : config.color} />
                 </View>
               )}
             </View>
 
-            {/* DEPLOY NOW button for active missions */}
-            {isActive && (
-              <View style={styles.runNowBtn}>
-                <MaterialIcons name="directions-run" size={16} color={colors.textInverse} />
-                <Text style={styles.runNowText}>DEPLOY NOW</Text>
-              </View>
-            )}
-
-            {/* RETRY — failed (goal) vs aborted (stopped run) */}
-            {needsRetry && (
-              <View
-                style={[
-                  styles.retryBtn,
-                  isAborted && styles.retryBtnAborted,
-                  isFailed && styles.retryBtnFailed,
-                  isTodayRetry && styles.retryBtnToday,
-                ]}
-              >
+            {isFailed && (
+              <View style={[styles.retryBtn, styles.retryBtnFailed]}>
                 <MaterialIcons name="replay" size={16} color={colors.textInverse} />
-                <Text style={styles.retryBtnText}>
-                  {isTodayRetry
-                    ? 'RETRY NOW'
-                    : isAborted
-                      ? 'MISSION ABORTED — RETRY'
-                      : 'MISSION FAILED — RETRY'}
-                </Text>
+                <Text style={styles.retryBtnText}>MISSION FAILED — RETRY</Text>
               </View>
             )}
-          </Animated.View>
+          </View>
         </TouchableOpacity>
       )}
     </View>
@@ -444,10 +377,6 @@ const rc = StyleSheet.create({
     backgroundColor: 'rgba(103,144,88,0.08)',
     borderColor: colors.primary,
   } as ViewStyle,
-  cardEarly: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  } as ViewStyle,
   bannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -466,7 +395,6 @@ const rc = StyleSheet.create({
     paddingVertical: spacing.sm,
   } as ViewStyle,
   bannerGoal: { backgroundColor: colors.primary } as ViewStyle,
-  bannerEarly: { backgroundColor: 'rgba(79,74,66,0.4)' } as ViewStyle,
   bannerText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
@@ -474,7 +402,6 @@ const rc = StyleSheet.create({
     textTransform: 'uppercase',
   } as TextStyle,
   bannerTextGoal: { color: colors.textInverse } as TextStyle,
-  bannerTextEarly: { color: colors.textSecondary } as TextStyle,
   body: {
     padding: spacing.md,
     gap: spacing.sm,
@@ -482,7 +409,7 @@ const rc = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   } as ViewStyle,
   typePill: {
     flexDirection: 'row',
@@ -498,10 +425,6 @@ const rc = StyleSheet.create({
     fontWeight: fontWeights.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  } as TextStyle,
-  dateText: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
   } as TextStyle,
   missionTitle: {
     fontSize: fontSizes.md,
@@ -600,10 +523,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
+    position: 'relative',
     ...shadows.sm,
   } as ViewStyle,
-  nodeActive: {
-    borderWidth: 2,
+  abortedTagCorner: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    zIndex: 4,
   } as ViewStyle,
   nodeLocked: {
     opacity: 0.45,
@@ -615,19 +542,14 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   nodeAborted: {
     borderWidth: 2,
-    borderColor: colors.blue,
-    backgroundColor: colors.blueLight,
-  } as ViewStyle,
-  nodeLate: {
-    borderWidth: 2,
-    borderColor: colors.ochre,
+    borderColor: colors.red,
   } as ViewStyle,
 
-  // Top row: QUEST badge + date
+  // Top row: status badges
   nodeTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
@@ -637,10 +559,6 @@ const styles = StyleSheet.create({
   nodeTopRowFailed: {
     borderBottomColor: colors.red,
     backgroundColor: colors.redLight,
-  } as ViewStyle,
-  nodeTopRowAborted: {
-    borderBottomColor: colors.blue,
-    backgroundColor: colors.blueLight,
   } as ViewStyle,
   failBadge: {
     flexDirection: 'row',
@@ -652,38 +570,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
   } as ViewStyle,
   failBadgeText: {
-    fontSize: 10,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textInverse,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  abortBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.blue,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-  } as ViewStyle,
-  abortBadgeText: {
-    fontSize: 10,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textInverse,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  lateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.ochre,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-  } as ViewStyle,
-  lateBadgeText: {
     fontSize: 10,
     fontWeight: fontWeights.extrabold,
     color: colors.textInverse,
@@ -709,12 +595,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   } as TextStyle,
-  dateLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    fontWeight: fontWeights.medium,
-  } as TextStyle,
-
   // Body
   nodeBody: {
     padding: spacing.md,
@@ -725,6 +605,44 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.md,
   } as ViewStyle,
+  typeTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    marginBottom: 4,
+    alignSelf: 'flex-start',
+  } as ViewStyle,
+  missionTypePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    backgroundColor: colors.surface,
+  } as ViewStyle,
+  missionTypePillText: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  abortedTag: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.red,
+    backgroundColor: 'rgba(217,69,60,0.08)',
+  } as ViewStyle,
+  abortedTagText: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    color: colors.red,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  } as TextStyle,
   typeIconBlock: {
     width: 40,
     height: 40,
@@ -784,41 +702,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
   } as ViewStyle,
 
-  // RUN NOW button
-  runNowBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.primaryDark,
-  } as ViewStyle,
-  runNowText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textInverse,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  } as TextStyle,
-
   textLocked: {
     color: colors.textTertiary,
   } as TextStyle,
   textFailed: {
     color: colors.red,
   } as TextStyle,
-  textAborted: {
-    color: colors.blue,
-  } as TextStyle,
 
   // Connector
   connectorFailed: {
     backgroundColor: colors.red,
-  } as ViewStyle,
-  connectorAborted: {
-    backgroundColor: colors.blue,
   } as ViewStyle,
 
   // RETRY button
@@ -834,15 +727,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.red,
     borderTopColor: 'rgba(217,69,60,0.6)',
   } as ViewStyle,
-  retryBtnAborted: {
-    backgroundColor: colors.blue,
-    borderTopColor: 'rgba(79,139,164,0.6)',
+  retryBtnAbortedLight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
-  retryBtnToday: {
-    backgroundColor: colors.orange,
-    borderTopColor: 'rgba(230,130,50,0.6)',
-    paddingVertical: spacing.lg,
-  } as ViewStyle,
+  retryBtnAbortedLightText: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.red,
+    letterSpacing: 0.5,
+  } as TextStyle,
   retryBtnText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
@@ -850,10 +751,4 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   } as TextStyle,
-
-  // Today's failed/aborted mission gets a highlighted border (orange pulse)
-  nodeTodayRetry: {
-    borderColor: colors.orange,
-    borderWidth: 2,
-  } as ViewStyle,
 });

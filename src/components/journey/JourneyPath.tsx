@@ -11,6 +11,7 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/
 import RunShareCard from '../share/RunShareCard';
 import { shareCard } from '../../services/shareService';
 import { findMissionById } from '../../utils/missionLookup';
+import { getStreakDayIndex0 } from '../../utils/streakDisplay';
 
 
 interface JourneyPathProps {
@@ -109,7 +110,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
             distanceKm={sharingRun.distanceKm}
             durationMin={sharingRun.durationMin}
             xpEarned={sharingRun.xpEarned}
-            streakDay={sharingRun.streakDay}
+            streakDay={getStreakDayIndex0(sharingRun, runHistory)}
             missionType={sharingMission.type}
             path={sharingRun.path}
           />
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
     opacity: 0,
   } as ViewStyle,
   path: {
-    gap: spacing.sm,
+    gap: spacing.xl,
   } as ViewStyle,
   empty: {
     alignItems: 'center',

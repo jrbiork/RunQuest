@@ -2,8 +2,18 @@ import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Card } from '../ui/Card';
 import { ProgressBar } from '../ui/ProgressBar';
-import { colors, spacing, radii, fontSizes, fontWeights } from '../../constants/theme';
-import { PERSONA_CAMPAIGNS, PERSONA_LABELS, getTotalCampaignXp } from '../../constants/campaigns';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+} from '../../constants/theme';
+import {
+  PERSONA_CAMPAIGNS,
+  PERSONA_LABELS,
+  getTotalCampaignXp,
+} from '../../constants/campaigns';
 import type { UserProfile } from '../../types';
 
 const GOAL_LABELS: Record<string, string> = {
@@ -20,13 +30,26 @@ const EXPERIENCE_LABELS: Record<string, string> = {
   advanced: 'Vanguard',
 };
 
+function frequencyPerWeekLabel(profile: UserProfile): string {
+  const n = profile.preferredDays?.length ?? profile.weeklyTargetRuns ?? 0;
+  if (n === 0) return 'Not set';
+  if (n === 1) return '1 time per week';
+  return `${n} times per week`;
+}
+
 type Props = {
   profile: UserProfile;
-  xp: number;
-  currentCampaignIndex: number;
+  /** Total XP to show (store + run history reconciled in parent). */
+  accumulatedXp: number;
+  /** Full campaigns finished (not “current campaign slot”). */
+  campaignsCompleted: number;
 };
 
-export function CampaignProgressCard({ profile, xp, currentCampaignIndex }: Props) {
+export function CampaignProgressCard({
+  profile,
+  accumulatedXp,
+  campaignsCompleted,
+}: Props) {
   const personaId = profile.personaId;
   if (!personaId) return null;
 
@@ -34,27 +57,38 @@ export function CampaignProgressCard({ profile, xp, currentCampaignIndex }: Prop
   const campaigns = PERSONA_CAMPAIGNS[personaId];
   const totalCampaigns = campaigns.length;
   const totalPossibleXp = getTotalCampaignXp(personaId);
-  const campaignXpProgress = totalPossibleXp > 0 ? Math.min(xp / totalPossibleXp, 1) : 0;
+  const xpProgress =
+    totalPossibleXp > 0 ? Math.min(accumulatedXp / totalPossibleXp, 1) : 0;
+  const campaignProgress =
+    totalCampaigns > 0 ? Math.min(campaignsCompleted / totalCampaigns, 1) : 0;
+  const barProgress = Math.max(xpProgress, campaignProgress);
 
   return (
     <Card style={styles.campaignCard}>
       <View style={styles.campaignHeader}>
-        <MaterialIcons name={personaMeta.icon as any} size={20} color={colors.orange} />
+        <MaterialIcons
+          name={personaMeta.icon as any}
+          size={20}
+          color={colors.orange}
+        />
         <Text style={styles.campaignTitle}>{personaMeta.label}</Text>
         <View style={styles.campaignBadge}>
           <Text style={styles.campaignBadgeText}>
-            CAMPAIGN {Math.min(currentCampaignIndex + 1, totalCampaigns)} / {totalCampaigns}
+            CAMPAIGNS {Math.min(campaignsCompleted, totalCampaigns)} /{' '}
+            {totalCampaigns}
           </Text>
         </View>
       </View>
       <ProgressBar
-        progress={campaignXpProgress}
+        progress={barProgress}
         color={colors.orange}
         backgroundColor={colors.orangeLight}
         height={10}
       />
       <Text style={styles.campaignXpText}>
-        {xp.toLocaleString()} / {totalPossibleXp.toLocaleString()} XP — overall campaign progress
+        {accumulatedXp.toLocaleString()} / {totalPossibleXp.toLocaleString()} XP
+        — {Math.min(campaignsCompleted, totalCampaigns)} / {totalCampaigns}{' '}
+        completed
       </Text>
     </Card>
   );
@@ -67,31 +101,51 @@ export function OperativeFileCard({ profile }: { profile: UserProfile }) {
       <View style={styles.profileRows}>
         {profile.personaId ? (
           <>
-            <ProfileRow icon="fitness-center" label="Persona" value={PERSONA_LABELS[profile.personaId].label} />
+            <ProfileRow
+              icon="fitness-center"
+              label="Persona"
+              value={PERSONA_LABELS[profile.personaId].label}
+            />
             <Divider />
             <ProfileRow
               icon="directions-run"
               label="Default Mode"
-              value={profile.defaultActivityMode === 'cycle' ? 'Cycling' : 'Running'}
+              value={
+                profile.defaultActivityMode === 'cycle' ? 'Cycling' : 'Running'
+              }
             />
             <Divider />
-            <ProfileRow icon="event" label="Active Days" value={profile.preferredDays.join(', ')} />
+            <ProfileRow
+              icon="event"
+              label="Frequency"
+              value={frequencyPerWeekLabel(profile)}
+            />
           </>
         ) : (
           <>
             <ProfileRow
               icon="fitness-center"
               label="Classification"
-              value={EXPERIENCE_LABELS[profile.experienceLevel ?? 'beginner'] ?? 'Recruit'}
+              value={
+                EXPERIENCE_LABELS[profile.experienceLevel ?? 'beginner'] ??
+                'Recruit'
+              }
             />
             <Divider />
             <ProfileRow
               icon="flag"
               label="Primary Mandate"
-              value={GOAL_LABELS[profile.runningGoal ?? 'habit'] ?? 'Maintain Protocol'}
+              value={
+                GOAL_LABELS[profile.runningGoal ?? 'habit'] ??
+                'Maintain Protocol'
+              }
             />
             <Divider />
-            <ProfileRow icon="event" label="Active Days" value={profile.preferredDays.join(', ')} />
+            <ProfileRow
+              icon="event"
+              label="Frequency"
+              value={frequencyPerWeekLabel(profile)}
+            />
           </>
         )}
       </View>
@@ -127,10 +181,22 @@ const sh = StyleSheet.create({
   } as TextStyle,
 });
 
-function ProfileRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+function ProfileRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+}) {
   return (
     <View style={styles.profileRow}>
-      <MaterialIcons name={icon as any} size={16} color={colors.textSecondary} />
+      <MaterialIcons
+        name={icon as any}
+        size={16}
+        color={colors.textSecondary}
+      />
       <Text style={styles.profileLabel}>{label}</Text>
       <Text style={styles.profileValue}>{value}</Text>
     </View>

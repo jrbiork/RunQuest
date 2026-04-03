@@ -35,8 +35,8 @@ export default function OnboardingGoalScreen() {
   const handleDeploy = () => {
     if (!selected) return;
     const d = draft.current;
-    const mode = d.defaultActivityMode ?? 'run';
-    const days = d.trainingDaysPerWeek ?? 0;
+    const mode = d.defaultActivityMode ?? 'cycle';
+    const days = Math.max(1, Math.min(7, Math.round(d.trainingDaysPerWeek ?? 3)));
     const exp = d.experience;
     if (exp === undefined) return;
     if (mode === 'run' && !d.runDistance) return;

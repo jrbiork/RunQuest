@@ -19,7 +19,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
-import { useUserStore } from '../../src/store/userStore';
+import { useUserStore, MIN_EFFORT_SECONDS } from '../../src/store/userStore';
 import { useMissionsStore, selectAllComplete } from '../../src/store/missionsStore';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { Button } from '../../src/components/ui/Button';
@@ -41,6 +41,8 @@ import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
 import type { GpsPoint } from '../../src/types';
 import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
+import { stripEmojis } from '../../src/utils/stripEmojis';
+import { getStreakDayIndex0 } from '../../src/utils/streakDisplay';
 import ViewShot from 'react-native-view-shot';
 
 // ─── GPS stat tile ────────────────────────────────────────────────────────────
@@ -65,16 +67,26 @@ const gpsStyles = StyleSheet.create({
 
 export default function RunCompleteScreen() {
   const rawParams =
-    useLocalSearchParams<{ id: string; distanceKm?: string; durationMin?: string; pathJson?: string; goalMet?: string; activityMode?: string }>();
+    useLocalSearchParams<{
+      id: string;
+      distanceKm?: string;
+      durationMin?: string;
+      elapsedSec?: string;
+      pathJson?: string;
+      goalMet?: string;
+      activityMode?: string;
+    }>();
   const id = normalizeRouteParam(rawParams.id);
   const distKmParam = normalizeRouteParam(rawParams.distanceKm as string | string[] | undefined);
   const durMinParam = normalizeRouteParam(rawParams.durationMin as string | string[] | undefined);
+  const elapsedSecParam = normalizeRouteParam(rawParams.elapsedSec as string | string[] | undefined);
   const pathJson = normalizeRouteParam(rawParams.pathJson as string | string[] | undefined);
   const goalMetParam = normalizeRouteParam(rawParams.goalMet as string | string[] | undefined);
   const activityModeParam = normalizeRouteParam(rawParams.activityMode as string | string[] | undefined);
 
   const actualDistanceKm = distKmParam ? parseFloat(distKmParam) : undefined;
   const actualDurationMin = durMinParam ? parseFloat(durMinParam) : undefined;
+  const elapsedSec = elapsedSecParam ? parseFloat(elapsedSecParam) : undefined;
   const goalMet = goalMetParam === '1';
   const activityMode = activityModeParam === 'cycle' ? 'cycle' as const : 'run' as const;
   const gpsPath = useMemo<GpsPoint[]>(() => {
@@ -92,28 +104,51 @@ export default function RunCompleteScreen() {
   const allComplete = useMissionsStore(selectAllComplete);
 
   const completeRun = useUserStore((s) => s.completeRun);
+  const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
   const markWeeklyBonus = useUserStore((s) => s.markWeeklyBonusAwarded);
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const streak = useUserStore((s) => s.streak);
+  const runHistory = useUserStore((s) => s.runHistory);
   const xpBefore = useUserStore((s) => s.xp);
   const totalRuns = useUserStore((s) => s.totalRuns);
   const levelInfoAfter = useMemo(() => getLevelInfo(xpBefore), [xpBefore]);
+
+  const shareStreakDay = useMemo(() => {
+    const last = runHistory[runHistory.length - 1];
+    if (!last) return Math.max(0, streak - 1);
+    return getStreakDayIndex0(last, runHistory);
+  }, [runHistory, streak]);
 
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const alreadyCompleted = useRef(false);
 
   useEffect(() => {
-    // Free runs don't update the store — no XP, no mission completion
-    if (!mission || isFreeRun || alreadyCompleted.current) return;
+    if (!mission || alreadyCompleted.current) return;
     alreadyCompleted.current = true;
+
+    if (isFreeRun) {
+      if (elapsedSec != null && elapsedSec >= MIN_EFFORT_SECONDS) {
+        recordEffortFromElapsedSec(elapsedSec);
+      }
+      return;
+    }
 
     if (goalMet) {
       completeMission(mission.id, xpEarned);
     } else {
       failMission(mission.id);
     }
-    completeRun(mission.id, mission.type, actualDistanceKm, actualDurationMin, gpsPath.length >= 2 ? gpsPath : undefined, goalMet, activityMode);
+    completeRun(
+      mission.id,
+      mission.type,
+      actualDistanceKm,
+      actualDurationMin,
+      gpsPath.length >= 2 ? gpsPath : undefined,
+      goalMet,
+      activityMode,
+      elapsedSec,
+    );
 
     const allMissions = campaignMissions.length > 0 ? campaignMissions : weekMissions;
     const updated = allMissions.filter((m) => m.status === 'completed').length + (goalMet ? 1 : 0);
@@ -152,11 +187,10 @@ export default function RunCompleteScreen() {
     : impactMessages[Math.floor(Math.random() * impactMessages.length)] as string;
 
   // World restoration stats
-  const zonesOnline = Math.min(Math.floor((totalRuns + 1) / 1.5) + 1, 12);
-  const worldRestoredPct = Math.min(Math.round((totalRuns + 1) * 4), 100);
+  const zonesOnline = Math.min(Math.floor(totalRuns / 1.5) + 1, 12);
+  const worldRestoredPct = Math.min(Math.round(totalRuns * 4), 100);
 
   const hasGpsData = actualDistanceKm !== undefined && actualDurationMin !== undefined;
-  const newStreak = streak + 1;
   const weeklyRunsCompleted = weeklyProgress?.runsCompleted ?? 0;
   const weeklyRunsTarget = 3;
   const weeklyProg = Math.min(weeklyRunsCompleted / Math.max(weeklyRunsTarget, 1), 1);
@@ -178,7 +212,7 @@ export default function RunCompleteScreen() {
           <Text style={[styles.missionCompleteLabel, !isFreeRun && !goalMet && styles.missionFailLabel]}>
             {isFreeRun ? 'FREE RUN COMPLETE' : goalMet ? 'MISSION COMPLETE' : 'MISSION FAILED'}
           </Text>
-          <Text style={styles.missionTitle}>{mission.title}</Text>
+          <Text style={styles.missionTitle}>{stripEmojis(mission.title)}</Text>
         </Animated.View>
 
         {/* ── City restoration animation ──────────────────────────────── */}
@@ -276,20 +310,24 @@ export default function RunCompleteScreen() {
           )}
         </Animated.View>
 
-        {/* ── Streak — hidden for free run ─────────────────────────────── */}
-        {!isFreeRun && (
+        {/* ── Streak — failed missions only (hidden on successful completion) ─ */}
+        {!isFreeRun && !goalMet && (
           <Animated.View entering={FadeInDown.delay(1000).duration(400)}>
             <Card style={styles.streakCard}>
               <MaterialIcons name="local-fire-department" size={32} color={colors.orange} />
               <View style={styles.streakInfo}>
                 <Text style={styles.streakTitle}>
-                  {streak === 0 ? 'Streak started!' : `Day ${newStreak} streak`}
+                  {streak === 0
+                    ? 'Streak'
+                    : streak === 1
+                      ? 'Streak started!'
+                      : `Day ${streak} streak`}
                 </Text>
                 <Text style={styles.streakSub}>
-                  {streak === 0 ? 'The world starts healing today.' : 'Keep running. Keep rebuilding.'}
+                  {streak <= 1 ? 'The world starts healing today.' : 'Keep running. Keep rebuilding.'}
                 </Text>
               </View>
-              <Text style={styles.streakCount}>{newStreak}</Text>
+              <Text style={styles.streakCount}>{streak > 0 ? streak : '—'}</Text>
             </Card>
           </Animated.View>
         )}
@@ -329,12 +367,14 @@ export default function RunCompleteScreen() {
             onPress={() => router.replace('/(tabs)/journey')}
             fullWidth
           />
-          <Button
-            label="Mission Control"
-            onPress={() => router.replace('/(tabs)')}
-            variant="ghost"
-            fullWidth
-          />
+          {!isFreeRun && !goalMet && (
+            <Button
+              label="Mission Control"
+              onPress={() => router.replace('/(tabs)')}
+              variant="ghost"
+              fullWidth
+            />
+          )}
         </Animated.View>
       </ScrollView>
 
@@ -345,7 +385,7 @@ export default function RunCompleteScreen() {
           distanceKm={actualDistanceKm ?? mission.targetDistanceKm}
           durationMin={actualDurationMin ?? mission.targetDurationMin}
           xpEarned={xpEarned}
-          streakDay={newStreak}
+          streakDay={shareStreakDay}
           missionType={mission.type}
           path={gpsPath.length >= 2 ? gpsPath : undefined}
         />

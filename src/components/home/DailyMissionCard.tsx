@@ -6,6 +6,7 @@ import type { Mission } from '../../types';
 import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../constants/theme';
 import { XPBadge } from '../ui/XPBadge';
 import { formatDistance, formatDuration } from '../../utils/xpCalculator';
+import { stripEmojis } from '../../utils/stripEmojis';
 
 interface DailyMissionCardProps {
   mission: Mission;
@@ -33,8 +34,8 @@ export function DailyMissionCard({ mission, onStartRun }: DailyMissionCardProps)
         </View>
 
         {/* Mission name */}
-        <Text style={styles.title}>{mission.title}</Text>
-        <Text style={styles.subtitle}>{mission.subtitle}</Text>
+        <Text style={styles.title}>{stripEmojis(mission.title)}</Text>
+        <Text style={styles.subtitle}>{stripEmojis(mission.subtitle)}</Text>
 
         {/* Stats row — one group per activity */}
         <View style={styles.statsRow}>

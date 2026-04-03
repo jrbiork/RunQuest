@@ -8,7 +8,7 @@ import type {
   RunDistanceAnswer,
 } from '../types';
 
-/** Training days per week (0–7) from onboarding slider. */
+/** Training days per week (1–7) from onboarding slider; legacy 0 may still appear in stored data. */
 export type TrainingFrequencyDays = number;
 
 export interface PersonaSurveyAnswers {

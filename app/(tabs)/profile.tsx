@@ -28,8 +28,11 @@ import {
   fontWeights,
   shadows,
 } from '../../src/constants/theme';
-import { getLevelInfo, formatDistance } from '../../src/utils/xpCalculator';
+import { getLevelInfo, formatDistance, SCAVENGER_LEVEL_COUNT } from '../../src/utils/xpCalculator';
+import { getDisplayXpTotal } from '../../src/utils/displayXp';
+import { getDisplayOverallStats } from '../../src/utils/displayStats';
 import { useDevStore, getMockedDateLabel } from '../../src/store/devStore';
+import { useRunSessionStore } from '../../src/store/runSessionStore';
 import { CampaignProgressCard, OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
 const RANK_TITLES = [
   'Field Recruit',
@@ -51,6 +54,8 @@ const RANK_TITLES = [
 
 export default function ProfileScreen() {
   const profile = useUserStore((s) => s.profile);
+  const rootPersonaId = useUserStore((s) => s.personaId);
+  const personaIdForStats = profile?.personaId ?? rootPersonaId ?? undefined;
   const xp = useUserStore((s) => s.xp);
   const totalRuns = useUserStore((s) => s.totalRuns);
   const totalDistanceKm = useUserStore((s) => s.totalDistanceKm);
@@ -59,16 +64,55 @@ export default function ProfileScreen() {
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const runsTarget = useUserStore(selectWeeklyRunsTarget);
   const resetOnboarding = useUserStore((s) => s.resetOnboarding);
+  const resetMissions = useMissionsStore((s) => s.resetMissions);
   const audioMuted = useUserStore((s) => s.audioMuted);
   const setAudioMuted = useUserStore((s) => s.setAudioMuted);
-  const levelInfo = useMemo(() => getLevelInfo(xp), [xp]);
-
   const dayOffset = useDevStore((s) => s.dayOffset);
   void dayOffset; // consumed for reactivity
   const adjustDay = useDevStore((s) => s.adjustDay);
   const resetDateOffset = useDevStore((s) => s.resetDateOffset);
+  const setRunActive = useRunSessionStore((s) => s.setRunActive);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
   const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
+
+  /** Completed campaigns: store counter + index stay aligned; max() covers older saves. */
+  const campaignsCompletedDisplay = useMemo(
+    () => Math.max(totalCampaignsCompleted, currentCampaignIndex),
+    [totalCampaignsCompleted, currentCampaignIndex],
+  );
+
+  const displayXpTotal = useMemo(
+    () =>
+      getDisplayXpTotal({
+        xp,
+        runHistory,
+        personaId: personaIdForStats,
+        totalCampaignsCompleted,
+        currentCampaignIndex,
+      }),
+    [xp, runHistory, personaIdForStats, totalCampaignsCompleted, currentCampaignIndex],
+  );
+  const levelInfo = useMemo(() => getLevelInfo(displayXpTotal), [displayXpTotal]);
+
+  const displayOverallStats = useMemo(
+    () =>
+      getDisplayOverallStats({
+        totalRuns,
+        totalDistanceKm,
+        runHistory,
+        personaId: personaIdForStats,
+        campaignsCompleted: campaignsCompletedDisplay,
+        activityMode: profile?.defaultActivityMode ?? 'cycle',
+      }),
+    [
+      totalRuns,
+      totalDistanceKm,
+      runHistory,
+      personaIdForStats,
+      profile?.defaultActivityMode,
+      campaignsCompletedDisplay,
+    ],
+  );
 
   const [showGoalEditor, setShowGoalEditor] = useState(false);
   void showGoalEditor;
@@ -77,23 +121,21 @@ export default function ProfileScreen() {
   const weekProgress =
     runsTarget > 0 ? Math.min(runsThisWeek / runsTarget, 1) : 0;
 
-  const missionsCompleted = useMemo(
-    () => runHistory.filter((r) => r.goalMet).length,
-    [runHistory],
-  );
-
   const handleReset = () => {
     Alert.alert(
       'Wipe Operative Data',
-      'This will delete all progress and restart onboarding. The world goes dark again.',
+      'This deletes all local data: profile, runs, campaigns, XP, level, streaks, distance, audio mute, and dev date overrides. You will start from the intro again.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm Wipe',
           style: 'destructive',
           onPress: () => {
+            resetDateOffset();
+            resetMissions();
             resetOnboarding();
-            router.replace('/onboarding');
+            setRunActive(false);
+            router.replace('/intro');
           },
         },
       ],
@@ -128,7 +170,7 @@ export default function ProfileScreen() {
                 color={colors.ochre}
               />
               <Text style={styles.levelBadgeText}>
-                SCAVENGER LVL {levelInfo.level}
+                SCAVENGER LVL {levelInfo.level} / {SCAVENGER_LEVEL_COUNT}
               </Text>
             </View>
             <Text style={styles.rankTitle}>
@@ -138,7 +180,7 @@ export default function ProfileScreen() {
                 ]
               }
             </Text>
-            <Text style={styles.xpTotal}>{xp.toLocaleString()} XP</Text>
+            <Text style={styles.xpTotal}>{displayXpTotal.toLocaleString()} XP</Text>
           </View>
         </View>
 
@@ -151,25 +193,25 @@ export default function ProfileScreen() {
           <View style={styles.statsGrid}>
             <StatBlock
               label="Sorties"
-              value={totalRuns.toString()}
+              value={displayOverallStats.sorties.toString()}
               icon="directions-run"
               iconColor={colors.primary}
             />
             <StatBlock
               label="Distance"
-              value={formatDistance(totalDistanceKm)}
+              value={formatDistance(displayOverallStats.distanceKm)}
               icon="straighten"
               iconColor={colors.blue}
             />
             <StatBlock
               label="Mission"
-              value={missionsCompleted.toString()}
+              value={displayOverallStats.missionsCompleted.toString()}
               icon="task-alt"
               iconColor={colors.orange}
             />
             <StatBlock
               label="Campaign"
-              value={totalCampaignsCompleted.toString()}
+              value={campaignsCompletedDisplay.toString()}
               icon="public"
               iconColor={colors.yellow}
             />
@@ -185,8 +227,8 @@ export default function ProfileScreen() {
             </View>
             <CampaignProgressCard
               profile={profile}
-              xp={xp}
-              currentCampaignIndex={currentCampaignIndex}
+              accumulatedXp={displayXpTotal}
+              campaignsCompleted={campaignsCompletedDisplay}
             />
           </View>
         )}

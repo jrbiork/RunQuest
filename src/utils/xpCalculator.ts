@@ -32,6 +32,9 @@ const LEVEL_THRESHOLDS = [
   15400, // Level 15 (max displayed)
 ];
 
+/** Number of Scavenger / personal-runner levels (1 … MAX inclusive). */
+export const SCAVENGER_LEVEL_COUNT = LEVEL_THRESHOLDS.length;
+
 const LEVEL_TITLES = [
   'Rookie Runner',
   'Pavement Pounder',
@@ -66,7 +69,11 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 
   const xpInLevel = totalXp - xpAtLevelStart;
   const xpToNextLevel = xpAtNextLevel - xpAtLevelStart;
-  const progress = Math.min(xpInLevel / xpToNextLevel, 1);
+  const isMaxLevel = level >= SCAVENGER_LEVEL_COUNT;
+  const progress =
+    isMaxLevel || xpToNextLevel <= 0
+      ? 1
+      : Math.min(xpInLevel / xpToNextLevel, 1);
 
   return {
     level,
@@ -76,6 +83,26 @@ export function getLevelInfo(totalXp: number): LevelInfo {
     progress,
     totalXp,
   };
+}
+
+/**
+ * Progress ring 0–1 across the full Scavenger ladder (levels 1..SCAVENGER_LEVEL_COUNT),
+ * not just XP within the current level.
+ */
+export function getOverallLevelRingProgress(info: LevelInfo): number {
+  const max = SCAVENGER_LEVEL_COUNT;
+  if (max <= 1) return 1;
+  if (info.level >= max) return 1;
+  return Math.min(1, (info.level - 1 + info.progress) / (max - 1));
+}
+
+/** Ladder rows for UI (same for all personas — global Scavenger thresholds). */
+export function getScavengerLevelRows(): { level: number; title: string; minXp: number }[] {
+  return LEVEL_THRESHOLDS.map((minXp, i) => ({
+    level: i + 1,
+    title: LEVEL_TITLES[i] ?? `Level ${i + 1}`,
+    minXp,
+  }));
 }
 
 // ─── XP Calculation ───────────────────────────────────────────────────────────

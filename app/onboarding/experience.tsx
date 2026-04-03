@@ -21,7 +21,7 @@ const OPTIONS: {
 
 export default function OnboardingExperienceScreen() {
   const draft = useOnboardingDraft();
-  const mode: ActivityMode = draft.current.defaultActivityMode ?? 'run';
+  const mode: ActivityMode = draft.current.defaultActivityMode ?? 'cycle';
   const verb = mode === 'cycle' ? 'cycling' : 'running';
 
   const [selected, setSelected] = useState<ExperienceAnswer | null>(

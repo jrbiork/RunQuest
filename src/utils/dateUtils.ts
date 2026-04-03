@@ -19,6 +19,11 @@ export function getNow(): Date {
   return new Date(Date.now() + _dateOffsetMs);
 }
 
+/** ISO timestamp for the current app time (matches dev date offset). Use for `completedAt` so stats/calendar align with `getTodayISO()`. */
+export function getNowISOString(): string {
+  return getNow().toISOString();
+}
+
 // Returns today as YYYY-MM-DD
 export function getTodayISO(): string {
   return toISODate(getNow());
@@ -52,14 +57,15 @@ export function getWeekStartISO(date: Date = getNow()): string {
   return toISODate(getWeekStart(date));
 }
 
-// Returns true if lastRunDate was today or yesterday (streak alive)
+// Returns true if the streak is still alive: last run was within 2 calendar days of "today"
+// (allows one full rest day between run days, e.g. Fri → Sun).
 export function isStreakAlive(lastRunDate: string | null): boolean {
   if (!lastRunDate) return false;
   const today = parseLocalDate(getTodayISO());
   const last = parseLocalDate(lastRunDate);
   const diffMs = today.getTime() - last.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-  return diffDays <= 1;
+  return diffDays <= 2;
 }
 
 // Returns true if the stored weekStartDate is not this week's Monday

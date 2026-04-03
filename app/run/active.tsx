@@ -25,15 +25,24 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
-import { useUserStore } from '../../src/store/userStore';
+import { useUserStore, MIN_EFFORT_SECONDS } from '../../src/store/userStore';
+import { getNowISOString } from '../../src/utils/dateUtils';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig } from '../../src/constants/theme';
+import { stripEmojis } from '../../src/utils/stripEmojis';
 import { formatDistance } from '../../src/utils/xpCalculator';
 import { formatElapsed, formatPace } from '../../src/utils/haversine';
 import { useGpsTracking } from '../../src/hooks/useGpsTracking';
-import { playGoalReachedSound, speakRunCue } from '../../src/services/audioService';
+import { playGoalReachedSound, playMissionFailedSound, speakRunCue } from '../../src/services/audioService';
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
-import { MISSION_AUDIO_CUES, FUN_RUN_ID, FUN_RUN_MISSION, pickCue } from '../../src/constants/missions';
+import {
+  MISSION_AUDIO_CUES,
+  FUN_RUN_ID,
+  FUN_RUN_MISSION,
+  pickCue,
+  buildMissionStartLiveCue,
+  pickMissionCompleteLiveCue,
+} from '../../src/constants/missions';
 import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
 import { snapPathForMapDisplay } from '../../src/services/routeSnapService';
 import type { ActivityMode } from '../../src/types';
@@ -42,12 +51,21 @@ export default function ActiveRunScreen() {
   const params = useLocalSearchParams<{ id: string; activityMode?: string }>();
   const id = normalizeRouteParam(params.id);
   const activityModeParam = normalizeRouteParam(params.activityMode);
-  const activityMode: ActivityMode = activityModeParam === 'cycle' ? 'cycle' : 'run';
+  const profileDefaultMode = useUserStore((s) => s.profile?.defaultActivityMode ?? 'cycle');
+  const activityMode: ActivityMode =
+    activityModeParam === 'cycle'
+      ? 'cycle'
+      : activityModeParam === 'run'
+        ? 'run'
+        : profileDefaultMode;
 
   const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const abortMission = useMissionsStore((s) => s.abortMission);
+  const failMission = useMissionsStore((s) => s.failMission);
   const appendRunHistoryEntry = useUserStore((s) => s.appendRunHistoryEntry);
+  const completeRun = useUserStore((s) => s.completeRun);
+  const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
@@ -66,7 +84,9 @@ export default function ActiveRunScreen() {
     ? (mission?.targetCyclingDurationMin ?? 0)
     : (mission?.targetDurationMin ?? 0);
 
-  const goalReachedFired = useRef(false);
+  const [goalReached, setGoalReached] = useState(false);
+  const [timeFailed, setTimeFailed] = useState(false);
+  const goalAnnouncedRef = useRef(false);
   const startCueFired = useRef(false);
   const milestone25Fired = useRef(false);
   const milestone50Fired = useRef(false);
@@ -121,41 +141,81 @@ export default function ActiveRunScreen() {
   // 2-second start cue (skip for free run — no narrative)
   useEffect(() => {
     if (!mission || !isTracking || isFreeRun || startCueFired.current) return;
-    const cues = mission.audioCues ?? MISSION_AUDIO_CUES[mission.type];
     const timer = setTimeout(() => {
       startCueFired.current = true;
-      speakRunCue(pickCue(cues.start));
+      speakRunCue(buildMissionStartLiveCue(stripEmojis(mission.title)));
     }, 2000);
     return () => clearTimeout(timer);
   }, [isTracking, mission, isFreeRun]);
 
-  // Milestone cues at 25 / 50 / 75 / 100% (skip for free run — no targets)
+  // Milestone cues by distance progress only (skip for free run — no targets)
   useEffect(() => {
     if (!mission || !isTracking || isFreeRun) return;
 
     const cues = mission.audioCues ?? MISSION_AUDIO_CUES[mission.type];
     const distRatio = targetDistanceKm > 0 ? distanceKm / targetDistanceKm : 0;
-    const timeRatio = targetDurationMin > 0 ? elapsedSec / (targetDurationMin * 60) : 0;
-    const progress = Math.max(distRatio, timeRatio);
 
-    if (!milestone25Fired.current && progress >= 0.25) {
+    if (!milestone25Fired.current && distRatio >= 0.25) {
       milestone25Fired.current = true;
       speakRunCue(pickCue(cues.quarter));
     }
-    if (!milestone50Fired.current && progress >= 0.5) {
+    if (!milestone50Fired.current && distRatio >= 0.5) {
       milestone50Fired.current = true;
       speakRunCue(pickCue(cues.half));
     }
-    if (!milestone75Fired.current && progress >= 0.75) {
+    if (!milestone75Fired.current && distRatio >= 0.75) {
       milestone75Fired.current = true;
       speakRunCue(pickCue(cues.threeQuarter));
     }
-    if (!goalReachedFired.current && progress >= 1.0) {
-      goalReachedFired.current = true;
-      speakRunCue(pickCue(cues.complete));
-      triggerGoalReached(mission.title);
+  }, [distanceKm, isTracking, isFreeRun, mission, targetDistanceKm]);
+
+  // Goal: reach target distance with elapsed whole minutes still ≤ target time (e.g. 35:55 counts as minute 35).
+  useEffect(() => {
+    if (!mission || !isTracking || isFreeRun || goalReached) return;
+    const elapsedMinFloor = Math.floor(elapsedSec / 60);
+    const distanceMet = targetDistanceKm > 0 && distanceKm >= targetDistanceKm;
+    const withinTime =
+      targetDurationMin <= 0 ? true : elapsedMinFloor <= targetDurationMin;
+    if (distanceMet && withinTime) {
+      setGoalReached(true);
     }
-  }, [distanceKm, elapsedSec, isTracking, isFreeRun, mission, targetDistanceKm, targetDurationMin, triggerGoalReached]);
+  }, [
+    distanceKm,
+    elapsedSec,
+    isTracking,
+    isFreeRun,
+    mission,
+    targetDistanceKm,
+    targetDurationMin,
+    goalReached,
+  ]);
+
+  // Announce goal + banner once when distance goal is met in time
+  useEffect(() => {
+    if (!goalReached || !mission || isFreeRun || goalAnnouncedRef.current) return;
+    goalAnnouncedRef.current = true;
+    speakRunCue(pickMissionCompleteLiveCue());
+    triggerGoalReached(stripEmojis(mission.title));
+  }, [goalReached, mission, isFreeRun, triggerGoalReached]);
+
+  // Time limit: fail when clock reaches (target + 1) full minutes without a valid goal (e.g. 36:00 for 35 min target).
+  useEffect(() => {
+    if (isFreeRun || !mission || !isTracking || goalReached || timeFailed) return;
+    if (targetDurationMin <= 0) return;
+    if (elapsedSec < (targetDurationMin + 1) * 60) return;
+    setTimeFailed(true);
+    pause();
+    playMissionFailedSound();
+  }, [
+    elapsedSec,
+    isFreeRun,
+    mission,
+    isTracking,
+    goalReached,
+    timeFailed,
+    targetDurationMin,
+    pause,
+  ]);
 
   // Pan map to follow latest GPS point
   useEffect(() => {
@@ -185,12 +245,49 @@ export default function ActiveRunScreen() {
         id: mission?.id ?? '',
         distanceKm: distanceKm.toFixed(3),
         durationMin: String(durationMin),
+        elapsedSec: String(elapsedSec),
         pathJson: sampled.length >= 2 ? JSON.stringify(sampled) : '',
-        goalMet: goalReachedFired.current ? '1' : '0',
+        goalMet: goalReached ? '1' : '0',
         activityMode,
       },
     });
   };
+
+  const handleTimeFailureToJourney = useCallback(() => {
+    if (!mission) {
+      setRunActive(false);
+      stop();
+      router.replace('/(tabs)/journey');
+      return;
+    }
+    setRunActive(false);
+    stop();
+    const durationMin = Math.max(1, Math.round(elapsedSec / 60));
+    const step = Math.ceil(path.length / 100);
+    const sampled = path.filter((_, i) => i % step === 0);
+    failMission(mission.id);
+    completeRun(
+      mission.id,
+      mission.type,
+      distanceKm,
+      durationMin,
+      sampled.length >= 2 ? sampled : undefined,
+      false,
+      activityMode,
+      elapsedSec,
+    );
+    router.replace('/(tabs)/journey');
+  }, [
+    mission,
+    failMission,
+    completeRun,
+    distanceKm,
+    elapsedSec,
+    path,
+    activityMode,
+    setRunActive,
+    stop,
+  ]);
 
   const handlePauseResume = useCallback(() => {
     if (isPaused) {
@@ -213,6 +310,9 @@ export default function ActiveRunScreen() {
             onPress: () => {
               setRunActive(false);
               stop();
+              if (elapsedSec >= MIN_EFFORT_SECONDS) {
+                recordEffortFromElapsedSec(elapsedSec);
+              }
               router.replace('/(tabs)/journey');
             },
           },
@@ -233,31 +333,53 @@ export default function ActiveRunScreen() {
             stop();
             if (mission) {
               abortMission(mission.id);
+              const durationMin = Math.max(0, Math.round(elapsedSec / 60));
               appendRunHistoryEntry({
                 missionId: mission.id,
-                completedAt: new Date().toISOString(),
-                distanceKm: 0,
-                durationMin: 0,
+                completedAt: getNowISOString(),
+                distanceKm: Math.max(0, distanceKm),
+                durationMin,
                 xpEarned: 0,
                 streakDay: useUserStore.getState().streak,
                 goalMet: false,
                 outcome: 'aborted',
                 activityMode,
               });
+              if (elapsedSec >= MIN_EFFORT_SECONDS) {
+                recordEffortFromElapsedSec(elapsedSec);
+              }
             }
             router.replace('/(tabs)/journey');
           },
         },
       ],
     );
-  }, [stop, isFreeRun, mission, abortMission, appendRunHistoryEntry, activityMode, setRunActive]);
+  }, [
+    stop,
+    isFreeRun,
+    mission,
+    abortMission,
+    appendRunHistoryEntry,
+    activityMode,
+    setRunActive,
+    distanceKm,
+    elapsedSec,
+    recordEffortFromElapsedSec,
+  ]);
 
   useEffect(() => {
     if (!isTracking) return;
-    const handler = () => { confirmAbort(); return true; };
+    const handler = () => {
+      if (timeFailed) {
+        handleTimeFailureToJourney();
+        return true;
+      }
+      confirmAbort();
+      return true;
+    };
     const sub = BackHandler.addEventListener('hardwareBackPress', handler);
     return () => sub.remove();
-  }, [isTracking, confirmAbort]);
+  }, [isTracking, timeFailed, confirmAbort, handleTimeFailureToJourney]);
 
   // Debounced road snap for map polyline (ORS); distance still uses raw GPS path.
   useEffect(() => {
@@ -324,9 +446,8 @@ export default function ActiveRunScreen() {
 
   const config = missionConfig[mission.type];
   const distanceProgress = targetDistanceKm > 0 ? Math.min(distanceKm / targetDistanceKm, 1) : 0;
-  const timeProgress = targetDurationMin > 0 ? Math.min(elapsedSec / (targetDurationMin * 60), 1) : 0;
-  const overallProgress = Math.max(distanceProgress, timeProgress);
-  const goalHit = goalReachedFired.current;
+  const overallProgress = distanceProgress;
+  const goalHit = goalReached;
 
   const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
   const initialRegion = path.length > 0
@@ -346,7 +467,7 @@ export default function ActiveRunScreen() {
         </View>
 
         {/* Center: mission title */}
-        <Text style={styles.missionTitle} numberOfLines={1}>{mission.title}</Text>
+        <Text style={styles.missionTitle} numberOfLines={1}>{stripEmojis(mission.title)}</Text>
 
         {/* Right: elapsed time badge */}
         <View style={[styles.elapsedBadge, isPaused && styles.elapsedBadgePaused]}>
@@ -384,13 +505,15 @@ export default function ActiveRunScreen() {
         </MapView>
 
         {/* Goal reached banner — floats over the map */}
-        <Animated.View style={[styles.goalBanner, bannerStyle]} pointerEvents="none">
-          <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
-            <MaterialIcons name="emoji-events" size={18} color={colors.primary} />
-            <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
-            <Text style={styles.goalBannerSub}>Goal reached — tap Finish when ready</Text>
+        {goalHit && (
+          <Animated.View style={[styles.goalBanner, bannerStyle]} pointerEvents="none">
+            <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
+              <MaterialIcons name="emoji-events" size={18} color={colors.primary} />
+              <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
+              <Text style={styles.goalBannerSub}>Goal reached — tap Finish when ready</Text>
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
+        )}
 
         {/* Paused overlay */}
         {isPaused && (
@@ -402,6 +525,7 @@ export default function ActiveRunScreen() {
       </View>
 
       {/* ─── Bottom HUD ───────────────────────────────────────────── */}
+      {!timeFailed && (
       <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
         <View style={styles.hud}>
           {/* Stats row */}
@@ -488,6 +612,25 @@ export default function ActiveRunScreen() {
           </View>
         </View>
       </SafeAreaView>
+      )}
+
+      {timeFailed && (
+        <View style={styles.timeFailOverlay}>
+          <MaterialIcons name="timer-off" size={48} color={colors.red} />
+          <Text style={styles.timeFailTitle}>Mission failed</Text>
+          <Text style={styles.timeFailSub}>
+            Target time reached before you covered the required distance.
+          </Text>
+          <TouchableOpacity
+            style={styles.timeFailBtn}
+            onPress={handleTimeFailureToJourney}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="map" size={20} color={colors.textInverse} />
+            <Text style={styles.timeFailBtnText}>Back to journey</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -508,6 +651,7 @@ const styles = StyleSheet.create({
   safeOuter: {
     flex: 1,
     backgroundColor: colors.background,
+    position: 'relative',
   } as ViewStyle,
   safe: {
     flex: 1,
@@ -640,6 +784,49 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.orange,
     letterSpacing: 3,
+    textTransform: 'uppercase',
+  } as TextStyle,
+
+  timeFailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 10, 8, 0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    zIndex: 200,
+  } as ViewStyle,
+  timeFailTitle: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    color: colors.red,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    textAlign: 'center',
+  } as TextStyle,
+  timeFailSub: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 300,
+  } as TextStyle,
+  timeFailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radii.md,
+    marginTop: spacing.lg,
+  } as ViewStyle,
+  timeFailBtnText: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textInverse,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,
 

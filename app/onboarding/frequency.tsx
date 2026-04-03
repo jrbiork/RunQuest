@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,80 +6,46 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-  PanResponder,
-  LayoutChangeEvent,
-  AccessibilityActionEvent,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
 import { useOnboardingDraft } from './_layout';
-import { colors, spacing, fontSizes, fontWeights, radii } from '../../src/constants/theme';
+import {
+  colors,
+  spacing,
+  fontSizes,
+  fontWeights,
+  radii,
+} from '../../src/constants/theme';
 
-const THUMB_SIZE = 30;
-const TRACK_HEIGHT = 10;
+const TICK_ROW_PAD = 11;
+
+function clampDays(n: number): number {
+  return Math.max(1, Math.min(7, Math.round(n)));
+}
 
 export default function OnboardingFrequencyScreen() {
   const draft = useOnboardingDraft();
-  const [days, setDays] = useState(draft.current.trainingDaysPerWeek ?? 3);
-  const [trackWidth, setTrackWidth] = useState(0);
+  const [days, setDays] = useState(() =>
+    clampDays(draft.current.trainingDaysPerWeek ?? 3),
+  );
 
   const handleNext = () => {
     draft.current.trainingDaysPerWeek = days;
     router.push('/onboarding/distance' as any);
   };
 
-  const setDaysFromX = useCallback(
-    (x: number) => {
-      const w = trackWidth;
-      if (w <= 0) return;
-      const d = Math.round((x / w) * 7);
-      const next = Math.max(0, Math.min(7, d));
-      setDays((prev) => {
-        if (prev !== next) {
-          Haptics.selectionAsync();
-        }
-        return next;
-      });
-    },
-    [trackWidth],
-  );
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt) => {
-          setDaysFromX(evt.nativeEvent.locationX);
-        },
-        onPanResponderMove: (evt) => {
-          setDaysFromX(evt.nativeEvent.locationX);
-        },
-      }),
-    [setDaysFromX],
-  );
-
-  const onTrackLayout = (e: LayoutChangeEvent) => {
-    setTrackWidth(e.nativeEvent.layout.width);
-  };
-
-  const thumbLeft =
-    trackWidth > 0 ? (days / 7) * Math.max(0, trackWidth - THUMB_SIZE) : 0;
-  const fillWidth = trackWidth > 0 ? (days / 7) * trackWidth : 0;
-
-  const onAccessibilityAction = (event: AccessibilityActionEvent) => {
-    switch (event.nativeEvent.actionName) {
-      case 'increment':
-        setDays((d) => Math.min(7, d + 1));
-        break;
-      case 'decrement':
-        setDays((d) => Math.max(0, d - 1));
-        break;
-      default:
-        break;
-    }
-  };
+  const onSliderChange = useCallback((raw: number) => {
+    const clamped = clampDays(raw);
+    setDays((prev) => {
+      if (prev !== clamped) {
+        Haptics.selectionAsync();
+      }
+      return clamped;
+    });
+  }, []);
 
   return (
     <OnboardingLayout
@@ -98,34 +64,29 @@ export default function OnboardingFrequencyScreen() {
 
         <View style={styles.sliderBlock}>
           <View style={styles.edgeLabels}>
-            <Text style={styles.edgeLabel}>0</Text>
+            <Text style={styles.edgeLabel}>1</Text>
             <Text style={styles.edgeLabel}>7</Text>
           </View>
-          <View
-            style={styles.trackHit}
-            onLayout={onTrackLayout}
-            {...panResponder.panHandlers}
-            accessible
-            accessibilityRole="adjustable"
+          <Slider
+            style={styles.slider}
+            value={days}
+            onValueChange={onSliderChange}
+            minimumValue={1}
+            maximumValue={7}
+            step={1}
+            minimumTrackTintColor={colors.orange}
+            maximumTrackTintColor={colors.surfaceElevated}
+            thumbTintColor={colors.orange}
             accessibilityLabel="Training days per week"
-            accessibilityValue={{ min: 0, max: 7, now: days, text: `${days} days per week` }}
-            accessibilityActions={[
-              { name: 'increment', label: 'Increase' },
-              { name: 'decrement', label: 'Decrease' },
-            ]}
-            onAccessibilityAction={onAccessibilityAction}
-          >
-            <View style={styles.trackShell}>
-              <View style={styles.trackBg} />
-              <View style={[styles.trackFill, { width: fillWidth }]} />
-            </View>
-            <View
-              style={[styles.thumb, { left: thumbLeft }]}
-              pointerEvents="none"
-            />
-          </View>
+            accessibilityValue={{
+              min: 1,
+              max: 7,
+              now: days,
+              text: `${days} days per week`,
+            }}
+          />
           <View style={styles.tickLabels}>
-            {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
+            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
               <Text
                 key={n}
                 style={[styles.tickLabel, days === n && styles.tickLabelActive]}
@@ -137,7 +98,7 @@ export default function OnboardingFrequencyScreen() {
         </View>
 
         <View style={styles.quickRow}>
-          {[0, 2, 3, 5, 7].map((n) => (
+          {[1, 3, 5, 7].map((n) => (
             <TouchableOpacity
               key={n}
               style={[styles.quickChip, days === n && styles.quickChipActive]}
@@ -147,7 +108,12 @@ export default function OnboardingFrequencyScreen() {
               }}
               accessibilityLabel={`Set to ${n} days`}
             >
-              <Text style={[styles.quickChipText, days === n && styles.quickChipTextActive]}>
+              <Text
+                style={[
+                  styles.quickChipText,
+                  days === n && styles.quickChipTextActive,
+                ]}
+              >
                 {n}
               </Text>
             </TouchableOpacity>
@@ -197,54 +163,14 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontVariant: ['tabular-nums'],
   } as TextStyle,
-  trackHit: {
-    position: 'relative',
-    justifyContent: 'center',
-    minHeight: THUMB_SIZE + spacing.md,
-    paddingVertical: spacing.sm,
-  } as ViewStyle,
-  trackShell: {
-    height: TRACK_HEIGHT,
-    borderRadius: radii.full,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  } as ViewStyle,
-  trackBg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.full,
-  } as ViewStyle,
-  trackFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: radii.full,
-    backgroundColor: colors.orange,
-    opacity: 0.85,
-  } as ViewStyle,
-  thumb: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -THUMB_SIZE / 2,
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    backgroundColor: colors.orange,
-    borderWidth: 2,
-    borderColor: colors.background,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 3,
-    elevation: 4,
+  slider: {
+    width: '100%',
+    height: 44,
   } as ViewStyle,
   tickLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: THUMB_SIZE / 2 - 4,
+    paddingHorizontal: TICK_ROW_PAD,
   } as ViewStyle,
   tickLabel: {
     fontSize: 10,

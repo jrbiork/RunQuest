@@ -11,6 +11,8 @@ import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows 
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
 import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
+import { stripEmojis } from '../../src/utils/stripEmojis';
+import { useUserStore } from '../../src/store/userStore';
 import type { ActivityMode } from '../../src/types';
 
 /** Darken a #RRGGBB hex for button borders on colored fills. */
@@ -30,7 +32,8 @@ export default function RunDetailScreen() {
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
-  const [activityMode, setActivityMode] = useState<ActivityMode>('run');
+  const defaultActivityMode = useUserStore((s) => s.profile?.defaultActivityMode ?? 'cycle');
+  const [activityMode, setActivityMode] = useState<ActivityMode>(defaultActivityMode);
 
   if (!mission) {
     return (
@@ -79,8 +82,8 @@ export default function RunDetailScreen() {
 
         {/* Hero content */}
         <View style={styles.heroContent}>
-          <Text style={styles.heroTitle}>{mission.title}</Text>
-          <Text style={styles.heroSubtitle}>{mission.subtitle}</Text>
+          <Text style={styles.heroTitle}>{stripEmojis(mission.title)}</Text>
+          <Text style={styles.heroSubtitle}>{stripEmojis(mission.subtitle)}</Text>
         </View>
       </View>
 

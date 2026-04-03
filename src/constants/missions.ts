@@ -31,39 +31,39 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
       'Charge the Grid',
     ],
     subtitles: [
-      'A downed power line needs reconnecting. Keep moving.',
-      'Every step you take sends energy back to the zone.',
-      'Slow and steady. The grid charges as you run.',
-      'Consistent movement is how the world comes back online.',
+      'Dead line in Sector 4. Your feet power the splice.',
+      'Walk the grid. Every step feeds the zone.',
+      'Slow is fine. Stopping isn’t.',
+      'No surge. Just keep the signal alive.',
     ],
     descriptions: [
-      'A downed power line needs reconnecting. Keep moving — every step charges the grid. Run at an easy, sustainable pace. You should be able to speak full sentences.',
-      "The sector's power grid is flickering. Your movement generates the signal it needs to stabilize. Focus on form, not speed. The zone will feel you.",
+      'Lines are cold; hospitals are guessing. Run easy — you could talk in full sentences — and hold it until distance or time is done. Go now.',
+      'Flicker on the trunk means you move before the cut goes total. Steady easy pace, no hero kick. Finish the target breathing under control.',
     ],
     variants: [
       {
         title: 'Restore Sector 4',
-        subtitle: 'A downed power line needs reconnecting. Keep moving.',
+        subtitle: 'Dead line in Sector 4. Your feet power the splice.',
         description:
-          'A downed power line needs reconnecting. Keep moving — every step charges the grid. Run at an easy, sustainable pace. You should be able to speak full sentences.',
+          'Sector 4 is brownout. You’re the patch: run easy and even, talk-test effort, until you hit the target. Surge once and the splice fails.',
       },
       {
         title: 'Grid Patrol Run',
-        subtitle: 'Every step you take sends energy back to the zone.',
+        subtitle: 'Walk the grid. Every step feeds the zone.',
         description:
-          'The patrol route maps dead relays. Your steady pace feeds the grid signal survivors are waiting on. Easy effort only — talk-test pace.',
+          'Patrol maps which blocks die next. Hold one comfortable easy gear the whole way. Cover the distance or time — no racing, no walking unless you must.',
       },
       {
         title: 'Power Line Check',
-        subtitle: 'Slow and steady. The grid charges as you run.',
+        subtitle: 'Slow is fine. Stopping isn’t.',
         description:
-          'Inspect the trunk line on foot: movement keeps diagnostics live while you scan for breaks. Stay relaxed; the mission is consistency.',
+          'Trunk line’s unspooling heat. Keep moving easy while you log breaks — slow feet, eyes up. Match the target at a pace you could hold all day.',
       },
       {
         title: 'Charge the Grid',
-        subtitle: 'Consistent movement is how the world comes back online.',
+        subtitle: 'No surge. Just keep the signal alive.',
         description:
-          "The sector's power grid is flickering. Your movement generates the signal it needs to stabilize. Focus on form, not speed. The zone will feel you.",
+          'Grid’s gasping. Your job: easy sustained motion until the clock or miles are banked. Breathe through the nose if you can; don’t lift the pace.',
       },
     ],
     motivationalFraming: [
@@ -86,39 +86,38 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
       'Hold the Frequency',
     ],
     subtitles: [
-      'The comm tower is half-dead. A sustained push will bring it back online.',
-      'Signal strength drops every second. Push hard and hold.',
-      'Unlock the next frequency band.',
+      'Tower’s dying. One hard push locks the band.',
+      'Jamming climbs by the second. Don’t back off.',
+      'Hold the line or three camps go dark.',
     ],
     descriptions: [
-      'The comm tower is half-dead. A sustained pace push will bring it back online. Run at a comfortably hard effort — you should feel challenged but controlled.',
-      'Hold a sustained hard effort for the target duration. The signal gets stronger as you push. This is where zones reconnect.',
+      'Carrier’s almost gone. Run at a hard steady effort — tough talk, not sprint — for the full duration. Ease up and the tower drops.',
+      'This is threshold: one gear, locked in. Stay uncomfortable but controlled until time’s up. No surges, no jogging — hold the burn.',
     ],
     variants: [
       {
         title: 'Boost the Tower',
-        subtitle:
-          'The comm tower is half-dead. A sustained push will bring it back online.',
+        subtitle: 'Tower’s dying. One hard push locks the band.',
         description:
-          'Relay crews need a sustained carrier wave. Hold threshold effort — hard but controlled — until the tower locks frequency for the outlying camps.',
+          'Outposts are on static. You hold one sustained hard pace — think “hard hour,” not sprint — until the window closes. Drift softer and the link dies.',
       },
       {
         title: 'Signal Rush Protocol',
-        subtitle: 'Signal strength drops every second. Push hard and hold.',
+        subtitle: 'Jamming climbs by the second. Don’t back off.',
         description:
-          'Enemy jamming is climbing. Your sustained push is the only handshake that clears the band. Stay at threshold; easing off drops the link.',
+          'Noise is eating the band. Stay at threshold the whole run: legs heavy, breathing hard, still under control. Quit early and camps lose voice.',
       },
       {
         title: 'Reconnect the Network',
-        subtitle: 'Unlock the next frequency band.',
+        subtitle: 'Hold the line or three camps go dark.',
         description:
-          'Three settlements go dark if this run fails. Run at comfortably hard effort and hold — the signal strengthens only while you stay in the pain.',
+          'Three settlements wait on this frequency. Lock a hard steady effort and don’t gift them recovery — hold pace until the duration ends.',
       },
       {
         title: 'Hold the Frequency',
-        subtitle: 'Signal strength drops every second. Push hard and hold.',
+        subtitle: 'Jamming climbs by the second. Don’t back off.',
         description:
-          'Hold a sustained hard effort for the target duration. The signal gets stronger as you push. This is where zones reconnect.',
+          'One bar left on the tower. You run uncomfortable-on-purpose for the full time. No coasting: the signal only lives while you stay in it.',
       },
     ],
     motivationalFraming: [
@@ -141,39 +140,38 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
       'Outlander Route',
     ],
     subtitles: [
-      'Medical supplies. Three zones over. The longer you go, the more people you reach.',
-      'Go slow, go far. Survivors are waiting.',
-      'Your biggest run of the week. Take your time.',
+      'Cold chain doesn’t wait. Miles beat speed.',
+      'Go slow. Go far. People are counting.',
+      'Longest leg of the week — pace, don’t race.',
     ],
     descriptions: [
-      'Medical supplies need to reach Zone 7. Three zones over. The longer you go, the more people you reach. Keep the pace easy — time on your feet is what matters here.',
-      "The cornerstone of your week. Run slow, run far. Every kilometer crossed puts resources where they're needed most.",
+      'Clinic’s out of reach by road. You go easy and long — full distance or time at a pace you could repeat tomorrow. Banking speed early wastes the haul.',
+      'Supplies move on legs now. Run steady endurance: comfortable, patient, until the target’s done. Save the kick — there isn’t one.',
     ],
     variants: [
       {
         title: 'Cross-Zone Delivery',
-        subtitle:
-          'Medical supplies. Three zones over. The longer you go, the more people you reach.',
+        subtitle: 'Cold chain doesn’t wait. Miles beat speed.',
         description:
-          'Medical supplies need to reach Zone 7. Three zones over. The longer you go, the more people you reach. Keep the pace easy — time on your feet is what matters here.',
+          'Pack has to clear three zones before heat wins. Run easy the whole way — finish the full distance or duration without turning it into a tempo day.',
       },
       {
         title: 'Medical Supply Run',
-        subtitle: 'Go slow, go far. Survivors are waiting.',
+        subtitle: 'Go slow. Go far. People are counting.',
         description:
-          'Carry the cold-chain pack to the clinic relay. Easy pace; the clock is your legs, not your lungs. If you stop, the dose may not arrive.',
+          'Relay’s at the far clinic. Hold an easy aerobic pace; if you’re panting, you’re wrong. Get the miles in before the window shuts.',
       },
       {
         title: 'The Long Haul',
-        subtitle: 'Your biggest run of the week. Take your time.',
+        subtitle: 'Longest leg of the week — pace, don’t race.',
         description:
-          "The cornerstone of your week. Run slow, run far. Every kilometer crossed puts resources where they're needed most.",
+          'This is the week’s anchor. Go long, stay relaxed, eat the clock on your feet. No surges — empty the tank slow and steady.',
       },
       {
         title: 'Outlander Route',
-        subtitle: 'Go slow, go far. Survivors are waiting.',
+        subtitle: 'Go slow. Go far. People are counting.',
         description:
-          'Courier route through unmapped ruins — you are the moving supply line. Conserve energy early; the last sector is always the longest.',
+          'Ruins don’t forgive bad pacing. Start easy, stay easy, finish the full route. Last third still feels like “I could keep going.”',
       },
     ],
     motivationalFraming: [
@@ -196,40 +194,38 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
       'Zone Assessment',
     ],
     subtitles: [
-      "Light movement. Survey the damage. Survivors need to know what's out there.",
-      "Super easy. Almost embarrassingly slow. That's the point.",
-      'Protecting your streak and your body at the same time.',
+      'Wire’s quiet. Eyes open, legs soft.',
+      'Slow enough to shame you. That’s correct.',
+      'Move. Don’t grind.',
     ],
     descriptions: [
-      "Light movement. Survey the damage. Survivors need to know what's out there. Run as slow as you need to. The goal is movement and observation, not performance.",
-      'A scout run to keep your streak alive and flush out tired legs. Easy pace. Keep your eyes open — every detail matters in the field.',
+      'Perimeter’s a mess and command needs eyes. Jog barely faster than a walk — full target at low effort. You’re scanning, not racing.',
+      'Legs are trash from last week; today you flush them. Easy shuffle or jog, full duration or distance, heart rate stays down.',
     ],
     variants: [
       {
         title: 'Recon the Perimeter',
-        subtitle:
-          "Light movement. Survey the damage. Survivors need to know what's out there.",
+        subtitle: 'Wire’s quiet. Eyes open, legs soft.',
         description:
-          "Light movement. Survey the damage. Survivors need to know what's out there. Run as slow as you need to. The goal is movement and observation, not performance.",
+          'Walk the fence and log what moved overnight. Keep effort stupid-easy — if you’re breathing hard, you’re lying. Finish the time or miles awake, not fast.',
       },
       {
         title: 'Survey the Damage',
-        subtitle: "Super easy. Almost embarrassingly slow. That's the point.",
+        subtitle: 'Slow enough to shame you. That’s correct.',
         description:
-          'Map new cracks and choke points for the council — intel saves lives. Super easy pace; observation beats speed.',
+          'Council needs choke points, not heroics. Creep along at a pace you’d use on a hangover. Cover the target; ego stays home.',
       },
       {
         title: 'Scout Patrol',
-        subtitle: 'Protecting your streak and your body at the same time.',
+        subtitle: 'Move. Don’t grind.',
         description:
-          'A scout run to keep your streak alive and flush out tired legs. Easy pace. Keep your eyes open — every detail matters in the field.',
+          'Streak stays alive on motion, not pain. Light jog or brisk shuffle the whole way. Save the hard day for tomorrow.',
       },
       {
         title: 'Zone Assessment',
-        subtitle:
-          "Light movement. Survey the damage. Survivors need to know what's out there.",
+        subtitle: 'Wire’s quiet. Eyes open, legs soft.',
         description:
-          'Quiet sweep to log movement patterns near the wire. Move gently; you are gathering data, not racing patrols.',
+          'Soft sweep near the wire: note movement, don’t trigger it. Easy pace only — you’re collecting detail, not dropping splits.',
       },
     ],
     motivationalFraming: [
@@ -252,39 +248,38 @@ export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
       'Emergency Sprint',
     ],
     subtitles: [
-      'Bursts of speed. The anomaly is spreading. Push hard, recover, push again.',
-      'Short hard efforts. Maximum XP. Maximum impact.',
-      'This is where speed is born.',
+      'Front’s moving. Hard, then hide. Repeat.',
+      'Short gas, long rest. No lazy reps.',
+      'Speed buys minutes. Waste none.',
     ],
     descriptions: [
-      'The anomaly is spreading. Bursts of speed are required — push hard, recover, push again. High-intensity intervals: run hard for a set period, recover, repeat.',
-      'Alternate between hard efforts and easy recovery. This type of training is the fastest way to expand your operational range — and earn maximum XP.',
+      'Whatever’s behind you doesn’t jog. Run work intervals all-out honest, recover until you’re ready for the next, repeat until the set’s done.',
+      'Intervals only work if the easy parts are truly easy. Hard pieces: max effort. Recovery: slow enough to talk. No blending the two.',
     ],
     variants: [
       {
         title: 'Surge Protocol',
-        subtitle:
-          'Bursts of speed. The anomaly is spreading. Push hard, recover, push again.',
+        subtitle: 'Front’s moving. Hard, then hide. Repeat.',
         description:
-          'The anomaly is spreading. Bursts of speed are required — push hard, recover, push again. High-intensity intervals: run hard for a set period, recover, repeat.',
+          'Anomaly’s widening. Each work interval you run like it’s the last bus — full send. Jog or walk the recoveries; half-effort recoveries waste the set.',
       },
       {
         title: 'Outrun the Storm',
-        subtitle: 'Short hard efforts. Maximum XP. Maximum impact.',
+        subtitle: 'Short gas, long rest. No lazy reps.',
         description:
-          'Toxic front moving in — sprints buy evacuation windows. Alternate hard surges with full recovery; sloppy intervals cost lives.',
+          'Toxic air’s on a timer. Surge hard on every work rep, then actually slow down before the next. Sloppy pacing gets people left behind.',
       },
       {
         title: 'Anomaly Response',
-        subtitle: 'This is where speed is born.',
+        subtitle: 'Speed buys minutes. Waste none.',
         description:
-          'Alternate between hard efforts and easy recovery. This type of training is the fastest way to expand your operational range — and earn maximum XP.',
+          'Alternate brutal with boring: hard interval, easy interval, no mixing. Finish every work rep at race effort; easy reps are for breathing, not posing.',
       },
       {
         title: 'Emergency Sprint',
-        subtitle: 'Short hard efforts. Maximum XP. Maximum impact.',
+        subtitle: 'Short gas, long rest. No lazy reps.',
         description:
-          'Rapid response to a breach alarm: surge, reset, surge. Maximum effort on work intervals — the dead zone does not wait.',
+          'Alarm means you spike, reset, spike again. Max honest effort when it’s “go,” real rest when it’s not. Half-speed work reps don’t count.',
       },
     ],
     motivationalFraming: [
@@ -308,6 +303,39 @@ export function pickCue(variants: string[]): string {
   return (
     variants[Math.floor(Math.random() * variants.length)] ?? variants[0] ?? ''
   );
+}
+
+/** `{name}` is replaced with the plain mission title (no emojis). */
+const MISSION_START_LIVE_CUE_TEMPLATES = [
+  '{name}. Mission live. Move now.',
+  '{name}. Mission starting. Stay sharp—go.',
+  '{name}. You’re live. Go, go.',
+  '{name}. You’re up. Move.',
+  '{name}. Window open. Go now.',
+  '{name}. On you now. Move.',
+  '{name}. Time’s running. Go.',
+] as const;
+
+/** First cue when map mission tracking starts (running/cycling). */
+export function buildMissionStartLiveCue(missionNamePlain: string): string {
+  return pickCue([...MISSION_START_LIVE_CUE_TEMPLATES]).replace(
+    /\{name\}/g,
+    missionNamePlain,
+  );
+}
+
+const MISSION_COMPLETE_LIVE_CUE_LINES = [
+  'Objective achieved. You’re getting stronger. Don’t stop now.',
+  'Target reached. That’s how it’s done. Queue the next mission.',
+  'Mission completed. Ready for the next?',
+  'Mission complete. You delivered. Keep stacking them.',
+  'Mission complete. Progress locked in. Stay in motion.',
+  'Mission complete. Clean execution. You earned this—what’s next?',
+] as const;
+
+/** Cue when the mission objective is reached on the map. */
+export function pickMissionCompleteLiveCue(): string {
+  return pickCue([...MISSION_COMPLETE_LIVE_CUE_LINES]);
 }
 
 export const MISSION_AUDIO_CUES: Record<MissionType, MissionAudioCueSet> = {
@@ -534,7 +562,7 @@ export const FUN_RUN_MISSION: Mission = {
   title: 'FREE ROAM',
   subtitle: 'No objectives. Just move.',
   description:
-    'All missions complete. Hit the road for fun — no XP, no targets, just running. The world is already restored. This one is for you.',
+    'No targets, no XP, no briefing — just you and the road. Run or ride because you want to. The board’s off; this one’s yours.',
   targetDistanceKm: 0,
   targetDurationMin: 0,
   targetCyclingDistanceKm: 0,

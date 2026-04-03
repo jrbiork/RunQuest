@@ -14,31 +14,41 @@ function pick<T>(arr: T[], i: number): T {
   return arr[i % arr.length]!;
 }
 
-const PURPOSE_LINES = [
-  'You are the moving link — messages, meds, and warnings travel on your legs, not on radios the tribes can jam.',
-  'Patrols from hostile camps sweep these corridors; speed and timing are the only cover you have.',
-  'The settlement is one failed delivery away from blackout — your movement keeps relays and clinics alive.',
-  'Every minute you stay on route buys the inner wards time to fortify and treat the sick.',
-  'Scouts reported movement on the ridge: you need to be gone before their sweep closes the gap.',
-  'This run is a handoff: what you carry is worth more than fuel — it is hope with a timestamp.',
-  'Enemy spotters hunt lone carriers; rhythm and distance are your camouflage.',
-  'The grid here is held together with tape and nerve — your effort is the spare part no one can stockpile.',
+/** Two rotating stakes lines — tense, no filler. */
+const STAKES_A = [
+  'Grid flickered again. Nobody else is coming out.',
+  'Last relay before the ward goes quiet.',
+  'Jammers own the air — your legs are the wire.',
+  'Storm front’s close. You move or the route dies.',
+  'Scouts saw heat on the ridge. Small window.',
+  'Fuel’s gone. Meds don’t walk themselves.',
+  'Tower’s begging for a carrier wave. You’re it.',
+  'Blackout spreads block by block. Clock’s real.',
 ];
 
-const TYPE_ANGLE: Record<MissionType, string> = {
+const STAKES_B = [
+  'If you stall, people downstream eat static.',
+  'They’re counting minutes, not excuses.',
+  'No second truck. No backup run.',
+  'Silence on the line means you didn’t show.',
+  'Every second you wait, the corridor cools.',
+];
+
+/** One clear movement instruction per type (read while moving). */
+const THE_WORK: Record<MissionType, string> = {
   easy:
-    'Hold an easy, sustainable effort — you should be able to speak in short sentences. Silence is risk out here.',
+    'Run easy — steady breath, pace you could talk through. Hit the target distance or time without surging.',
   tempo:
-    'Hold a hard, steady threshold: the tower or relay you are feeding does not forgive a soft pace.',
+    'Hold one hard, steady effort the whole way: strong, not a sprint. Lock in until the duration ends.',
   long:
-    'Go long and controlled — supplies and intel need distance more than sprint heroics.',
+    'Go long at an easy endurance pace. Bank miles; don’t race the clock early.',
   recovery:
-    'Move light and observe — this is recon and recovery; loud effort draws the wrong eyes.',
+    'Jog or shuffle light. Low effort, keep moving — this is motion, not a workout PR.',
   interval:
-    'Hard surges then full recovery — like sprinting between cover while the sweep passes.',
+    'Hard intervals, real recovery between. Each push is full gas; each easy segment is actually easy.',
 };
 
-/** Briefing + short TTS lines for any campaign mission row (unique per title + subtitle + campaign). */
+/** Briefing + in-run TTS for campaign missions (no long concatenated fluff). */
 export function narrativeForCampaignMission(
   type: MissionType,
   title: string,
@@ -46,33 +56,33 @@ export function narrativeForCampaignMission(
   campaignTitle: string,
 ): { description: string; audioCues: MissionAudioCueSet } {
   const k = seedKey([campaignTitle, title, subtitle, type]);
-  const purpose = pick(PURPOSE_LINES, k);
-  const angle = TYPE_ANGLE[type];
-
-  const description = `${title}. ${subtitle} ${purpose} ${angle}`;
+  const a = pick(STAKES_A, k);
+  const b = pick(STAKES_B, k + 2);
+  const work = THE_WORK[type];
+  const description = `${a} ${b} ${work}`;
 
   const t = title.length > 32 ? title.slice(0, 30) + '…' : title;
 
   const pools: MissionAudioCueSet = {
     start: [
-      `${t} live — ${subtitle} Move now, Survivor.`,
-      `Deploy: ${t}. ${subtitle}`,
+      `${t}. ${subtitle} Go now.`,
+      `Out the door — ${t}. ${subtitle}`,
     ],
     quarter: [
-      'First quarter — still on route. Hold the plan.',
-      'Twenty-five percent — corridor quiet. Stay sharp.',
+      'Quarter down. Hold the plan.',
+      'Twenty-five percent. Stay on task.',
     ],
     half: [
-      'Halfway — midpoint clear. Do not improvise the pace.',
-      'Fifty percent — signal holding. You are still unseen.',
+      'Halfway. Don’t improvise — same effort.',
+      'Midpoint. Pace holds.',
     ],
     threeQuarter: [
-      'Three quarters — delivery window tightening. Finish clean.',
-      'Seventy-five — almost home. No mistakes now.',
+      'Three quarters. Close it clean.',
+      'Last stretch. No drift.',
     ],
     complete: [
-      `${t} signed off — the line holds another day.`,
-      `Route complete. ${t} filed. You made the window.`,
+      `${t} — done. Line holds.`,
+      `Logged. ${t} closed.`,
     ],
   };
 

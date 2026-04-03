@@ -11,15 +11,26 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
-import { useUserStore, selectWeeklyRunsTarget } from '../../src/store/userStore';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  SlideInDown,
+  SlideOutDown,
+} from 'react-native-reanimated';
+import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useDevStore } from '../../src/store/devStore';
-import { getNow, getWeekStart, getWeekStartISO, toISODate, parseLocalDate } from '../../src/utils/dateUtils';
+import {
+  getNow,
+  getWeekStartISO,
+  parseLocalDate,
+  toISODate,
+} from '../../src/utils/dateUtils';
 import {
   getDayMap,
   getMonthStats,
   getMonthName,
+  getRunsForMonth,
   toLocalDateStr,
   type WeekStats,
 } from '../../src/utils/statsUtils';
@@ -33,8 +44,16 @@ import {
   shadows,
   missionConfig,
 } from '../../src/constants/theme';
-import type { CompletedRun, Mission, MissionOutcome, MissionType } from '../../src/types';
-import { findMissionById } from '../../src/utils/missionLookup';
+import type {
+  CompletedRun,
+  Mission,
+  MissionOutcome,
+} from '../../src/types';
+import {
+  findMissionById,
+  resolveMissionDisplayTitle,
+} from '../../src/utils/missionLookup';
+import { getStreakDayIndex0 } from '../../src/utils/streakDisplay';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import MonthShareCard from '../../src/components/share/MonthShareCard';
 import { shareCard } from '../../src/services/shareService';
@@ -42,19 +61,14 @@ import ViewShot from 'react-native-view-shot';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-// Day cell size fills 7 columns with gaps
-const CELL_SIZE = Math.floor((SCREEN_WIDTH - spacing.xl * 2 - spacing.sm * 6) / 7);
+/** Must match horizontal padding: ScrollView `spacing.xl` + stats card `spacing.lg` on each side. */
+const CALENDAR_GAP = spacing.sm;
+const CALENDAR_INNER_WIDTH = SCREEN_WIDTH - spacing.xl * 2 - spacing.lg * 2;
+// Seven columns with six gaps — if CELL_SIZE is too large, the grid wraps to 6 columns and misaligns weekday headers.
+const CELL_SIZE = Math.floor((CALENDAR_INNER_WIDTH - CALENDAR_GAP * 6) / 7);
+const DAY_CELL_HEIGHT = Math.max(28, Math.floor(CELL_SIZE * 0.72));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getMissionTypeFromId(
-  missionId: string,
-  campaignMissions: Mission[],
-  weekMissions: Mission[],
-): MissionType | null {
-  const m = findMissionById(campaignMissions, weekMissions, missionId);
-  return m?.type ?? null;
-}
 
 /** Returns ISO weekday index 0 (Mon) … 6 (Sun) for a given Date. */
 function isoWeekday(d: Date): number {
@@ -83,8 +97,16 @@ function MonthHeader({
 }) {
   return (
     <View style={styles.monthHeader}>
-      <TouchableOpacity onPress={onPrev} style={styles.navBtn} activeOpacity={0.7}>
-        <MaterialIcons name="chevron-left" size={26} color={colors.textPrimary} />
+      <TouchableOpacity
+        onPress={onPrev}
+        style={styles.navBtn}
+        activeOpacity={0.7}
+      >
+        <MaterialIcons
+          name="chevron-left"
+          size={26}
+          color={colors.textPrimary}
+        />
       </TouchableOpacity>
 
       <View style={styles.monthTitleWrap}>
@@ -116,18 +138,16 @@ function MonthHeader({
 
 function DayCell({
   day,
-  missionType,
   isToday,
   isCurrentWeek,
-  hasRun,
+  hasMissionCompleted,
   isSelected,
   onPress,
 }: {
   day: number | null;
-  missionType: MissionType | null;
   isToday: boolean;
   isCurrentWeek: boolean;
-  hasRun: boolean;
+  hasMissionCompleted: boolean;
   isSelected: boolean;
   onPress: () => void;
 }) {
@@ -135,7 +155,8 @@ function DayCell({
     return <View style={[styles.dayCell, styles.dayCellEmpty]} />;
   }
 
-  const config = missionType ? missionConfig[missionType] : null;
+  const missionDone = hasMissionCompleted;
+  const todayNoMission = isToday && !missionDone;
 
   return (
     <TouchableOpacity
@@ -143,25 +164,22 @@ function DayCell({
       onPress={onPress}
       style={[
         styles.dayCell,
-        isCurrentWeek && !hasRun && styles.dayCellCurrentWeek,
-        hasRun && { backgroundColor: config?.color ?? colors.primary },
-        isToday && styles.dayCellToday,
+        missionDone && styles.dayCellMissionDone,
+        !missionDone && todayNoMission && styles.dayCellToday,
+        !missionDone && !todayNoMission && isCurrentWeek && styles.dayCellCurrentWeek,
+        isToday && missionDone && styles.dayCellTodayRing,
         isSelected && styles.dayCellSelected,
       ]}
     >
-      {hasRun && config ? (
-        <MaterialIcons
-          name={config.icon as any}
-          size={14}
-          color={isSelected ? colors.textPrimary : colors.textInverse}
-        />
-      ) : null}
       <Text
         style={[
           styles.dayCellText,
-          isCurrentWeek && !hasRun && styles.dayCellTextCurrentWeek,
-          hasRun && styles.dayCellTextRun,
-          isToday && styles.dayCellTextToday,
+          !missionDone &&
+            !todayNoMission &&
+            isCurrentWeek &&
+            styles.dayCellTextCurrentWeek,
+          missionDone && styles.dayCellTextRun,
+          todayNoMission && styles.dayCellTextToday,
           isSelected && styles.dayCellTextSelected,
         ]}
       >
@@ -181,9 +199,15 @@ function formatPaceDisplay(distanceKm: number, durationMin: number): string {
   return `${mins}:${String(secs).padStart(2, '0')} /km`;
 }
 
+function resolveOutcome(run: CompletedRun): MissionOutcome {
+  if (run.outcome) return run.outcome;
+  return run.goalMet ? 'success' : 'failed_goal';
+}
+
 function DayDetailPanel({
   dateStr,
   runs,
+  runHistory,
   campaignMissions,
   weekMissions,
   onDismiss,
@@ -191,14 +215,36 @@ function DayDetailPanel({
 }: {
   dateStr: string;
   runs: CompletedRun[];
+  runHistory: CompletedRun[];
   campaignMissions: Mission[];
   weekMissions: Mission[];
   onDismiss: () => void;
   onShare: () => void;
 }) {
   const date = new Date(dateStr + 'T12:00:00');
-  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayNames = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   const label = `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
 
   return (
@@ -212,12 +258,28 @@ function DayDetailPanel({
         <Text style={styles.detailDate}>{label}</Text>
         <View style={styles.detailHeaderActions}>
           {runs.length > 0 && (
-            <TouchableOpacity onPress={onShare} style={styles.detailShareBtn} activeOpacity={0.7}>
-              <MaterialIcons name="ios-share" size={16} color={colors.primary} />
+            <TouchableOpacity
+              onPress={onShare}
+              style={styles.detailShareBtn}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons
+                name="ios-share"
+                size={16}
+                color={colors.primary}
+              />
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={onDismiss} style={styles.detailClose} activeOpacity={0.7}>
-            <MaterialIcons name="close" size={18} color={colors.textSecondary} />
+          <TouchableOpacity
+            onPress={onDismiss}
+            style={styles.detailClose}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons
+              name="close"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -226,25 +288,65 @@ function DayDetailPanel({
         /* Rest day */
         <View style={styles.detailRestDay}>
           <MaterialIcons name="bedtime" size={32} color={colors.textTertiary} />
-          <View>
-            <Text style={styles.detailRestTitle}>Rest day</Text>
-            <Text style={styles.detailRestSub}>Recovery is part of training.</Text>
-          </View>
+          <Text style={styles.detailRestTitle}>
+            No mission completed on this date.
+          </Text>
         </View>
       ) : (
         /* Run(s) on this day */
-        runs.map((run, idx) => {
-          const mission = findMissionById(campaignMissions, weekMissions, run.missionId);
+        runs.map((run) => {
+          const mission = findMissionById(
+            campaignMissions,
+            weekMissions,
+            run.missionId,
+          );
           const mType = mission?.type ?? 'easy';
           const config = missionConfig[mType];
+          const outcome = resolveOutcome(run);
+          const statusLabel =
+            outcome === 'success'
+              ? 'COMPLETED'
+              : outcome === 'aborted'
+                ? 'ABORTED'
+                : 'FAILED';
+          const statusBadgeStyle =
+            outcome === 'success'
+              ? styles.detailStatusBadgeOk
+              : styles.detailStatusBadgeBad;
+          const statusBadgeTextStyle =
+            outcome === 'success'
+              ? styles.detailStatusBadgeTextOk
+              : styles.detailStatusBadgeTextBad;
           return (
-            <View key={idx} style={styles.detailRunCard}>
-              {/* Type pill */}
-              <View style={[styles.detailTypePill, { backgroundColor: config.bgColor }]}>
-                <MaterialIcons name={config.icon as any} size={14} color={config.color} />
-                <Text style={[styles.detailTypeLabel, { color: config.color }]}>
-                  {config.label}
-                </Text>
+            <View
+              key={`${run.missionId}-${run.completedAt}`}
+              style={styles.detailRunCard}
+            >
+              <View style={styles.detailRunHeaderRow}>
+                <View
+                  style={[
+                    styles.detailTypePill,
+                    { backgroundColor: config.bgColor },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={config.icon as any}
+                    size={14}
+                    color={config.color}
+                  />
+                  <Text
+                    style={[styles.detailTypeLabel, { color: config.color }]}
+                  >
+                    {config.label}
+                  </Text>
+                </View>
+                <View style={[styles.detailStatusBadge, statusBadgeStyle]}>
+                  <Text
+                    style={[styles.detailStatusBadgeText, statusBadgeTextStyle]}
+                  >
+                    {statusLabel}
+                  </Text>
+                </View>
               </View>
 
               {/* Stats row */}
@@ -272,10 +374,18 @@ function DayDetailPanel({
               {/* XP earned */}
               <View style={styles.detailXpRow}>
                 <MaterialIcons name="star" size={15} color={colors.purple} />
-                <Text style={styles.detailXpText}>+{run.xpEarned} XP earned</Text>
+                <Text style={styles.detailXpText}>
+                  +{run.xpEarned} XP earned
+                </Text>
                 <View style={styles.detailStreakPill}>
-                  <MaterialIcons name="local-fire-department" size={12} color={colors.orange} />
-                  <Text style={styles.detailStreakText}>Day {run.streakDay}</Text>
+                  <MaterialIcons
+                    name="local-fire-department"
+                    size={12}
+                    color={colors.orange}
+                  />
+                  <Text style={styles.detailStreakText}>
+                    Day {getStreakDayIndex0(run, runHistory)}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -316,7 +426,8 @@ function WeekRow({
   isCurrentWeek: boolean;
 }) {
   const BAR_MAX_WIDTH = SCREEN_WIDTH - spacing.xl * 2 - 100;
-  const barWidth = maxXpInMonth > 0 ? (week.totalXp / maxXpInMonth) * BAR_MAX_WIDTH : 0;
+  const barWidth =
+    maxXpInMonth > 0 ? (week.totalXp / maxXpInMonth) * BAR_MAX_WIDTH : 0;
 
   return (
     <View style={[styles.weekRow, isCurrentWeek && styles.weekRowCurrent]}>
@@ -326,7 +437,9 @@ function WeekRow({
         </View>
       )}
       <View style={styles.weekMeta}>
-        <Text style={[styles.weekLabel, isCurrentWeek && styles.weekLabelCurrent]}>
+        <Text
+          style={[styles.weekLabel, isCurrentWeek && styles.weekLabelCurrent]}
+        >
           {week.weekLabel}
         </Text>
         <Text style={styles.weekDateRange}>{week.dateRange}</Text>
@@ -334,11 +447,13 @@ function WeekRow({
 
       <View style={styles.weekBarWrap}>
         <View style={styles.weekBarTrack}>
-          <View style={[
-            styles.weekBarFill,
-            isCurrentWeek && styles.weekBarFillCurrent,
-            { width: Math.max(barWidth, week.totalXp > 0 ? 8 : 0) },
-          ]} />
+          <View
+            style={[
+              styles.weekBarFill,
+              isCurrentWeek && styles.weekBarFillCurrent,
+              { width: Math.max(barWidth, week.totalXp > 0 ? 8 : 0) },
+            ]}
+          />
         </View>
         <View style={styles.weekNumbers}>
           {week.totalRuns > 0 ? (
@@ -368,9 +483,19 @@ function MonthSummaryRow({
 }) {
   return (
     <View style={styles.summaryRow}>
-      <SummaryStat value={`${totalXp}`} unit="XP" icon="star" color={colors.purple} />
+      <SummaryStat
+        value={`${totalXp}`}
+        unit="XP"
+        icon="star"
+        color={colors.purple}
+      />
       <View style={styles.summaryDivider} />
-      <SummaryStat value={`${totalRuns}`} unit="sorties" icon="directions-run" color={colors.primary} />
+      <SummaryStat
+        value={`${totalRuns}`}
+        unit="sorties"
+        icon="directions-run"
+        color={colors.primary}
+      />
       <View style={styles.summaryDivider} />
       <SummaryStat
         value={formatDistance(totalDistanceKm)}
@@ -404,192 +529,125 @@ function SummaryStat({
 
 // ─── Mission log (all outcomes) ─────────────────────────────────────────────
 
-function resolveOutcome(run: CompletedRun): MissionOutcome {
-  if (run.outcome) return run.outcome;
-  return run.goalMet ? 'success' : 'failed_goal';
+function formatMissionLogDayHeader(dayKey: string): string {
+  return parseLocalDate(dayKey).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function MissionLogList({
   runs,
   campaignMissions,
   weekMissions,
+  emptyLabel = 'No mission attempts yet.',
 }: {
   runs: CompletedRun[];
   campaignMissions: Mission[];
   weekMissions: Mission[];
+  emptyLabel?: string;
 }) {
-  const sorted = useMemo(
-    () => [...runs].sort((a, b) => b.completedAt.localeCompare(a.completedAt)),
-    [runs],
-  );
+  const personaId = useUserStore((s) => s.profile?.personaId ?? s.personaId);
 
-  if (sorted.length === 0) {
-    return (
-      <Text style={styles.emptyText}>No mission attempts yet.</Text>
+  const groupedByDay = useMemo(() => {
+    const sorted = [...runs].sort((a, b) =>
+      b.completedAt.localeCompare(a.completedAt),
     );
+    const sections: { dayKey: string; runs: CompletedRun[] }[] = [];
+    let currentKey: string | null = null;
+    for (const run of sorted) {
+      const dayKey = toISODate(new Date(run.completedAt));
+      if (dayKey !== currentKey) {
+        currentKey = dayKey;
+        sections.push({ dayKey, runs: [run] });
+      } else {
+        sections[sections.length - 1]!.runs.push(run);
+      }
+    }
+    return sections;
+  }, [runs]);
+
+  if (groupedByDay.length === 0) {
+    return <Text style={styles.emptyText}>{emptyLabel}</Text>;
   }
 
   return (
     <View style={styles.missionLogList}>
-      {sorted.map((run) => {
-        const mission = findMissionById(campaignMissions, weekMissions, run.missionId);
-        const title = mission?.title ?? run.missionId;
-        const outcome = resolveOutcome(run);
-        const label =
-          outcome === 'success' ? 'SUCCEEDED' : outcome === 'aborted' ? 'ABORTED' : 'FAILED';
-        const badgeStyle =
-          outcome === 'success'
-            ? styles.missionLogBadgeOk
-            : outcome === 'aborted'
-              ? styles.missionLogBadgeAbort
-              : styles.missionLogBadgeFail;
-        const when = new Date(run.completedAt);
-        const dateStr = when.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+      {groupedByDay.map(({ dayKey, runs: dayRuns }, sectionIdx) => (
+        <View
+          key={dayKey}
+          style={[
+            styles.missionLogSection,
+            sectionIdx > 0 && styles.missionLogSectionSpaced,
+          ]}
+        >
+          <Text style={styles.missionLogSectionHeader}>
+            {formatMissionLogDayHeader(dayKey)}
+          </Text>
+          {dayRuns.map((run, runIdx) => {
+            const mission = findMissionById(
+              campaignMissions,
+              weekMissions,
+              run.missionId,
+            );
+            const title = resolveMissionDisplayTitle(
+              run.missionId,
+              mission,
+              personaId,
+            );
+            const outcome = resolveOutcome(run);
+            const label =
+              outcome === 'success'
+                ? 'COMPLETED'
+                : outcome === 'aborted'
+                  ? 'ABORTED'
+                  : 'FAILED';
+            const badgeStyle =
+              outcome === 'success'
+                ? styles.missionLogBadgeOk
+                : styles.missionLogBadgeBad;
+            const badgeTextStyle =
+              outcome === 'success'
+                ? styles.missionLogBadgeTextOk
+                : styles.missionLogBadgeTextBad;
+            const when = new Date(run.completedAt);
+            const timeStr = when.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            });
 
-        return (
-          <View key={`${run.missionId}-${run.completedAt}`} style={styles.missionLogRow}>
-            <View style={styles.missionLogLeft}>
-              <Text style={styles.missionLogTitle} numberOfLines={1}>
-                {title}
-              </Text>
-              <Text style={styles.missionLogMeta}>{dateStr}</Text>
-              {outcome !== 'aborted' && (
-                <Text style={styles.missionLogMeta}>
-                  {formatDistance(run.distanceKm)} · {Math.round(run.durationMin)} min
-                  {run.xpEarned > 0 ? ` · +${run.xpEarned} XP` : ''}
-                </Text>
-              )}
-            </View>
-            <View style={[styles.missionLogBadge, badgeStyle]}>
-              <Text style={styles.missionLogBadgeText}>{label}</Text>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-// ─── Operation History ────────────────────────────────────────────────────────
-
-function OperationHistoryList() {
-  const runHistory = useUserStore((s) => s.runHistory);
-  const weeklyProgress = useUserStore((s) => s.weeklyProgress);
-  const runsTarget = useUserStore(selectWeeklyRunsTarget);
-  const dayOffset = useDevStore((s) => s.dayOffset);
-  void dayOffset; // reactivity trigger
-
-  const weekHistory = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const run of runHistory) {
-      const d = new Date(run.completedAt);
-      const ws = toISODate(getWeekStart(d));
-      map.set(ws, (map.get(ws) ?? 0) + 1);
-    }
-    const currentWeekStart = getWeekStartISO();
-    // Always include current week (from live weeklyProgress)
-    map.set(currentWeekStart, weeklyProgress?.runsCompleted ?? map.get(currentWeekStart) ?? 0);
-
-    // Fill in every week between the earliest known week and now so that
-    // weeks with 0 completed sorties appear as FAIL instead of being invisible.
-    if (map.size > 0) {
-      const allKnown = Array.from(map.keys()).sort();
-      const earliest = allKnown[0]!;
-      let cursor = parseLocalDate(earliest);
-      const currentEnd = parseLocalDate(currentWeekStart);
-      while (cursor <= currentEnd) {
-        const ws = toISODate(cursor);
-        if (!map.has(ws)) map.set(ws, 0);
-        cursor = new Date(cursor.getTime() + 7 * 24 * 60 * 60 * 1000);
-      }
-    }
-
-    return Array.from(map.entries())
-      .map(([ws, count]) => {
-        const start = parseLocalDate(ws);
-        const end = new Date(start);
-        end.setDate(end.getDate() + 6);
-        const fmt = (d: Date) =>
-          d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return {
-          weekStartIso: ws,
-          runsCompleted: count,
-          goalMet: runsTarget > 0 && count >= runsTarget,
-          label: `${fmt(start)} – ${fmt(end)}`,
-        };
-      })
-      .sort((a, b) => b.weekStartIso.localeCompare(a.weekStartIso))
-      .slice(0, 10);
-  }, [runHistory, weeklyProgress, runsTarget, dayOffset]);
-
-  const currentWeekStart = getWeekStartISO();
-
-  if (weekHistory.length === 0) {
-    return (
-      <Text style={styles.emptyText}>No sorties recorded yet. Complete your first mission.</Text>
-    );
-  }
-
-  return (
-    <View style={styles.opHistoryList}>
-      {weekHistory.map((week, idx) => {
-        const isCurrentWeek = week.weekStartIso === currentWeekStart;
-        const progressRatio = runsTarget > 0 ? Math.min(week.runsCompleted / runsTarget, 1) : 0;
-
-        let dotStyle = styles.opDotLocked;
-        let dotIcon: 'check' | 'directions-run' | 'remove' | 'close' = 'close';
-        let badgeColor: string = colors.border;
-        let badgeBg: string = 'transparent';
-        let badgeLabel = 'FAIL';
-
-        if (week.goalMet) {
-          dotStyle = styles.opDotDone;
-          dotIcon = 'check';
-          badgeColor = colors.primary;
-          badgeBg = colors.primaryLight;
-          badgeLabel = 'DONE';
-        } else if (isCurrentWeek) {
-          dotStyle = styles.opDotCurrent;
-          dotIcon = 'directions-run';
-          badgeColor = colors.orange;
-          badgeBg = colors.orange + '22';
-          badgeLabel = 'NOW';
-        } else if (week.runsCompleted > 0) {
-          dotStyle = styles.opDotPartial;
-          dotIcon = 'remove';
-          badgeColor = colors.ochre;
-          badgeBg = colors.ochre + '22';
-          badgeLabel = 'PARTIAL';
-        }
-
-        return (
-          <View key={week.weekStartIso} style={[styles.opRow, isCurrentWeek && styles.opRowCurrent]}>
-            <View style={[styles.opDot, dotStyle]}>
-              <MaterialIcons name={dotIcon} size={11} color={colors.textInverse} />
-            </View>
-            <View style={styles.opContent}>
-              <Text style={styles.opLabel}>{week.label}</Text>
-              <View style={styles.opBar}>
-                <View style={[styles.opBarFill, {
-                  width: `${progressRatio * 100}%` as any,
-                  backgroundColor: week.goalMet ? colors.primary : isCurrentWeek ? colors.orange : week.runsCompleted > 0 ? colors.ochre : colors.textTertiary,
-                }]} />
+            return (
+              <View
+                key={`${run.missionId}-${run.completedAt}`}
+                style={[
+                  styles.missionLogRow,
+                  runIdx === dayRuns.length - 1 &&
+                    styles.missionLogRowLastInSection,
+                ]}
+              >
+                <View style={styles.missionLogLeft}>
+                  <Text style={styles.missionLogTitle} numberOfLines={1}>
+                    {title}
+                  </Text>
+                  <Text style={styles.missionLogMeta}>{timeStr}</Text>
+                  {outcome !== 'aborted' && (
+                    <Text style={styles.missionLogMeta}>
+                      {formatDistance(run.distanceKm)} ·{' '}
+                      {Math.round(run.durationMin)} min
+                      {run.xpEarned > 0 ? ` · +${run.xpEarned} XP` : ''}
+                    </Text>
+                  )}
+                </View>
+                <View style={[styles.missionLogBadge, badgeStyle]}>
+                  <Text style={[styles.missionLogBadgeText, badgeTextStyle]}>
+                    {label}
+                  </Text>
+                </View>
               </View>
-            </View>
-            <Text style={[styles.opCount, week.goalMet && { color: colors.primary }]}>
-              {week.runsCompleted}/{runsTarget}
-            </Text>
-            <View style={[styles.opBadge, { borderColor: badgeColor, backgroundColor: badgeBg }]}>
-              <Text style={[styles.opBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
-            </View>
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -628,7 +686,11 @@ export default function StatsScreen() {
 
   // Current week range (Mon–Sun) for highlighting
   const weekStartStr = getWeekStartISO(); // respects mock offset
-  const weekEndStr = toISODate(new Date(new Date(weekStartStr + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000));
+  const weekEndStr = toISODate(
+    new Date(
+      new Date(weekStartStr + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000,
+    ),
+  );
 
   const handlePrev = () => {
     setSelectedDate(null);
@@ -673,8 +735,26 @@ export default function StatsScreen() {
     }
   }, []);
 
-  const dayMap = useMemo(() => getDayMap(runHistory, year, month), [runHistory, year, month]);
-  const monthStats = useMemo(() => getMonthStats(runHistory, year, month), [runHistory, year, month]);
+  const dayMap = useMemo(
+    () => getDayMap(runHistory, year, month),
+    [runHistory, year, month],
+  );
+  const monthStats = useMemo(
+    () => getMonthStats(runHistory, year, month),
+    [runHistory, year, month],
+  );
+  const runsForViewedMonth = useMemo(
+    () => getRunsForMonth(runHistory, year, month),
+    [runHistory, year, month],
+  );
+
+  /** Calendar month shown in the heatmap — for empty-state copy only. */
+  const viewedMonthHasRuns = monthStats.totalRuns > 0;
+
+  const monthlySectionSubtitle = isCurrentMonth
+    ? 'This month'
+    : `${getMonthName(month)} ${year}`;
+  const missionsEmptyLabel = `No mission attempts in ${getMonthName(month)} ${year} yet.`;
 
   const blanks = leadingBlanks(year, month);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -682,8 +762,6 @@ export default function StatsScreen() {
     ...Array(blanks).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-
-  const maxWeekXp = Math.max(...monthStats.weeks.map((w) => w.totalXp), 1);
 
   const selectedRuns = selectedDate ? (dayMap.get(selectedDate) ?? []) : [];
 
@@ -699,108 +777,16 @@ export default function StatsScreen() {
           <Text style={styles.screenTitle}>Monthly Stats</Text>
         </Animated.View>
 
-        {/* Month navigation */}
-        <Animated.View entering={FadeInDown.delay(50).duration(300)}>
-          <MonthHeader
-            year={year}
-            month={month}
-            onPrev={handlePrev}
-            onNext={handleNext}
-            isCurrentMonth={isCurrentMonth}
-          />
-        </Animated.View>
-
-        {/* Calendar heatmap */}
-        <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.card}>
-          {/* Day-of-week headers */}
-          <View style={styles.calendarHeader}>
-            {DAY_LABELS.map((label) => (
-              <Text key={label} style={styles.calendarDayLabel}>
-                {label}
-              </Text>
-            ))}
-          </View>
-
-          {/* Calendar grid */}
-          <View style={styles.calendarGrid}>
-            {cells.map((day, idx) => {
-              if (day === null) {
-                return (
-                  <DayCell
-                    key={`blank-${idx}`}
-                    day={null}
-                    missionType={null}
-                    isToday={false}
-                    isCurrentWeek={false}
-                    hasRun={false}
-                    isSelected={false}
-                    onPress={() => {}}
-                  />
-                );
-              }
-              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const runsOnDay = dayMap.get(dateStr) ?? [];
-              const hasRun = runsOnDay.length > 0;
-              const firstRun = runsOnDay[0];
-              const mType = firstRun
-                ? getMissionTypeFromId(firstRun.missionId, campaignMissions, weekMissions)
-                : null;
-              const inCurrentWeek = dateStr >= weekStartStr && dateStr <= weekEndStr;
-              return (
-                <DayCell
-                  key={dateStr}
-                  day={day}
-                  missionType={mType}
-                  isToday={dateStr === todayStr}
-                  isCurrentWeek={inCurrentWeek}
-                  hasRun={hasRun}
-                  isSelected={selectedDate === dateStr}
-                  onPress={() => handleDayPress(dateStr)}
-                />
-              );
-            })}
-          </View>
-
-          {/* Legend */}
-          <View style={styles.legend}>
-            <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-            <Text style={styles.legendText}>Run completed</Text>
-            <View style={[styles.legendDot, styles.legendDotToday]} />
-            <Text style={styles.legendText}>Today</Text>
-            <View style={[styles.legendDot, styles.legendDotWeek]} />
-            <Text style={styles.legendText}>This week</Text>
-          </View>
-        </Animated.View>
-
-        {/* Day detail panel — appears when a day is selected */}
-        {selectedDate !== null && (
-          <DayDetailPanel
-            dateStr={selectedDate}
-            runs={selectedRuns}
-            campaignMissions={campaignMissions}
-            weekMissions={weekMissions}
-            onDismiss={() => setSelectedDate(null)}
-            onShare={handleDayShare}
-          />
-        )}
-
-        {/* Mission log — all attempts */}
-        <Animated.View entering={FadeInDown.delay(120).duration(300)} style={styles.card}>
-          <View style={[styles.cardHeader, styles.cardHeaderCluster]}>
-            <MaterialIcons name="assignment" size={15} color={colors.orange} />
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Missions</Text>
-          </View>
-          <MissionLogList
-            runs={runHistory}
-            campaignMissions={campaignMissions}
-            weekMissions={weekMissions}
-          />
-        </Animated.View>
-
-        {/* Monthly summary */}
-        <Animated.View entering={FadeInDown.delay(150).duration(300)} style={styles.card}>
+        {/* Monthly summary — totals for the month shown in the calendar */}
+        <Animated.View
+          entering={FadeInDown.delay(40).duration(300)}
+          style={styles.card}
+        >
           <View style={styles.cardHeader}>
-            <Text style={styles.sectionTitle}>Monthly Total</Text>
+            <View style={styles.monthlyTotalTitleCol}>
+              <Text style={styles.sectionTitle}>Monthly Total</Text>
+              <Text style={styles.sectionSub}>{monthlySectionSubtitle}</Text>
+            </View>
             {monthStats.totalRuns > 0 && (
               <TouchableOpacity
                 onPress={handleMonthShare}
@@ -822,24 +808,135 @@ export default function StatsScreen() {
               totalDistanceKm={monthStats.totalDistanceKm}
             />
           ) : (
-            <Text style={styles.emptyText}>No sorties recorded this month yet.</Text>
+            <Text style={styles.emptyText}>
+              No sorties recorded for this month yet.
+            </Text>
           )}
         </Animated.View>
 
-        {/* Operation History */}
-        <Animated.View entering={FadeInDown.delay(200).duration(300)} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <MaterialIcons name="history" size={15} color={colors.ochre} />
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Operation History</Text>
+        {/* Month navigation */}
+        <Animated.View entering={FadeInDown.delay(55).duration(300)}>
+          <MonthHeader
+            year={year}
+            month={month}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            isCurrentMonth={isCurrentMonth}
+          />
+        </Animated.View>
+
+        {/* Calendar heatmap */}
+        <Animated.View
+          entering={FadeInDown.delay(100).duration(300)}
+          style={styles.card}
+        >
+          <View style={styles.calendarHeatmapBlock}>
+            {/* Day-of-week headers */}
+            <View style={styles.calendarHeader}>
+              {DAY_LABELS.map((label) => (
+                <Text key={label} style={styles.calendarDayLabel}>
+                  {label}
+                </Text>
+              ))}
+            </View>
+
+            {/* Calendar grid */}
+            <View style={styles.calendarGrid}>
+              {cells.map((day, idx) => {
+                if (day === null) {
+                  return (
+                    <DayCell
+                      key={`blank-${idx}`}
+                      day={null}
+                      isToday={false}
+                      isCurrentWeek={false}
+                      hasMissionCompleted={false}
+                      isSelected={false}
+                      onPress={() => {}}
+                    />
+                  );
+                }
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const runsOnDay = dayMap.get(dateStr) ?? [];
+                const hasMissionCompleted = runsOnDay.some((r) => r.goalMet);
+                const inCurrentWeek =
+                  dateStr >= weekStartStr && dateStr <= weekEndStr;
+                return (
+                  <DayCell
+                    key={dateStr}
+                    day={day}
+                    isToday={dateStr === todayStr}
+                    isCurrentWeek={inCurrentWeek}
+                    hasMissionCompleted={hasMissionCompleted}
+                    isSelected={selectedDate === dateStr}
+                    onPress={() => handleDayPress(dateStr)}
+                  />
+                );
+              })}
+            </View>
           </View>
-          <OperationHistoryList />
+
+          {/* Legend */}
+          <View style={styles.legend}>
+            <View
+              style={[styles.legendDot, { backgroundColor: colors.primary }]}
+            />
+            <Text style={styles.legendText}>Mission completed</Text>
+            <View style={[styles.legendDot, styles.legendDotToday]} />
+            <Text style={styles.legendText}>Today</Text>
+            <View style={[styles.legendDot, styles.legendDotWeek]} />
+            <Text style={styles.legendText}>This week</Text>
+          </View>
+        </Animated.View>
+
+        {/* Day detail panel — appears when a day is selected */}
+        {selectedDate !== null && (
+          <DayDetailPanel
+            dateStr={selectedDate}
+            runs={selectedRuns}
+            runHistory={runHistory}
+            campaignMissions={campaignMissions}
+            weekMissions={weekMissions}
+            onDismiss={() => setSelectedDate(null)}
+            onShare={handleDayShare}
+          />
+        )}
+
+        {/* Mission log — attempts in the month shown above */}
+        <Animated.View
+          entering={FadeInDown.delay(120).duration(300)}
+          style={styles.card}
+        >
+          <View style={[styles.cardHeader, styles.cardHeaderCluster]}>
+            <MaterialIcons name="assignment" size={15} color={colors.orange} />
+            <Text
+              style={[styles.sectionTitle, { color: colors.textSecondary }]}
+            >
+              Mission Log
+            </Text>
+          </View>
+          <MissionLogList
+            runs={runsForViewedMonth}
+            campaignMissions={campaignMissions}
+            weekMissions={weekMissions}
+            emptyLabel={missionsEmptyLabel}
+          />
         </Animated.View>
 
         {/* Empty state for months with no data */}
-        {monthStats.totalRuns === 0 && (
-          <Animated.View entering={FadeInDown.delay(250).duration(300)} style={styles.emptyState}>
-            <MaterialIcons name="directions-run" size={44} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No sorties in {getMonthName(month)}</Text>
+        {!viewedMonthHasRuns && (
+          <Animated.View
+            entering={FadeInDown.delay(250).duration(300)}
+            style={styles.emptyState}
+          >
+            <MaterialIcons
+              name="directions-run"
+              size={44}
+              color={colors.textTertiary}
+            />
+            <Text style={styles.emptyTitle}>
+              No sorties in {getMonthName(month)}
+            </Text>
             <Text style={styles.emptySub}>
               Complete missions to see your stats appear here.
             </Text>
@@ -850,21 +947,27 @@ export default function StatsScreen() {
       {/* Off-screen share cards — invisible, captured by viewShot */}
       <View style={styles.offscreen} pointerEvents="none">
         {/* Day share card — shows first run of the selected day */}
-        {selectedDate !== null && selectedRuns.length > 0 && (() => {
-          const run = selectedRuns[0]!;
-          const mission = findMissionById(campaignMissions, weekMissions, run.missionId);
-          return (
-            <RunShareCard
-              ref={dayShareRef}
-              distanceKm={run.distanceKm}
-              durationMin={run.durationMin}
-              xpEarned={run.xpEarned}
-              streakDay={run.streakDay}
-              missionType={mission?.type ?? 'easy'}
-              path={run.path}
-            />
-          );
-        })()}
+        {selectedDate !== null &&
+          selectedRuns.length > 0 &&
+          (() => {
+            const run = selectedRuns[0]!;
+            const mission = findMissionById(
+              campaignMissions,
+              weekMissions,
+              run.missionId,
+            );
+            return (
+              <RunShareCard
+                ref={dayShareRef}
+                distanceKm={run.distanceKm}
+                durationMin={run.durationMin}
+                xpEarned={run.xpEarned}
+                streakDay={getStreakDayIndex0(run, runHistory)}
+                missionType={mission?.type ?? 'easy'}
+                path={run.path}
+              />
+            );
+          })()}
         {/* Month share card */}
         <MonthShareCard
           ref={monthShareRef}
@@ -981,6 +1084,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   } as TextStyle,
+  monthlyTotalTitleCol: {
+    flex: 1,
+    gap: 2,
+  } as ViewStyle,
+  sectionSub: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
+    fontWeight: fontWeights.medium,
+  } as TextStyle,
   shareIconBtn: {
     width: 32,
     height: 32,
@@ -991,32 +1103,41 @@ const styles = StyleSheet.create({
   } as ViewStyle,
 
   // Calendar
+  calendarHeatmapBlock: {
+    gap: spacing.xs,
+  } as ViewStyle,
   calendarHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'nowrap',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    gap: CALENDAR_GAP,
   } as ViewStyle,
   calendarDayLabel: {
     width: CELL_SIZE,
     textAlign: 'center',
     fontSize: 9,
+    lineHeight: 11,
     fontWeight: fontWeights.bold,
     color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    paddingBottom: 1,
   } as TextStyle,
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: CALENDAR_GAP,
   } as ViewStyle,
   dayCell: {
     width: CELL_SIZE,
-    height: CELL_SIZE,
+    height: DAY_CELL_HEIGHT,
     borderRadius: radii.sm,
     backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 1,
+    gap: 0,
+    paddingVertical: 1,
   } as ViewStyle,
   dayCellEmpty: {
     backgroundColor: 'transparent',
@@ -1026,9 +1147,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   } as ViewStyle,
+  /** Today when no mission completed that day — only this state uses orange fill */
   dayCellToday: {
     backgroundColor: colors.orange,
     borderWidth: 0,
+  } as ViewStyle,
+  dayCellMissionDone: {
+    backgroundColor: colors.primary,
+  } as ViewStyle,
+  /** Today + at least one goal met — green cell, orange ring */
+  dayCellTodayRing: {
+    borderWidth: 2,
+    borderColor: colors.orange,
   } as ViewStyle,
   dayCellText: {
     fontSize: 10,
@@ -1215,8 +1345,23 @@ const styles = StyleSheet.create({
   } as TextStyle,
 
   missionLogList: {
-    gap: spacing.sm,
+    gap: 0,
   } as ViewStyle,
+  missionLogSection: {} as ViewStyle,
+  missionLogSectionSpaced: {
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  } as ViewStyle,
+  missionLogSectionHeader: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: spacing.sm,
+  } as TextStyle,
   missionLogRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1225,6 +1370,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  } as ViewStyle,
+  missionLogRowLastInSection: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
   } as ViewStyle,
   missionLogLeft: {
     flex: 1,
@@ -1251,89 +1400,21 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.primaryLight,
   } as ViewStyle,
-  missionLogBadgeFail: {
+  /** ABORTED + FAILED — red border + red label */
+  missionLogBadgeBad: {
     borderColor: colors.red,
     backgroundColor: colors.redLight,
-  } as ViewStyle,
-  missionLogBadgeAbort: {
-    borderColor: colors.textTertiary,
-    backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   missionLogBadgeText: {
     fontSize: 9,
     fontWeight: fontWeights.extrabold,
-    color: colors.textSecondary,
     letterSpacing: 1,
   } as TextStyle,
-
-  // Operation History
-  opHistoryList: {
-    gap: spacing.md,
-  } as ViewStyle,
-  opRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.xs,
-  } as ViewStyle,
-  opRowCurrent: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    marginHorizontal: -spacing.sm,
-  } as ViewStyle,
-  opDot: {
-    width: 22,
-    height: 22,
-    borderRadius: radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  } as ViewStyle,
-  opDotDone: { backgroundColor: colors.primary } as ViewStyle,
-  opDotCurrent: { backgroundColor: colors.orange } as ViewStyle,
-  opDotPartial: { backgroundColor: colors.ochre } as ViewStyle,
-  opDotLocked: { backgroundColor: colors.border } as ViewStyle,
-  opContent: {
-    flex: 1,
-    gap: 4,
-  } as ViewStyle,
-  opLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+  missionLogBadgeTextOk: {
+    color: colors.primary,
   } as TextStyle,
-  opBar: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    overflow: 'hidden',
-  } as ViewStyle,
-  opBarFill: {
-    height: '100%',
-    borderRadius: 2,
-  } as ViewStyle,
-  opCount: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textTertiary,
-    letterSpacing: 0.5,
-    flexShrink: 0,
-  } as TextStyle,
-  opBadge: {
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    flexShrink: 0,
-  } as ViewStyle,
-  opBadgeText: {
-    fontSize: 9,
-    fontWeight: fontWeights.extrabold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  missionLogBadgeTextBad: {
+    color: colors.red,
   } as TextStyle,
 
   // Day detail panel
@@ -1386,15 +1467,49 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     color: colors.textSecondary,
-  } as TextStyle,
-  detailRestSub: {
-    fontSize: fontSizes.sm,
-    color: colors.textTertiary,
-    marginTop: 2,
+    flex: 1,
   } as TextStyle,
   detailRunCard: {
     gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    backgroundColor: colors.background,
   } as ViewStyle,
+  detailRunHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  } as ViewStyle,
+  detailStatusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    flexShrink: 0,
+  } as ViewStyle,
+  detailStatusBadgeOk: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  } as ViewStyle,
+  detailStatusBadgeBad: {
+    borderColor: colors.red,
+    backgroundColor: colors.redLight,
+  } as ViewStyle,
+  detailStatusBadgeText: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  detailStatusBadgeTextOk: {
+    color: colors.primary,
+  } as TextStyle,
+  detailStatusBadgeTextBad: {
+    color: colors.red,
+  } as TextStyle,
   detailTypePill: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -12,9 +12,9 @@ let onboardingAmbientPlayer: AudioPlayer | null = null;
 const ONBOARDING_AMBIENT_VOLUME = 0.32;
 
 /**
- * Looped ambient bed for the intro carousel **first slide only** (see `app/intro.tsx`).
+ * Looped ambient bed for intro + onboarding (see `app/intro.tsx`, `app/onboarding/_layout.tsx`).
  * Replace `assets/sounds/onboarding.mp3` to change the mood; playback stops when
- * the user leaves slide 1 or taps Begin.
+ * onboarding completes and the user enters the main app.
  */
 export async function startOnboardingAmbient(): Promise<void> {
   if (_muted) return;
@@ -103,6 +103,30 @@ export async function playGoalReachedSound(): Promise<void> {
     }, 2000);
   } catch {
     // Silent fail — audio is a nice-to-have
+  }
+}
+
+/** Mission failed (e.g. time expired) — error haptic + short chime. */
+export async function playMissionFailedSound(): Promise<void> {
+  try {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch {
+    // ignore
+  }
+  if (_muted) return;
+  try {
+    await setAudioModeAsync({ playsInSilentMode: true });
+    const player = createAudioPlayer(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../assets/sounds/goal_reached.wav'),
+    );
+    player.volume = 0.35;
+    player.play();
+    setTimeout(() => {
+      try { player.release(); } catch { /* ignore */ }
+    }, 2000);
+  } catch {
+    // ignore
   }
 }
 
