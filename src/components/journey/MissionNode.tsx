@@ -202,9 +202,6 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     <Text style={styles.missionTitle} numberOfLines={2}>
                       {stripEmojis(mission.title)}
                     </Text>
-                    <Text style={styles.missionSubtitle} numberOfLines={1}>
-                      {stripEmojis(mission.subtitle)}
-                    </Text>
                   </View>
                 </View>
 
@@ -290,12 +287,6 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     numberOfLines={2}
                   >
                     {stripEmojis(mission.title)}
-                  </Text>
-                  <Text
-                    style={[styles.missionSubtitle, isLocked && styles.textLocked, isFailed && styles.textFailed]}
-                    numberOfLines={1}
-                  >
-                    {stripEmojis(mission.subtitle)}
                   </Text>
                 </View>
               </View>
@@ -663,11 +654,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     lineHeight: 20,
-  } as TextStyle,
-  missionSubtitle: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    lineHeight: 18,
   } as TextStyle,
 
   // Meta row: distance + XP

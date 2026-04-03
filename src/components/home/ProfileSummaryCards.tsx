@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Card } from '../ui/Card';
-import { ProgressBar } from '../ui/ProgressBar';
 import {
   colors,
   spacing,
@@ -10,11 +9,34 @@ import {
   fontWeights,
 } from '../../constants/theme';
 import {
+  getTotalCampaignXp,
   PERSONA_CAMPAIGNS,
   PERSONA_LABELS,
-  getTotalCampaignXp,
 } from '../../constants/campaigns';
-import type { UserProfile } from '../../types';
+import type { PersonaId, UserProfile } from '../../types';
+
+const PERSONA_ORDER: PersonaId[] = [
+  'ghost',
+  'scout',
+  'operative',
+  'elite',
+  'vanguard',
+];
+
+function nextPersonaId(personaId: PersonaId): PersonaId | null {
+  const i = PERSONA_ORDER.indexOf(personaId);
+  if (i < 0 || i >= PERSONA_ORDER.length - 1) return null;
+  return PERSONA_ORDER[i + 1]!;
+}
+
+/** Title-case persona label (e.g. SCOUT → Scout). */
+export function personaLabelTitleCase(upperLabel: string): string {
+  return upperLabel
+    .toLowerCase()
+    .split(/[\s-]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 const GOAL_LABELS: Record<string, string> = {
   habit: 'Secure Perimeter',
@@ -33,63 +55,131 @@ const EXPERIENCE_LABELS: Record<string, string> = {
 function frequencyPerWeekLabel(profile: UserProfile): string {
   const n = profile.preferredDays?.length ?? profile.weeklyTargetRuns ?? 0;
   if (n === 0) return 'Not set';
-  if (n === 1) return '1 time per week';
-  return `${n} times per week`;
+  return `${n}x per week`;
 }
 
 type Props = {
   profile: UserProfile;
-  /** Total XP to show (store + run history reconciled in parent). */
-  accumulatedXp: number;
   /** Full campaigns finished (not “current campaign slot”). */
   campaignsCompleted: number;
+  /** Display XP total (reconciled) for this persona’s track. */
+  displayXpTotal: number;
 };
+
+/** Interpolate hex component between two values, 0–1. */
+function lerpHex(from: number, to: number, t: number): number {
+  return Math.round(from + (to - from) * t);
+}
+
+function ChevronProgressBar({
+  completed,
+  total,
+  currentLabel,
+  nextLabel,
+}: {
+  completed: number;
+  total: number;
+  currentLabel: string;
+  nextLabel: string | null;
+}) {
+  const count = Math.max(1, total);
+
+  return (
+    <View style={styles.chevronContainer}>
+      <Text style={styles.chevronRankLabel}>{currentLabel}</Text>
+
+      <View style={styles.chevronTrack}>
+        {Array.from({ length: count }).map((_, i) => {
+          const filled = i < completed;
+          let bodyColor: string;
+          if (filled) {
+            // Gradient: ochre #B95C37 → orange #F68F4D across filled range
+            const t = completed > 1 ? i / (completed - 1) : 1;
+            const r = lerpHex(0xb9, 0xf6, t);
+            const g = lerpHex(0x5c, 0x8f, t);
+            const b = lerpHex(0x37, 0x4d, t);
+            bodyColor = `rgb(${r},${g},${b})`;
+          } else {
+            bodyColor = colors.surfaceElevated;
+          }
+          return (
+            <View key={i} style={styles.chevronArrowWrapper}>
+              {/* Rectangular body */}
+              <View
+                style={[
+                  styles.chevronBody,
+                  { backgroundColor: bodyColor },
+                  !filled && styles.chevronBodyEmpty,
+                ]}
+              />
+              {/* Right-pointing triangle tip */}
+              <View
+                style={[styles.chevronTip, { borderLeftColor: bodyColor }]}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.chevronRankLabel, styles.chevronRankLabelRight]}>
+        {nextLabel ?? '—'}
+      </Text>
+    </View>
+  );
+}
+
+const ARROW_COUNT = 15;
 
 export function CampaignProgressCard({
   profile,
-  accumulatedXp,
   campaignsCompleted,
+  displayXpTotal,
 }: Props) {
   const personaId = profile.personaId;
   if (!personaId) return null;
 
   const personaMeta = PERSONA_LABELS[personaId];
-  const campaigns = PERSONA_CAMPAIGNS[personaId];
-  const totalCampaigns = campaigns.length;
-  const totalPossibleXp = getTotalCampaignXp(personaId);
-  const xpProgress =
-    totalPossibleXp > 0 ? Math.min(accumulatedXp / totalPossibleXp, 1) : 0;
-  const campaignProgress =
-    totalCampaigns > 0 ? Math.min(campaignsCompleted / totalCampaigns, 1) : 0;
-  const barProgress = Math.max(xpProgress, campaignProgress);
+  const totalCampaigns = Math.max(1, PERSONA_CAMPAIGNS[personaId]?.length ?? 1);
+  const campaignProgress = Math.min(
+    Math.max(campaignsCompleted / totalCampaigns, 0),
+    1,
+  );
+  const filledArrows = Math.round(campaignProgress * ARROW_COUNT);
+  const personaTrackXpCap = getTotalCampaignXp(personaId);
+  const nextId = nextPersonaId(personaId);
+  const nextTitle = nextId
+    ? personaLabelTitleCase(PERSONA_LABELS[nextId].label)
+    : null;
+  const currentTitle = personaLabelTitleCase(personaMeta.label);
 
   return (
-    <Card style={styles.campaignCard}>
-      <View style={styles.campaignHeader}>
-        <MaterialIcons
-          name={personaMeta.icon as any}
-          size={20}
-          color={colors.orange}
-        />
-        <Text style={styles.campaignTitle}>{personaMeta.label}</Text>
-        <View style={styles.campaignBadge}>
-          <Text style={styles.campaignBadgeText}>
-            CAMPAIGNS {Math.min(campaignsCompleted, totalCampaigns)} /{' '}
-            {totalCampaigns}
-          </Text>
-        </View>
+    <Card style={styles.evolutionCard}>
+      <View style={styles.classRowInline}>
+        <Text style={styles.evolutionRowLabel}>
+          Class: <Text style={styles.evolutionRowValue}>{currentTitle}</Text>
+        </Text>
+        <Text style={styles.classInlineSep}> · </Text>
+        <Text style={styles.evolutionRowLabel}>
+          Next Class:{' '}
+          <Text style={styles.evolutionRowValue}>{nextTitle ?? '—'}</Text>
+        </Text>
       </View>
-      <ProgressBar
-        progress={barProgress}
-        color={colors.orange}
-        backgroundColor={colors.orangeLight}
-        height={10}
+
+      <Text style={styles.evolutionSectionTitle}>Evolution progress</Text>
+
+      <ChevronProgressBar
+        completed={filledArrows}
+        total={ARROW_COUNT}
+        currentLabel={currentTitle}
+        nextLabel={nextTitle}
       />
-      <Text style={styles.campaignXpText}>
-        {accumulatedXp.toLocaleString()} / {totalPossibleXp.toLocaleString()} XP
-        — {Math.min(campaignsCompleted, totalCampaigns)} / {totalCampaigns}{' '}
-        completed
-      </Text>
+
+      <View style={styles.bulletList}>
+        <Text style={styles.bulletLine}>
+          {Math.round(displayXpTotal).toLocaleString()} /{' '}
+          {personaTrackXpCap.toLocaleString()} XP
+        </Text>
+      </View>
     </Card>
   );
 }
@@ -102,14 +192,16 @@ export function OperativeFileCard({ profile }: { profile: UserProfile }) {
         {profile.personaId ? (
           <>
             <ProfileRow
-              icon="fitness-center"
-              label="Persona"
-              value={PERSONA_LABELS[profile.personaId].label}
+              icon="military-tech"
+              label="Class"
+              value={personaLabelTitleCase(
+                PERSONA_LABELS[profile.personaId].label,
+              )}
             />
             <Divider />
             <ProfileRow
               icon="directions-run"
-              label="Default Mode"
+              label="Default"
               value={
                 profile.defaultActivityMode === 'cycle' ? 'Cycling' : 'Running'
               }
@@ -208,42 +300,86 @@ function Divider() {
 }
 
 const styles = StyleSheet.create({
-  campaignCard: {
-    gap: spacing.md,
+  evolutionCard: {
+    gap: spacing.sm,
   } as ViewStyle,
-  campaignHeader: {
+  classRowInline: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 0,
+  } as ViewStyle,
+  classInlineSep: {
+    fontSize: fontSizes.sm,
+    color: colors.textTertiary,
+  } as TextStyle,
+  evolutionRowLabel: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+  } as TextStyle,
+  evolutionRowValue: {
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
+  evolutionSectionTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.orange,
+    letterSpacing: 0.4,
+    marginTop: spacing.sm,
+  } as TextStyle,
+  chevronContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   } as ViewStyle,
-  campaignTitle: {
+  chevronTrack: {
     flex: 1,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extrabold,
-    color: colors.orange,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  campaignBadge: {
-    backgroundColor: colors.orangeLight,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: colors.orange,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   } as ViewStyle,
-  campaignBadgeText: {
-    fontSize: 10,
-    fontWeight: fontWeights.extrabold,
-    color: colors.orange,
-    letterSpacing: 1,
+  chevronArrowWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  } as ViewStyle,
+  chevronBody: {
+    flex: 1,
+    height: 16,
+  } as ViewStyle,
+  chevronBodyEmpty: {
+    borderWidth: 1,
+    borderRightWidth: 0,
+    borderColor: colors.border,
+  } as ViewStyle,
+  chevronTip: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftWidth: 8,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+  } as ViewStyle,
+  chevronRankLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flexShrink: 0,
   } as TextStyle,
-  campaignXpText: {
+  chevronRankLabelRight: {
+    color: colors.textTertiary,
+  } as TextStyle,
+  bulletList: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  } as ViewStyle,
+  bulletLine: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
   } as TextStyle,
 
   profileCard: { gap: spacing.sm } as ViewStyle,

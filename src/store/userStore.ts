@@ -24,7 +24,7 @@ import {
   isNewWeek,
 } from '../utils/dateUtils';
 
-/** Run or cycle at least this long (seconds) counts a sortie and can advance the day streak. */
+/** Minimum moving time (seconds) for effort-based credit when the mission goal is not met. */
 export const MIN_EFFORT_SECONDS = 5 * 60;
 
 interface UserActions {
@@ -44,7 +44,7 @@ interface UserActions {
   ) => CompletedRun;
   /** Log-only entry (e.g. aborted mid-run): no XP, streak, or weekly progress; adds distance to lifetime total. */
   appendRunHistoryEntry: (run: CompletedRun) => void;
-  /** +1 sortie and day streak (if not already counted today) when moving ≥ MIN_EFFORT_SECONDS. Mission completion uses completeRun instead. */
+  /** +1 sortie and day streak when moving ≥ MIN_EFFORT_SECONDS (e.g. free run). Campaign missions use completeRun (goal met also counts). */
   recordEffortFromElapsedSec: (elapsedSec: number) => void;
   markWeeklyBonusAwarded: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
@@ -107,18 +107,18 @@ export const useUserStore = create<UserStore>()(
 
         const met = goalMet ?? false;
 
-        // Sorties + day streak: reward ≥5 min of moving (run or cycle), once per streak rule per day.
+        // ≥5 min moving (GPS seconds or duration fallback), or mission goal met (short missions still count).
         const effortQualifies =
           elapsedSec != null
             ? elapsedSec >= MIN_EFFORT_SECONDS
             : (actualDurationMin ?? 0) * 60 >= MIN_EFFORT_SECONDS;
 
-        /** Count toward totalRuns / world restoration when effort is long enough OR the mission goal was met (short missions can finish under 5 min). */
+        /** Sorties, streak, and last-run day: goal met OR enough time on feet (same bar). */
         const countsAsSortie = effortQualifies || met;
 
         let newStreak = state.streak;
         let streakForXp = state.streak;
-        if (effortQualifies) {
+        if (countsAsSortie) {
           const alreadyStreakToday = state.lastRunDate === today;
           const alive = isStreakAlive(state.lastRunDate);
           newStreak = alreadyStreakToday
@@ -165,10 +165,10 @@ export const useUserStore = create<UserStore>()(
         set({
           xp: newXp,
           streak: newStreak,
-          lastRunDate: effortQualifies ? today : state.lastRunDate,
+          lastRunDate: countsAsSortie ? today : state.lastRunDate,
           totalRuns: state.totalRuns + (countsAsSortie ? 1 : 0),
           totalDistanceKm: state.totalDistanceKm + distKm,
-          longestStreak: effortQualifies
+          longestStreak: countsAsSortie
             ? Math.max(state.longestStreak, newStreak)
             : state.longestStreak,
           weeklyProgress: updatedWp,

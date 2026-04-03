@@ -66,7 +66,7 @@ function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
                 >
                   <MaterialIcons name="directions-run" size={30} color={colors.textInverse} />
                 </TouchableOpacity>
-                <Text style={styles.runLabel}>{isFreeRun ? 'FREE RUN' : 'RUN'}</Text>
+                <Text style={styles.runLabel}>{isFreeRun ? 'FREE RUN' : 'DEPLOY'}</Text>
               </View>
             );
           }

@@ -8,16 +8,29 @@ interface XPBadgeProps {
   style?: ViewStyle;
   /** When set (e.g. mission accent), badge matches that color instead of default XP purple. */
   accentColor?: string;
+  /** High-contrast pill for colorful / gradient backgrounds (ignores accent for text). */
+  variant?: 'default' | 'onVivid';
 }
 
-export function XPBadge({ xp, size = 'md', style, accentColor }: XPBadgeProps) {
-  const accentText = accentColor ?? colors.purple;
+export function XPBadge({
+  xp,
+  size = 'md',
+  style,
+  accentColor,
+  variant = 'default',
+}: XPBadgeProps) {
+  const onVivid = variant === 'onVivid';
+  const accentText = onVivid ? '#FFFFFF' : accentColor ?? colors.purple;
   return (
     <View
       style={[
         styles.badge,
         styles[size],
-        accentColor != null ? { backgroundColor: `${accentColor}22` } : null,
+        onVivid
+          ? styles.badgeOnVivid
+          : accentColor != null
+            ? { backgroundColor: `${accentColor}22` }
+            : null,
         style,
       ]}
     >
@@ -34,6 +47,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
+  } as ViewStyle,
+  badgeOnVivid: {
+    backgroundColor: 'rgba(14, 18, 16, 0.55)',
   } as ViewStyle,
   sm: {
     paddingHorizontal: spacing.sm,

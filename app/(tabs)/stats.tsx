@@ -35,6 +35,8 @@ import {
   type WeekStats,
 } from '../../src/utils/statsUtils';
 import { formatDistance } from '../../src/utils/xpCalculator';
+import { resolveOutcome } from '../../src/utils/runOutcome';
+import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
 import {
   colors,
   spacing,
@@ -44,11 +46,7 @@ import {
   shadows,
   missionConfig,
 } from '../../src/constants/theme';
-import type {
-  CompletedRun,
-  Mission,
-  MissionOutcome,
-} from '../../src/types';
+import type { CompletedRun, Mission } from '../../src/types';
 import {
   findMissionById,
   resolveMissionDisplayTitle,
@@ -197,11 +195,6 @@ function formatPaceDisplay(distanceKm: number, durationMin: number): string {
   const mins = Math.floor(paceSecPerKm / 60);
   const secs = Math.floor(paceSecPerKm % 60);
   return `${mins}:${String(secs).padStart(2, '0')} /km`;
-}
-
-function resolveOutcome(run: CompletedRun): MissionOutcome {
-  if (run.outcome) return run.outcome;
-  return run.goalMet ? 'success' : 'failed_goal';
 }
 
 function DayDetailPanel({
@@ -596,20 +589,6 @@ function MissionLogList({
               personaId,
             );
             const outcome = resolveOutcome(run);
-            const label =
-              outcome === 'success'
-                ? 'COMPLETED'
-                : outcome === 'aborted'
-                  ? 'ABORTED'
-                  : 'FAILED';
-            const badgeStyle =
-              outcome === 'success'
-                ? styles.missionLogBadgeOk
-                : styles.missionLogBadgeBad;
-            const badgeTextStyle =
-              outcome === 'success'
-                ? styles.missionLogBadgeTextOk
-                : styles.missionLogBadgeTextBad;
             const when = new Date(run.completedAt);
             const timeStr = when.toLocaleTimeString('en-US', {
               hour: 'numeric',
@@ -638,11 +617,7 @@ function MissionLogList({
                     </Text>
                   )}
                 </View>
-                <View style={[styles.missionLogBadge, badgeStyle]}>
-                  <Text style={[styles.missionLogBadgeText, badgeTextStyle]}>
-                    {label}
-                  </Text>
-                </View>
+                <SortieOutcomeBadge outcome={outcome} />
               </View>
             );
           })}
@@ -1388,33 +1363,6 @@ const styles = StyleSheet.create({
   missionLogMeta: {
     fontSize: fontSizes.xs,
     color: colors.textTertiary,
-  } as TextStyle,
-  missionLogBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    flexShrink: 0,
-  } as ViewStyle,
-  missionLogBadgeOk: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
-  } as ViewStyle,
-  /** ABORTED + FAILED — red border + red label */
-  missionLogBadgeBad: {
-    borderColor: colors.red,
-    backgroundColor: colors.redLight,
-  } as ViewStyle,
-  missionLogBadgeText: {
-    fontSize: 9,
-    fontWeight: fontWeights.extrabold,
-    letterSpacing: 1,
-  } as TextStyle,
-  missionLogBadgeTextOk: {
-    color: colors.primary,
-  } as TextStyle,
-  missionLogBadgeTextBad: {
-    color: colors.red,
   } as TextStyle,
 
   // Day detail panel

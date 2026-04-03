@@ -46,6 +46,8 @@ import { REST_DAY_MESSAGES } from '../../src/constants/missions';
 import { useDevStore } from '../../src/store/devStore';
 import { getWeekStartISO, parseLocalDate } from '../../src/utils/dateUtils';
 import type { CompletedRun } from '../../src/types';
+import { resolveOutcome } from '../../src/utils/runOutcome';
+import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
 
 function getRestMessage(): string {
   return REST_DAY_MESSAGES[
@@ -62,7 +64,10 @@ function toLocalDateKey(iso: string): string {
 }
 
 function formatStreakDayLabel(dateKey: string): string {
-  const [y, mo, da] = dateKey.split('-').map(Number);
+  const parts = dateKey.split('-').map(Number);
+  const y = parts[0] ?? 0;
+  const mo = parts[1] ?? 1;
+  const da = parts[2] ?? 1;
   const dt = new Date(y, mo - 1, da);
   return dt.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -296,7 +301,7 @@ export default function HomeScreen() {
               />
               <View style={styles.levelBadgeTextRow}>
                 <Text style={styles.levelBadgeLabel}>
-                  LVL {levelInfo.level} SCAVENGER
+                  LVL {levelInfo.level} {levelInfo.title}
                 </Text>
                 <Text style={styles.levelBadgeMeta}> {levelProgressLabel}</Text>
               </View>
@@ -346,7 +351,7 @@ export default function HomeScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {statModal === 'streak' && 'Streak days'}
-                  {statModal === 'level' && 'Scavenger levels'}
+                  {statModal === 'level' && 'Levels'}
                   {statModal === 'sorties' && 'Sortie log'}
                 </Text>
                 <TouchableOpacity
@@ -395,8 +400,8 @@ export default function HomeScreen() {
                   <>
                     <Text style={styles.modalSub}>
                       {personaIdForXp
-                        ? `Persona levels use the same Scavenger ladder across all operatives.`
-                        : `Scavenger level ladder.`}
+                        ? `All operatives share the same level ladder.`
+                        : `Level ladder.`}
                     </Text>
                     {scavengerLevels.map((row) => {
                       const current = row.level === levelInfo.level;
@@ -463,9 +468,17 @@ export default function HomeScreen() {
                             key={`${run.missionId}-${run.completedAt}`}
                             style={styles.sortieRow}
                           >
-                            <Text style={styles.sortieDate}>
-                              {dateStr} · {timeStr}
-                            </Text>
+                            <View style={styles.sortieTopRow}>
+                              <Text
+                                style={styles.sortieDate}
+                                numberOfLines={1}
+                              >
+                                {dateStr} · {timeStr}
+                              </Text>
+                              <SortieOutcomeBadge
+                                outcome={resolveOutcome(run)}
+                              />
+                            </View>
                             <Text style={styles.sortieMeta}>
                               {formatDistance(run.distanceKm)} ·{' '}
                               {formatDuration(run.durationMin)} ·{' '}
@@ -782,11 +795,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   } as ViewStyle,
+  sortieTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: 4,
+  } as ViewStyle,
   sortieDate: {
+    flex: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
-    marginBottom: 4,
   } as TextStyle,
   sortieMeta: {
     fontSize: fontSizes.sm,

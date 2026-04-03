@@ -30,7 +30,7 @@ export function DailyMissionCard({ mission, onStartRun }: DailyMissionCardProps)
             <MaterialIcons name={config.icon as any} size={14} color={config.color} />
             <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
           </View>
-          <XPBadge xp={mission.xpReward} size="sm" />
+          <XPBadge xp={mission.xpReward} size="sm" variant="onVivid" />
         </View>
 
         {/* Mission name */}
@@ -55,7 +55,7 @@ export function DailyMissionCard({ mission, onStartRun }: DailyMissionCardProps)
         {/* CTA */}
         <TouchableOpacity style={styles.startButton} onPress={onStartRun} activeOpacity={0.9}>
           <MaterialIcons name="play-arrow" size={22} color={config.color} />
-          <Text style={[styles.startLabel, { color: config.color }]}>Start Mission</Text>
+          <Text style={[styles.startLabel, { color: config.color }]}>Deploy Mission</Text>
         </TouchableOpacity>
       </LinearGradient>
     </View>

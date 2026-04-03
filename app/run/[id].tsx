@@ -184,7 +184,7 @@ export default function RunDetailScreen() {
           </View>
         ) : (
           <Button
-            label={isFreeRun ? 'Start Free Run' : activityMode === 'cycle' ? 'Start Cycling' : 'Start Mission'}
+            label={isFreeRun ? 'Start Free Run' : activityMode === 'cycle' ? 'Deploy Cycling' : 'Deploy Mission'}
             icon={isFreeRun ? 'directions-run' : activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
             onPress={handleStartMission}
             fullWidth

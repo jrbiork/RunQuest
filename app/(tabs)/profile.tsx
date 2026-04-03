@@ -28,12 +28,21 @@ import {
   fontWeights,
   shadows,
 } from '../../src/constants/theme';
-import { getLevelInfo, formatDistance, SCAVENGER_LEVEL_COUNT } from '../../src/utils/xpCalculator';
+import {
+  getLevelInfo,
+  formatDistance,
+  SCAVENGER_LEVEL_COUNT,
+} from '../../src/utils/xpCalculator';
 import { getDisplayXpTotal } from '../../src/utils/displayXp';
 import { getDisplayOverallStats } from '../../src/utils/displayStats';
 import { useDevStore, getMockedDateLabel } from '../../src/store/devStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
-import { CampaignProgressCard, OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
+import {
+  CampaignProgressCard,
+  OperativeFileCard,
+  personaLabelTitleCase,
+} from '../../src/components/home/ProfileSummaryCards';
+import { PERSONA_LABELS } from '../../src/constants/campaigns';
 const RANK_TITLES = [
   'Field Recruit',
   'Patrol Runner',
@@ -60,7 +69,9 @@ export default function ProfileScreen() {
   const totalRuns = useUserStore((s) => s.totalRuns);
   const totalDistanceKm = useUserStore((s) => s.totalDistanceKm);
   const runHistory = useUserStore((s) => s.runHistory);
-  const totalCampaignsCompleted = useUserStore((s) => s.totalCampaignsCompleted);
+  const totalCampaignsCompleted = useUserStore(
+    (s) => s.totalCampaignsCompleted,
+  );
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const runsTarget = useUserStore(selectWeeklyRunsTarget);
   const resetOnboarding = useUserStore((s) => s.resetOnboarding);
@@ -90,9 +101,18 @@ export default function ProfileScreen() {
         totalCampaignsCompleted,
         currentCampaignIndex,
       }),
-    [xp, runHistory, personaIdForStats, totalCampaignsCompleted, currentCampaignIndex],
+    [
+      xp,
+      runHistory,
+      personaIdForStats,
+      totalCampaignsCompleted,
+      currentCampaignIndex,
+    ],
   );
-  const levelInfo = useMemo(() => getLevelInfo(displayXpTotal), [displayXpTotal]);
+  const levelInfo = useMemo(
+    () => getLevelInfo(displayXpTotal),
+    [displayXpTotal],
+  );
 
   const displayOverallStats = useMemo(
     () =>
@@ -170,17 +190,22 @@ export default function ProfileScreen() {
                 color={colors.ochre}
               />
               <Text style={styles.levelBadgeText}>
-                SCAVENGER LVL {levelInfo.level} / {SCAVENGER_LEVEL_COUNT}
+                {levelInfo.title} · LVL {levelInfo.level} /{' '}
+                {SCAVENGER_LEVEL_COUNT}
               </Text>
             </View>
-            <Text style={styles.rankTitle}>
-              {
-                RANK_TITLES[
-                  Math.min(levelInfo.level - 1, RANK_TITLES.length - 1)
-                ]
-              }
+            <Text style={styles.classTitle}>
+              {personaIdForStats && PERSONA_LABELS[personaIdForStats]
+                ? `Class: ${personaLabelTitleCase(
+                    PERSONA_LABELS[personaIdForStats].label,
+                  )}`
+                : RANK_TITLES[
+                    Math.min(levelInfo.level - 1, RANK_TITLES.length - 1)
+                  ]}
             </Text>
-            <Text style={styles.xpTotal}>{displayXpTotal.toLocaleString()} XP</Text>
+            <Text style={styles.xpTotal}>
+              {displayXpTotal.toLocaleString()} XP
+            </Text>
           </View>
         </View>
 
@@ -223,12 +248,12 @@ export default function ProfileScreen() {
           <View style={styles.campaignBlock}>
             <View style={styles.campaignTitleRow}>
               <View style={styles.campaignAccent} />
-              <Text style={styles.campaignTitle}>Campaign</Text>
+              <Text style={styles.campaignTitle}>Evolution</Text>
             </View>
             <CampaignProgressCard
               profile={profile}
-              accumulatedXp={displayXpTotal}
               campaignsCompleted={campaignsCompletedDisplay}
+              displayXpTotal={displayXpTotal}
             />
           </View>
         )}
@@ -458,7 +483,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,
-  rankTitle: {
+  classTitle: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,

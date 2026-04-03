@@ -24,7 +24,6 @@ import { useMissionsStore, selectAllComplete } from '../../src/store/missionsSto
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
-import { LevelBadge } from '../../src/components/ui/LevelBadge';
 import { CityRestoreAnimation } from '../../src/components/run/CityRestoreAnimation';
 import { ZoneMapAnimation } from '../../src/components/run/ZoneMapAnimation';
 import {
@@ -35,7 +34,7 @@ import {
   fontWeights,
   missionConfig,
 } from '../../src/constants/theme';
-import { calculateXpEarned, getLevelInfo, formatDistance } from '../../src/utils/xpCalculator';
+import { calculateXpEarned, formatDistance } from '../../src/utils/xpCalculator';
 import { MISSION_TEMPLATES, MISSION_IMPACT_MESSAGES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
@@ -109,9 +108,7 @@ export default function RunCompleteScreen() {
   const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const streak = useUserStore((s) => s.streak);
   const runHistory = useUserStore((s) => s.runHistory);
-  const xpBefore = useUserStore((s) => s.xp);
   const totalRuns = useUserStore((s) => s.totalRuns);
-  const levelInfoAfter = useMemo(() => getLevelInfo(xpBefore), [xpBefore]);
 
   const shareStreakDay = useMemo(() => {
     const last = runHistory[runHistory.length - 1];
@@ -293,19 +290,9 @@ export default function RunCompleteScreen() {
                   <Text style={styles.xpCircleText}>+{xpEarned}</Text>
                 </View>
               </View>
-              <ProgressBar
-                progress={levelInfoAfter.progress}
-                color={colors.purple}
-                backgroundColor={colors.purpleLight}
-                height={6}
-              />
-              <View style={styles.levelRow}>
-                <LevelBadge level={levelInfoAfter.level} size="sm" />
-                <Text style={styles.levelText}>{levelInfoAfter.title}</Text>
-                <Text style={styles.levelXpText}>
-                  {levelInfoAfter.xpInLevel}/{levelInfoAfter.xpToNextLevel} XP
-                </Text>
-              </View>
+              <Text style={styles.xpMissionMessage}>
+                XP gained for the mission completed
+              </Text>
             </Card>
           )}
         </Animated.View>
@@ -520,9 +507,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.purpleLight, alignItems: 'center', justifyContent: 'center',
   } as ViewStyle,
   xpCircleText: { fontSize: fontSizes.sm, fontWeight: fontWeights.extrabold, color: colors.purple } as TextStyle,
-  levelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm } as ViewStyle,
-  levelText: { flex: 1, fontSize: fontSizes.sm, fontWeight: fontWeights.semibold, color: colors.textPrimary } as TextStyle,
-  levelXpText: { fontSize: fontSizes.xs, color: colors.textSecondary } as TextStyle,
+  xpMissionMessage: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  } as TextStyle,
 
   // Streak
   streakCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md } as ViewStyle,

@@ -13,6 +13,7 @@ import { JourneyPath } from '../../src/components/journey/JourneyPath';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { PERSONA_CAMPAIGNS, PERSONA_LABELS } from '../../src/constants/campaigns';
 import { colors, spacing, fontSizes, fontWeights, radii, shadows } from '../../src/constants/theme';
+import { getCampaignXpEarnedAndTotal } from '../../src/utils/campaignXp';
 
 export default function JourneyScreen() {
   const profile = useUserStore((s) => s.profile);
@@ -24,22 +25,10 @@ export default function JourneyScreen() {
 
   // Compute XP using actual run history for completed missions so the values
   // match what's shown on each mission card, regardless of persisted xpReward.
-  const { campaignXpEarned, campaignXpTotal } = useMemo(() => {
-    // Sort ascending so later runs overwrite earlier ones in the map
-    const sorted = [...runHistory].sort((a, b) => a.completedAt.localeCompare(b.completedAt));
-    const earnedByMission = new Map<string, number>();
-    for (const run of sorted) {
-      earnedByMission.set(run.missionId, run.xpEarned);
-    }
-    let earned = 0;
-    let total = 0;
-    for (const m of campaignMissions) {
-      const actual = m.status === 'completed' ? (earnedByMission.get(m.id) ?? m.xpReward) : m.xpReward;
-      if (m.status === 'completed') earned += actual;
-      total += actual;
-    }
-    return { campaignXpEarned: earned, campaignXpTotal: total };
-  }, [campaignMissions, runHistory]);
+  const { campaignXpEarned, campaignXpTotal } = useMemo(
+    () => getCampaignXpEarnedAndTotal(campaignMissions, runHistory),
+    [campaignMissions, runHistory],
+  );
   const refreshMissions = useMissionsStore((s) => s.refreshIfNewWeek);
   const generateWeek = useMissionsStore((s) => s.generateWeek);
   const initCampaign = useMissionsStore((s) => s.initCampaign);
@@ -120,13 +109,13 @@ export default function JourneyScreen() {
           )}
         </View>
 
-        {/* Campaign XP progress bar */}
+        {/* Campaign progress */}
         {useCampaigns && totalMissions > 0 && (
           <View style={styles.weekCard}>
             <View style={styles.weekCardHeader}>
               <View style={styles.weekCardLeft}>
                 <MaterialIcons name="emoji-events" size={18} color={colors.orange} />
-                <Text style={styles.weekCardTitle}>Campaign XP</Text>
+                <Text style={styles.weekCardTitle}>Campaign</Text>
               </View>
               <Text style={styles.weekCardCount}>
                 {campaignXpEarned} / {campaignXpTotal} XP
