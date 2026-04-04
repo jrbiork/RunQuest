@@ -11,16 +11,36 @@ export function setAudioMutedFlag(muted: boolean) { _muted = muted; }
 export function isAudioMuted() { return _muted; }
 
 /**
- * Run / mission audio: duckOthers + shouldPlayInBackground.
- * duckOthers (.playback + .duckOthers category) works reliably for background
- * playback on iOS whether the app is minimised or the screen is locked.
+ * Between cues the heartbeat uses mixWithOthers so Spotify / Apple Music play
+ * at full volume. Just before each cue we switch to duckOthers — iOS lowers
+ * other apps while the voice plays — then restore mixWithOthers immediately
+ * after the clip finishes so music returns to full volume.
  */
-const RUN_PLAYBACK_MODE = {
+const RUN_IDLE_MODE = {
+  playsInSilentMode: true,
+  shouldPlayInBackground: true,
+  interruptionMode: 'mixWithOthers' as const,
+  allowsRecording: false,
+};
+
+const RUN_CUE_MODE = {
   playsInSilentMode: true,
   shouldPlayInBackground: true,
   interruptionMode: 'duckOthers' as const,
   allowsRecording: false,
 };
+
+// Count of cues currently playing. When it drops to zero we restore idle mode.
+let _activeCues = 0;
+
+function _onCueFinished(): void {
+  _activeCues = Math.max(0, _activeCues - 1);
+  if (_activeCues === 0 && _runHeartbeat) {
+    // Restore mixWithOthers so Spotify returns to full volume.
+    setAudioModeAsync(RUN_IDLE_MODE).catch(() => {});
+    if (__DEV__) console.log('[audio] idle mode restored after cue');
+  }
+}
 
 /** Keep session alive between short clips so iOS doesn't tear it down mid-run. */
 const RUN_CUE_PLAYER_OPTIONS = { keepAudioSessionActive: true as const };
@@ -60,8 +80,9 @@ let _runHeartbeat: ReturnType<typeof createAudioPlayer> | null = null;
  */
 export async function ensureRunPlaybackAudioMode(): Promise<void> {
   try {
-    await setAudioModeAsync(RUN_PLAYBACK_MODE);
-    if (__DEV__) console.log('[audio] audio mode set: duckOthers + shouldPlayInBackground');
+    // Start in idle mode (mixWithOthers) — Spotify keeps playing at full volume.
+    await setAudioModeAsync(RUN_IDLE_MODE);
+    if (__DEV__) console.log('[audio] audio mode set: mixWithOthers (idle)');
   } catch (e) {
     if (__DEV__) console.warn('[audio] setAudioModeAsync failed:', e);
     return;
@@ -74,7 +95,7 @@ export async function ensureRunPlaybackAudioMode(): Promise<void> {
       keepAudioSessionActive: true,
     });
     _runHeartbeat.loop = true;
-    _runHeartbeat.volume = 0; // completely silent — just holds the session open
+    _runHeartbeat.volume = 0;
     _runHeartbeat.play();
     if (__DEV__) console.log('[audio] run heartbeat started');
   } catch (e) {
@@ -176,7 +197,8 @@ export async function playGoalReachedSound(): Promise<void> {
 
   // Audio chime
   try {
-    await setAudioModeAsync(RUN_PLAYBACK_MODE);
+    await setAudioModeAsync(RUN_CUE_MODE);
+    _activeCues++;
 
     const player = createAudioPlayer(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -186,6 +208,7 @@ export async function playGoalReachedSound(): Promise<void> {
 
     player.play();
     releaseRunAudioPlayer(player, 2000);
+    setTimeout(_onCueFinished, 2000);
   } catch {
     // Silent fail — audio is a nice-to-have
   }
@@ -200,7 +223,8 @@ export async function playMissionFailedSound(): Promise<void> {
   }
   if (_muted) return;
   try {
-    await setAudioModeAsync(RUN_PLAYBACK_MODE);
+    await setAudioModeAsync(RUN_CUE_MODE);
+    _activeCues++;
     const player = createAudioPlayer(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('../../assets/sounds/goal_reached.wav'),
@@ -209,6 +233,7 @@ export async function playMissionFailedSound(): Promise<void> {
     player.volume = 0.35;
     player.play();
     releaseRunAudioPlayer(player, 2000);
+    setTimeout(_onCueFinished, 2000);
   } catch {
     // ignore
   }
@@ -231,11 +256,13 @@ export async function speakRunCue(line: string): Promise<void> {
     const source = RUN_CUE_REQUIRES[bundledIdx];
     if (source !== undefined) {
       try {
-        await setAudioModeAsync(RUN_PLAYBACK_MODE);
+        await setAudioModeAsync(RUN_CUE_MODE); // duck Spotify for the duration of this cue
+        _activeCues++;
         const player = createAudioPlayer(source, RUN_CUE_PLAYER_OPTIONS);
         player.play();
         if (__DEV__) console.log('[speakRunCue] ✅ bundled cue playing, idx=', bundledIdx);
         releaseRunAudioPlayer(player, 6000);
+        setTimeout(_onCueFinished, 6000); // restore mixWithOthers after clip finishes
         return;
       } catch (e) {
         if (__DEV__) console.warn('[speakRunCue] ❌ bundled play failed:', e);
@@ -289,11 +316,13 @@ export async function speakRunCue(line: string): Promise<void> {
     });
 
     // 3. Play
-    await setAudioModeAsync(RUN_PLAYBACK_MODE);
+    await setAudioModeAsync(RUN_CUE_MODE); // duck Spotify for the duration of this cue
+    _activeCues++;
     const player = createAudioPlayer({ uri: tempPath }, RUN_CUE_PLAYER_OPTIONS);
     player.play();
     if (__DEV__) console.log('[speakRunCue] ✅ TTS cue playing');
     releaseRunAudioPlayer(player, 5000, tempPath);
+    setTimeout(_onCueFinished, 5000); // restore mixWithOthers after clip finishes
 
   } catch (e) {
     if (__DEV__) console.warn('[speakRunCue] ❌ TTS failed:', e);
