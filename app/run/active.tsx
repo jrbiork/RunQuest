@@ -389,7 +389,7 @@ export default function ActiveRunScreen() {
     return () => sub.remove();
   }, [isTracking, timeFailed, confirmAbort, handleTimeFailureToJourney]);
 
-  // Road snap for map (ORS): interval + ref so updates are not reset by every GPS tick (debounce never fired before).
+  // Road-following polyline (ORS Directions geometry, snap fallback): interval + ref so updates are not reset by every GPS tick.
   useEffect(() => {
     if (path.length < 2) {
       setSnappedPolyline(null);

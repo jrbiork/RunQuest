@@ -123,3 +123,18 @@ export function personaIdFromScore(total: number): PersonaId {
 export function computePersonaId(answers: PersonaSurveyAnswers): PersonaId {
   return personaIdFromScore(computePersonaScore(answers));
 }
+
+/** Linear class progression for evolution UI and dev tools (ghost → … → vanguard). */
+export const PERSONA_PROGRESSION_ORDER: PersonaId[] = [
+  'ghost',
+  'scout',
+  'operative',
+  'elite',
+  'vanguard',
+];
+
+export function nextPersonaId(personaId: PersonaId): PersonaId | null {
+  const i = PERSONA_PROGRESSION_ORDER.indexOf(personaId);
+  if (i < 0 || i >= PERSONA_PROGRESSION_ORDER.length - 1) return null;
+  return PERSONA_PROGRESSION_ORDER[i + 1]!;
+}

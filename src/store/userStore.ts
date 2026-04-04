@@ -215,7 +215,11 @@ export const useUserStore = create<UserStore>()(
       updateProfile: (updates) => {
         const state = get();
         if (!state.profile) return;
-        set({ profile: { ...state.profile, ...updates } });
+        const profile = { ...state.profile, ...updates };
+        set({
+          profile,
+          ...(updates.personaId != null ? { personaId: updates.personaId } : {}),
+        });
       },
 
       resetOnboarding: () => {

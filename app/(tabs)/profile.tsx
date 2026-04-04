@@ -3,6 +3,7 @@ import {
   ScrollView,
   View,
   Text,
+  TextInput,
   StyleSheet,
   TouchableOpacity,
   ViewStyle,
@@ -35,7 +36,12 @@ import {
 } from '../../src/utils/xpCalculator';
 import { getDisplayXpTotal } from '../../src/utils/displayXp';
 import { getDisplayOverallStats } from '../../src/utils/displayStats';
-import { useDevStore, getMockedDateLabel } from '../../src/store/devStore';
+import {
+  useDevStore,
+  getMockedDateLabel,
+  devCompleteSuccessfulMissions,
+  devCompleteAllCampaignsAndUpgradePersona,
+} from '../../src/store/devStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
 import {
   CampaignProgressCard,
@@ -136,6 +142,8 @@ export default function ProfileScreen() {
 
   const [showGoalEditor, setShowGoalEditor] = useState(false);
   void showGoalEditor;
+  const [devTestMissionCountInput, setDevTestMissionCountInput] =
+    useState('1');
 
   const runsThisWeek = weeklyProgress?.runsCompleted ?? 0;
   const weekProgress =
@@ -248,12 +256,11 @@ export default function ProfileScreen() {
           <View style={styles.campaignBlock}>
             <View style={styles.campaignTitleRow}>
               <View style={styles.campaignAccent} />
-              <Text style={styles.campaignTitle}>Evolution</Text>
+              <Text style={styles.campaignTitle}>Class Evolution</Text>
             </View>
             <CampaignProgressCard
               profile={profile}
               campaignsCompleted={campaignsCompletedDisplay}
-              displayXpTotal={displayXpTotal}
             />
           </View>
         )}
@@ -354,6 +361,140 @@ export default function ProfileScreen() {
               />
             </TouchableOpacity>
           </View>
+
+          {profile && (
+            <View style={styles.devSeedBlock}>
+              <Text style={styles.devInputLabel}>
+                Successful missions (goal met)
+              </Text>
+              <TextInput
+                value={devTestMissionCountInput}
+                onChangeText={setDevTestMissionCountInput}
+                keyboardType="number-pad"
+                placeholder="e.g. 3"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.devTextInput}
+              />
+              <Button
+                label="Complete missions (success)"
+                icon="science"
+                variant="secondary"
+                fullWidth
+                onPress={() => {
+                  const trimmed = devTestMissionCountInput.trim();
+                  if (!/^\d+$/.test(trimmed)) {
+                    Alert.alert(
+                      'Invalid number',
+                      'Enter a whole number from 0 to 9999.',
+                    );
+                    return;
+                  }
+                  const n = parseInt(trimmed, 10);
+                  if (n > 9999) {
+                    Alert.alert(
+                      'Invalid number',
+                      'Enter a whole number from 0 to 9999.',
+                    );
+                    return;
+                  }
+                  if (n === 0) {
+                    Alert.alert('Nothing to do', 'Enter a number greater than zero.');
+                    return;
+                  }
+                  Alert.alert(
+                    'Complete missions?',
+                    `Marks the next ${n} incomplete mission${n === 1 ? '' : 's'} as successful (goal met), records runs and XP like a real finish. Stops early if fewer missions remain. Does not change campaign progress.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Complete',
+                        onPress: () => {
+                          const { completed, requested } =
+                            devCompleteSuccessfulMissions(profile, n);
+                          if (completed === 0) {
+                            Alert.alert(
+                              'No missions',
+                              'There are no incomplete missions in your current deployment.',
+                            );
+                          } else if (completed < requested) {
+                            Alert.alert(
+                              'Partially complete',
+                              `Completed ${completed} of ${requested} — no more incomplete missions left in this set.`,
+                            );
+                          } else {
+                            Alert.alert(
+                              'Done',
+                              `Completed ${completed} mission${completed === 1 ? '' : 's'} successfully.`,
+                            );
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+              />
+              <Button
+                label="Test: all campaigns + class up"
+                icon="trending-up"
+                variant="secondary"
+                fullWidth
+                onPress={() => {
+                  if (!profile.personaId) {
+                    Alert.alert(
+                      'Class required',
+                      'Choose a class during onboarding to use this shortcut.',
+                    );
+                    return;
+                  }
+                  Alert.alert(
+                    'Finish all campaigns?',
+                    'Completes every mission in every campaign for your current class (like successful runs), then promotes you to the next class and loads their first campaign. If you are already Vanguard, you only complete the remaining Vanguard campaigns.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Run',
+                        onPress: () => {
+                          const r =
+                            devCompleteAllCampaignsAndUpgradePersona(profile);
+                          if (r == null) {
+                            Alert.alert('Error', 'No profile class found.');
+                            return;
+                          }
+                          if (r.outcome === 'upgraded') {
+                            const fromLabel = personaLabelTitleCase(
+                              PERSONA_LABELS[r.previousPersona].label,
+                            );
+                            const toLabel = personaLabelTitleCase(
+                              PERSONA_LABELS[r.newPersona].label,
+                            );
+                            Alert.alert(
+                              'Class upgraded',
+                              `${fromLabel} → ${toLabel}. Journey and profile now use your new class.`,
+                            );
+                          } else if (r.outcome === 'max_tier') {
+                            Alert.alert(
+                              'Done',
+                              'All Vanguard campaigns are complete. You are already at the highest class.',
+                            );
+                          } else if (r.outcome === 'stuck') {
+                            Alert.alert(
+                              'Could not finish',
+                              'Progress did not advance — check mission state or try resetting missions.',
+                            );
+                          } else {
+                            Alert.alert(
+                              'No campaigns',
+                              'No campaign data for this class.',
+                            );
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+              />
+            </View>
+          )}
         </Card>
 
         {/* ─── Actions ─────────────────────────────────────────────── */}
@@ -644,6 +785,28 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     letterSpacing: 1,
+  } as TextStyle,
+  devSeedBlock: {
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  } as ViewStyle,
+  devInputLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
+  devTextInput: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
   } as TextStyle,
 
   // Settings card

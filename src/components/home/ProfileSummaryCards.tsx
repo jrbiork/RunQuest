@@ -8,26 +8,9 @@ import {
   fontSizes,
   fontWeights,
 } from '../../constants/theme';
-import {
-  getTotalCampaignXp,
-  PERSONA_CAMPAIGNS,
-  PERSONA_LABELS,
-} from '../../constants/campaigns';
+import { PERSONA_CAMPAIGNS, PERSONA_LABELS } from '../../constants/campaigns';
 import type { PersonaId, UserProfile } from '../../types';
-
-const PERSONA_ORDER: PersonaId[] = [
-  'ghost',
-  'scout',
-  'operative',
-  'elite',
-  'vanguard',
-];
-
-function nextPersonaId(personaId: PersonaId): PersonaId | null {
-  const i = PERSONA_ORDER.indexOf(personaId);
-  if (i < 0 || i >= PERSONA_ORDER.length - 1) return null;
-  return PERSONA_ORDER[i + 1]!;
-}
+import { nextPersonaId } from '../../utils/personaScoring';
 
 /** Title-case persona label (e.g. SCOUT → Scout). */
 export function personaLabelTitleCase(upperLabel: string): string {
@@ -60,10 +43,8 @@ function frequencyPerWeekLabel(profile: UserProfile): string {
 
 type Props = {
   profile: UserProfile;
-  /** Full campaigns finished (not “current campaign slot”). */
+  /** Campaigns finished for this class (aligned with journey / store). */
   campaignsCompleted: number;
-  /** Display XP total (reconciled) for this persona’s track. */
-  displayXpTotal: number;
 };
 
 /** Interpolate hex component between two values, 0–1. */
@@ -130,11 +111,7 @@ function ChevronProgressBar({
 
 const ARROW_COUNT = 15;
 
-export function CampaignProgressCard({
-  profile,
-  campaignsCompleted,
-  displayXpTotal,
-}: Props) {
+export function CampaignProgressCard({ profile, campaignsCompleted }: Props) {
   const personaId = profile.personaId;
   if (!personaId) return null;
 
@@ -145,7 +122,11 @@ export function CampaignProgressCard({
     1,
   );
   const filledArrows = Math.round(campaignProgress * ARROW_COUNT);
-  const personaTrackXpCap = getTotalCampaignXp(personaId);
+  const completedShown = Math.min(
+    Math.max(0, Math.floor(campaignsCompleted)),
+    totalCampaigns,
+  );
+  const remainingOnTrack = Math.max(0, totalCampaigns - completedShown);
   const nextId = nextPersonaId(personaId);
   const nextTitle = nextId
     ? personaLabelTitleCase(PERSONA_LABELS[nextId].label)
@@ -160,12 +141,12 @@ export function CampaignProgressCard({
         </Text>
         <Text style={styles.classInlineSep}> · </Text>
         <Text style={styles.evolutionRowLabel}>
-          Next Class:{' '}
+          Next:{' '}
           <Text style={styles.evolutionRowValue}>{nextTitle ?? '—'}</Text>
         </Text>
       </View>
 
-      <Text style={styles.evolutionSectionTitle}>Evolution progress</Text>
+      <Text style={styles.evolutionSectionTitle}>Class Evolution progress</Text>
 
       <ChevronProgressBar
         completed={filledArrows}
@@ -176,8 +157,10 @@ export function CampaignProgressCard({
 
       <View style={styles.bulletList}>
         <Text style={styles.bulletLine}>
-          {Math.round(displayXpTotal).toLocaleString()} /{' '}
-          {personaTrackXpCap.toLocaleString()} XP
+          Campaigns completed:{' '}
+          <Text style={styles.evolutionRowValue}>
+            {completedShown} / {totalCampaigns}
+          </Text>
         </Text>
       </View>
     </Card>
@@ -380,6 +363,11 @@ const styles = StyleSheet.create({
   bulletLine: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
+  } as TextStyle,
+  evolutionSubLine: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
+    lineHeight: 18,
   } as TextStyle,
 
   profileCard: { gap: spacing.sm } as ViewStyle,
