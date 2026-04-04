@@ -36,9 +36,7 @@ let _activeCues = 0;
 function _onCueFinished(): void {
   _activeCues = Math.max(0, _activeCues - 1);
   if (_activeCues === 0 && _runHeartbeat) {
-    // Restore mixWithOthers so Spotify returns to full volume.
     setAudioModeAsync(RUN_IDLE_MODE).catch(() => {});
-    if (__DEV__) console.log('[audio] idle mode restored after cue');
   }
 }
 
@@ -80,11 +78,8 @@ let _runHeartbeat: ReturnType<typeof createAudioPlayer> | null = null;
  */
 export async function ensureRunPlaybackAudioMode(): Promise<void> {
   try {
-    // Start in idle mode (mixWithOthers) — Spotify keeps playing at full volume.
     await setAudioModeAsync(RUN_IDLE_MODE);
-    if (__DEV__) console.log('[audio] audio mode set: mixWithOthers (idle)');
-  } catch (e) {
-    if (__DEV__) console.warn('[audio] setAudioModeAsync failed:', e);
+  } catch {
     return;
   }
 
@@ -97,9 +92,7 @@ export async function ensureRunPlaybackAudioMode(): Promise<void> {
     _runHeartbeat.loop = true;
     _runHeartbeat.volume = 0;
     _runHeartbeat.play();
-    if (__DEV__) console.log('[audio] run heartbeat started');
-  } catch (e) {
-    if (__DEV__) console.warn('[audio] heartbeat start failed:', e);
+  } catch {
     _runHeartbeat = null;
   }
 }
@@ -114,7 +107,6 @@ export function stopRunPlaybackAudioMode(): void {
     // ignore
   }
   _runHeartbeat = null;
-  if (__DEV__) console.log('[audio] run heartbeat stopped');
 }
 
 let onboardingAmbientPlayer: ReturnType<typeof createAudioPlayer> | null = null;
@@ -246,38 +238,28 @@ export async function playMissionFailedSound(): Promise<void> {
 const MAX_TTS_CHARS = 220;
 
 export async function speakRunCue(line: string): Promise<void> {
-  if (__DEV__) console.log('[speakRunCue] called, muted=', _muted, 'line=', line.slice(0, 60));
   if (_muted) return;
 
   const bundledIdx = getBundledRunCueIndex(line);
-  if (__DEV__) console.log('[speakRunCue] bundledIdx=', bundledIdx);
 
   if (bundledIdx !== undefined) {
     const source = RUN_CUE_REQUIRES[bundledIdx];
     if (source !== undefined) {
       try {
-        await setAudioModeAsync(RUN_CUE_MODE); // duck Spotify for the duration of this cue
+        await setAudioModeAsync(RUN_CUE_MODE);
         _activeCues++;
         const player = createAudioPlayer(source, RUN_CUE_PLAYER_OPTIONS);
         player.play();
-        if (__DEV__) console.log('[speakRunCue] ✅ bundled cue playing, idx=', bundledIdx);
         releaseRunAudioPlayer(player, 6000);
-        setTimeout(_onCueFinished, 6000); // restore mixWithOthers after clip finishes
+        setTimeout(_onCueFinished, 6000);
         return;
-      } catch (e) {
-        if (__DEV__) console.warn('[speakRunCue] ❌ bundled play failed:', e);
+      } catch {
         // fall through to network TTS
       }
     }
   }
 
   if (!OPENAI_API_KEY) {
-    if (__DEV__) {
-      console.warn(
-        '[speakRunCue] ❌ No bundled match and no OPENAI_API_KEY. Line not found in bundledRunCueStrings:',
-        line.slice(0, 120),
-      );
-    }
     return;
   }
 
@@ -316,15 +298,14 @@ export async function speakRunCue(line: string): Promise<void> {
     });
 
     // 3. Play
-    await setAudioModeAsync(RUN_CUE_MODE); // duck Spotify for the duration of this cue
+    await setAudioModeAsync(RUN_CUE_MODE);
     _activeCues++;
     const player = createAudioPlayer({ uri: tempPath }, RUN_CUE_PLAYER_OPTIONS);
     player.play();
-    if (__DEV__) console.log('[speakRunCue] ✅ TTS cue playing');
     releaseRunAudioPlayer(player, 5000, tempPath);
-    setTimeout(_onCueFinished, 5000); // restore mixWithOthers after clip finishes
+    setTimeout(_onCueFinished, 5000);
 
-  } catch (e) {
-    if (__DEV__) console.warn('[speakRunCue] ❌ TTS failed:', e);
+  } catch {
+    // ignore
   }
 }

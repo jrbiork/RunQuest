@@ -20,6 +20,9 @@ const _backgroundBuffer: GpsPoint[] = [];
 // Module-level state is accessible from both the main JS context and the
 // background TaskManager handler, so cues fire even when the screen is locked.
 
+/** Don’t fire % milestones until after the 5s mission-start cue has had time to play. */
+const MILESTONE_MIN_MS_AFTER_RUN_START = 5500;
+
 interface BgCueState {
   targetDistanceKm: number;
   cueSet: Pick<MissionAudioCueSet, 'quarter' | 'half' | 'threeQuarter'> | null;
@@ -27,6 +30,7 @@ interface BgCueState {
   milestone50Fired: boolean;
   milestone75Fired: boolean;
   active: boolean;
+  runStartedAtMs: number;
 }
 
 const _bgCueState: BgCueState = {
@@ -36,6 +40,7 @@ const _bgCueState: BgCueState = {
   milestone50Fired: false,
   milestone75Fired: false,
   active: false,
+  runStartedAtMs: 0,
 };
 
 // Incremental distance tracker — avoids O(n) full-path recalculation on each update.
@@ -57,14 +62,12 @@ function _addBgPoint(point: GpsPoint): void {
 
 async function _checkBgMilestoneCues(): Promise<void> {
   const s = _bgCueState;
-  if (__DEV__) console.log('[bgCues] check — active:', s.active, 'dist:', _bgDistanceKm.toFixed(3), 'target:', s.targetDistanceKm);
   if (!s.active || !s.cueSet || s.targetDistanceKm <= 0) return;
+  if (Date.now() - s.runStartedAtMs < MILESTONE_MIN_MS_AFTER_RUN_START) return;
   const ratio = _bgDistanceKm / s.targetDistanceKm;
-  // DEV: use 1% thresholds so a few metres of movement triggers each cue for testing.
-  const t25 = __DEV__ ? 0.01 : 0.25;
-  const t50 = __DEV__ ? 0.02 : 0.50;
-  const t75 = __DEV__ ? 0.03 : 0.75;
-  if (__DEV__) console.log('[bgCues] ratio:', ratio.toFixed(4), '| thresholds:', t25, t50, t75, '| fired:', s.milestone25Fired, s.milestone50Fired, s.milestone75Fired);
+  const t25 = 0.25;
+  const t50 = 0.5;
+  const t75 = 0.75;
   if (!s.milestone25Fired && ratio >= t25) {
     s.milestone25Fired = true;
     await speakRunCue(pickCue(s.cueSet.quarter));
@@ -93,8 +96,8 @@ export function initBackgroundCueTracking(
   _bgCueState.milestone25Fired = false;
   _bgCueState.milestone50Fired = false;
   _bgCueState.milestone75Fired = false;
+  _bgCueState.runStartedAtMs = Date.now();
   _bgCueState.active = !!cueSet && targetDistanceKm > 0;
-  if (__DEV__) console.log('[bgCues] initBackgroundCueTracking — target:', targetDistanceKm, 'active:', _bgCueState.active);
 }
 
 /** Call when the run ends or is aborted to stop cue checking. */
@@ -107,7 +110,6 @@ export function stopBackgroundCueTracking(): void {
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   if (error) return;
   const { locations } = data as { locations: Location.LocationObject[] };
-  if (__DEV__) console.log('[bgTask] fired, locations:', locations.length, 'bgDist:', _bgDistanceKm.toFixed(3));
   for (const loc of locations) {
     const point: GpsPoint = {
       latitude: loc.coords.latitude,
@@ -189,7 +191,9 @@ export function useGpsTracking(): GpsTrackingState {
   const _startBackgroundTask = useCallback(async () => {
     if (!hasBgRef.current) return;
     try {
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(
+        BACKGROUND_LOCATION_TASK,
+      );
       if (!isRegistered) {
         await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
           accuracy: Location.Accuracy.BestForNavigation,
@@ -212,7 +216,9 @@ export function useGpsTracking(): GpsTrackingState {
     fgSubscriptionRef.current?.remove();
     fgSubscriptionRef.current = null;
     try {
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(
+        BACKGROUND_LOCATION_TASK,
+      );
       if (isRegistered) {
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       }
@@ -252,7 +258,8 @@ export function useGpsTracking(): GpsTrackingState {
   }, [isTracking, isPaused, _startForegroundWatcher, _startBackgroundTask]);
 
   const start = useCallback(async () => {
-    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    const { status: fgStatus } =
+      await Location.requestForegroundPermissionsAsync();
     if (fgStatus !== 'granted') {
       setHasPermission(false);
       return;
@@ -260,7 +267,8 @@ export function useGpsTracking(): GpsTrackingState {
 
     let hasBg = false;
     try {
-      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+      const { status: bgStatus } =
+        await Location.requestBackgroundPermissionsAsync();
       hasBg = bgStatus === 'granted';
     } catch {
       // expo-location may throw if already determined on some OS versions
@@ -293,17 +301,24 @@ export function useGpsTracking(): GpsTrackingState {
     timerRef.current = setInterval(() => {
       // Only advance the clock while not paused
       if (segmentStartMsRef.current !== null) {
-        const total = accumulatedMsRef.current + (Date.now() - segmentStartMsRef.current);
+        const total =
+          accumulatedMsRef.current + (Date.now() - segmentStartMsRef.current);
         setElapsedSec(Math.floor(total / 1000));
       }
 
       // Merge any background points that arrived while app was minimised
       if (_backgroundBuffer.length > 0) {
         const newPoints = _backgroundBuffer.splice(0, _backgroundBuffer.length);
-        const existingTimestamps = new Set(pathRef.current.map((p) => p.timestamp));
-        const unique = newPoints.filter((p) => !existingTimestamps.has(p.timestamp));
+        const existingTimestamps = new Set(
+          pathRef.current.map((p) => p.timestamp),
+        );
+        const unique = newPoints.filter(
+          (p) => !existingTimestamps.has(p.timestamp),
+        );
         if (unique.length > 0) {
-          const merged = [...pathRef.current, ...unique].sort((a, b) => a.timestamp - b.timestamp);
+          const merged = [...pathRef.current, ...unique].sort(
+            (a, b) => a.timestamp - b.timestamp,
+          );
           pathRef.current = merged;
           setPath(merged);
           setDistanceKm(calcDistanceKmGps(merged));
@@ -317,11 +332,27 @@ export function useGpsTracking(): GpsTrackingState {
     return () => {
       fgSubscriptionRef.current?.remove();
       if (timerRef.current !== null) clearInterval(timerRef.current);
-      TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK).then((registered) => {
-        if (registered) Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(() => {});
-      });
+      TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK).then(
+        (registered) => {
+          if (registered)
+            Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(
+              () => {},
+            );
+        },
+      );
     };
   }, []);
 
-  return { path, distanceKm, elapsedSec, isTracking, isPaused, hasPermission, start, stop, pause, resume };
+  return {
+    path,
+    distanceKm,
+    elapsedSec,
+    isTracking,
+    isPaused,
+    hasPermission,
+    start,
+    stop,
+    pause,
+    resume,
+  };
 }
