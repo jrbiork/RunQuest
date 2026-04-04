@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import type { GpsPoint } from '../types';
-import { calcDistanceKm } from '../utils/haversine';
+import type { GpsPoint, MissionAudioCueSet } from '../types';
+import { calcDistanceKmGps } from '../utils/haversine';
+import { speakRunCue } from '../services/audioService';
+import { pickCue } from '../constants/missions';
 
 // ─── Background task name ─────────────────────────────────────────────────────
 
@@ -14,18 +16,113 @@ export const BACKGROUND_LOCATION_TASK = 'runquest-background-location';
 
 const _backgroundBuffer: GpsPoint[] = [];
 
+// ─── Background-safe milestone cue state ─────────────────────────────────────
+// Module-level state is accessible from both the main JS context and the
+// background TaskManager handler, so cues fire even when the screen is locked.
+
+interface BgCueState {
+  targetDistanceKm: number;
+  cueSet: Pick<MissionAudioCueSet, 'quarter' | 'half' | 'threeQuarter'> | null;
+  milestone25Fired: boolean;
+  milestone50Fired: boolean;
+  milestone75Fired: boolean;
+  active: boolean;
+}
+
+const _bgCueState: BgCueState = {
+  targetDistanceKm: 0,
+  cueSet: null,
+  milestone25Fired: false,
+  milestone50Fired: false,
+  milestone75Fired: false,
+  active: false,
+};
+
+// Incremental distance tracker — avoids O(n) full-path recalculation on each update.
+let _bgDistanceKm = 0;
+let _bgLastPoint: GpsPoint | null = null;
+// Timestamp set deduplicates points that arrive in both the foreground callback
+// and the background task (both fire while the app is foregrounded).
+const _bgSeenTimestamps = new Set<number>();
+
+function _addBgPoint(point: GpsPoint): void {
+  if (_bgSeenTimestamps.has(point.timestamp)) return;
+  _bgSeenTimestamps.add(point.timestamp);
+  if (_bgLastPoint) {
+    // reuse noise-floor filtering from calcDistanceKmGps
+    _bgDistanceKm += calcDistanceKmGps([_bgLastPoint, point]);
+  }
+  _bgLastPoint = point;
+}
+
+async function _checkBgMilestoneCues(): Promise<void> {
+  const s = _bgCueState;
+  if (__DEV__) console.log('[bgCues] check — active:', s.active, 'dist:', _bgDistanceKm.toFixed(3), 'target:', s.targetDistanceKm);
+  if (!s.active || !s.cueSet || s.targetDistanceKm <= 0) return;
+  const ratio = _bgDistanceKm / s.targetDistanceKm;
+  // DEV: use 1% thresholds so a few metres of movement triggers each cue for testing.
+  const t25 = __DEV__ ? 0.01 : 0.25;
+  const t50 = __DEV__ ? 0.02 : 0.50;
+  const t75 = __DEV__ ? 0.03 : 0.75;
+  if (__DEV__) console.log('[bgCues] ratio:', ratio.toFixed(4), '| thresholds:', t25, t50, t75, '| fired:', s.milestone25Fired, s.milestone50Fired, s.milestone75Fired);
+  if (!s.milestone25Fired && ratio >= t25) {
+    s.milestone25Fired = true;
+    await speakRunCue(pickCue(s.cueSet.quarter));
+  }
+  if (!s.milestone50Fired && ratio >= t50) {
+    s.milestone50Fired = true;
+    await speakRunCue(pickCue(s.cueSet.half));
+  }
+  if (!s.milestone75Fired && ratio >= t75) {
+    s.milestone75Fired = true;
+    await speakRunCue(pickCue(s.cueSet.threeQuarter));
+  }
+}
+
+/**
+ * Call once tracking starts to enable background-safe milestone audio cues.
+ * Cues fire from both the foreground location callback and the background task
+ * handler, so they play whether the app is active, minimised, or screen-locked.
+ */
+export function initBackgroundCueTracking(
+  targetDistanceKm: number,
+  cueSet: Pick<MissionAudioCueSet, 'quarter' | 'half' | 'threeQuarter'> | null,
+): void {
+  _bgCueState.targetDistanceKm = targetDistanceKm;
+  _bgCueState.cueSet = cueSet;
+  _bgCueState.milestone25Fired = false;
+  _bgCueState.milestone50Fired = false;
+  _bgCueState.milestone75Fired = false;
+  _bgCueState.active = !!cueSet && targetDistanceKm > 0;
+  if (__DEV__) console.log('[bgCues] initBackgroundCueTracking — target:', targetDistanceKm, 'active:', _bgCueState.active);
+}
+
+/** Call when the run ends or is aborted to stop cue checking. */
+export function stopBackgroundCueTracking(): void {
+  _bgCueState.active = false;
+}
+
 // ─── Register background task (must be at module top-level, outside any component) ─
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   if (error) return;
   const { locations } = data as { locations: Location.LocationObject[] };
+  if (__DEV__) console.log('[bgTask] fired, locations:', locations.length, 'bgDist:', _bgDistanceKm.toFixed(3));
   for (const loc of locations) {
-    _backgroundBuffer.push({
+    const point: GpsPoint = {
       latitude: loc.coords.latitude,
       longitude: loc.coords.longitude,
       timestamp: loc.timestamp,
-    });
+      ...(loc.coords.accuracy != null && loc.coords.accuracy > 0
+        ? { accuracy: loc.coords.accuracy }
+        : {}),
+    };
+    _backgroundBuffer.push(point);
+    _addBgPoint(point);
   }
+  // Await cue playback so the task stays alive until player.play() fires on native.
+  // Without this await, iOS suspends JS before speakRunCue's async chain completes.
+  await _checkBgMilestoneCues();
 });
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -69,16 +166,22 @@ export function useGpsTracking(): GpsTrackingState {
         distanceInterval: 5,
         timeInterval: 2000,
       },
-      (loc) => {
+      async (loc) => {
         const point: GpsPoint = {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
           timestamp: loc.timestamp,
+          ...(loc.coords.accuracy != null && loc.coords.accuracy > 0
+            ? { accuracy: loc.coords.accuracy }
+            : {}),
         };
+        // Update background-safe distance tracker and fire any due milestone cues.
+        _addBgPoint(point);
+        await _checkBgMilestoneCues();
         const updated = [...pathRef.current, point];
         pathRef.current = updated;
         setPath(updated);
-        setDistanceKm(calcDistanceKm(updated));
+        setDistanceKm(calcDistanceKmGps(updated));
       },
     );
   }, []);
@@ -169,6 +272,12 @@ export function useGpsTracking(): GpsTrackingState {
     // Reset state for a fresh run
     pathRef.current = [];
     _backgroundBuffer.length = 0;
+
+    // Reset background-safe distance tracking for the new run.
+    _bgDistanceKm = 0;
+    _bgLastPoint = null;
+    _bgSeenTimestamps.clear();
+
     accumulatedMsRef.current = 0;
     segmentStartMsRef.current = Date.now();
     setPath([]);
@@ -197,7 +306,7 @@ export function useGpsTracking(): GpsTrackingState {
           const merged = [...pathRef.current, ...unique].sort((a, b) => a.timestamp - b.timestamp);
           pathRef.current = merged;
           setPath(merged);
-          setDistanceKm(calcDistanceKm(merged));
+          setDistanceKm(calcDistanceKmGps(merged));
         }
       }
     }, 1000);

@@ -124,6 +124,8 @@ export interface GpsPoint {
   latitude: number;
   longitude: number;
   timestamp: number;
+  /** Horizontal accuracy (m), when provided by the OS — used to filter GPS drift when stationary. */
+  accuracy?: number;
 }
 
 // ─── Run / Completion ────────────────────────────────────────────────────────

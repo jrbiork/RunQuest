@@ -305,26 +305,23 @@ export function pickCue(variants: string[]): string {
   );
 }
 
-/** `{name}` is replaced with the plain mission title (no emojis). */
-const MISSION_START_LIVE_CUE_TEMPLATES = [
-  '{name}. Mission live. Move now.',
-  '{name}. Mission starting. Stay sharp—go.',
-  '{name}. You’re live. Go, go.',
-  '{name}. You’re up. Move.',
-  '{name}. Window open. Go now.',
-  '{name}. On you now. Move.',
-  '{name}. Time’s running. Go.',
+/** First cue when map mission tracking starts (running/cycling) — static lines, no mission title. */
+export const MISSION_START_LIVE_CUE_TEMPLATES = [
+  'Mission live. Move now.',
+  'Mission starting. Stay sharp—go.',
+  'You’re live. Go, go.',
+  'You’re up. Move.',
+  'Window open. Go now.',
+  'On you now. Move.',
+  'Time’s running. Go.',
 ] as const;
 
 /** First cue when map mission tracking starts (running/cycling). */
-export function buildMissionStartLiveCue(missionNamePlain: string): string {
-  return pickCue([...MISSION_START_LIVE_CUE_TEMPLATES]).replace(
-    /\{name\}/g,
-    missionNamePlain,
-  );
+export function buildMissionStartLiveCue(): string {
+  return pickCue([...MISSION_START_LIVE_CUE_TEMPLATES]);
 }
 
-const MISSION_COMPLETE_LIVE_CUE_LINES = [
+export const MISSION_COMPLETE_LIVE_CUE_LINES = [
   'Objective achieved. You’re getting stronger. Don’t stop now.',
   'Target reached. That’s how it’s done. Queue the next mission.',
   'Mission completed. Ready for the next?',

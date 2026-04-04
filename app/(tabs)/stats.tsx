@@ -640,6 +640,7 @@ export default function StatsScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDaySharing, setIsDaySharing] = useState(false);
   const [isMonthSharing, setIsMonthSharing] = useState(false);
+  const [missionLogExpanded, setMissionLogExpanded] = useState(false);
 
   const runHistory = useUserStore((s) => s.runHistory);
   const campaignMissions = useMissionsStore((s) => s.campaignMissions);
@@ -718,10 +719,21 @@ export default function StatsScreen() {
     () => getMonthStats(runHistory, year, month),
     [runHistory, year, month],
   );
-  const runsForViewedMonth = useMemo(
-    () => getRunsForMonth(runHistory, year, month),
-    [runHistory, year, month],
-  );
+  /** Mission log lists runs for the same month as the calendar navigator (year/month). */
+  const { runsForMissionLog, missionsEmptyLabel, missionLogPeriodLabel } =
+    useMemo(() => {
+      return {
+        runsForMissionLog: getRunsForMonth(runHistory, year, month),
+        missionsEmptyLabel: `No mission attempts in ${getMonthName(month)} ${year} yet.`,
+        missionLogPeriodLabel: `${getMonthName(month)} ${year}`,
+      };
+    }, [runHistory, year, month]);
+
+  const missionLogHasRuns = runsForMissionLog.length > 0;
+
+  useEffect(() => {
+    if (!missionLogHasRuns) setMissionLogExpanded(false);
+  }, [missionLogHasRuns]);
 
   /** Calendar month shown in the heatmap — for empty-state copy only. */
   const viewedMonthHasRuns = monthStats.totalRuns > 0;
@@ -729,7 +741,6 @@ export default function StatsScreen() {
   const monthlySectionSubtitle = isCurrentMonth
     ? 'This month'
     : `${getMonthName(month)} ${year}`;
-  const missionsEmptyLabel = `No mission attempts in ${getMonthName(month)} ${year} yet.`;
 
   const blanks = leadingBlanks(year, month);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -877,25 +888,72 @@ export default function StatsScreen() {
           />
         )}
 
-        {/* Mission log — attempts in the month shown above */}
+        {/* Mission log — selected calendar month; collapsed until expanded */}
         <Animated.View
           entering={FadeInDown.delay(120).duration(300)}
           style={styles.card}
         >
-          <View style={[styles.cardHeader, styles.cardHeaderCluster]}>
-            <MaterialIcons name="assignment" size={15} color={colors.orange} />
-            <Text
-              style={[styles.sectionTitle, { color: colors.textSecondary }]}
+          {missionLogHasRuns ? (
+            <TouchableOpacity
+              style={styles.missionLogHeader}
+              onPress={() => setMissionLogExpanded((e) => !e)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: missionLogExpanded }}
             >
-              Mission Log
-            </Text>
-          </View>
-          <MissionLogList
-            runs={runsForViewedMonth}
-            campaignMissions={campaignMissions}
-            weekMissions={weekMissions}
-            emptyLabel={missionsEmptyLabel}
-          />
+              <View style={styles.missionLogHeaderMain}>
+                <MaterialIcons name="assignment" size={15} color={colors.orange} />
+                <View style={styles.missionLogHeaderTextCol}>
+                  <Text
+                    style={[styles.sectionTitle, { color: colors.textSecondary }]}
+                  >
+                    Mission Log
+                  </Text>
+                  {!missionLogExpanded && (
+                    <Text style={styles.missionLogCollapsedHint}>
+                      {`${runsForMissionLog.length} attempt${
+                        runsForMissionLog.length === 1 ? '' : 's'
+                      } ${isCurrentMonth ? 'this month' : `in ${getMonthName(month)} ${year}`} · Tap to expand`}
+                    </Text>
+                  )}
+                  {missionLogExpanded && (
+                    <Text style={styles.missionLogCollapsedHint}>
+                      {missionLogPeriodLabel}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <MaterialIcons
+                name={missionLogExpanded ? 'expand-less' : 'expand-more'}
+                size={22}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.missionLogHeader}>
+              <View style={styles.missionLogHeaderMain}>
+                <MaterialIcons name="assignment" size={15} color={colors.orange} />
+                <View style={styles.missionLogHeaderTextCol}>
+                  <Text
+                    style={[styles.sectionTitle, { color: colors.textSecondary }]}
+                  >
+                    Mission Log
+                  </Text>
+                  <Text style={styles.missionLogCollapsedHint}>
+                    {missionsEmptyLabel}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+          {missionLogHasRuns && missionLogExpanded && (
+            <MissionLogList
+              runs={runsForMissionLog}
+              campaignMissions={campaignMissions}
+              weekMissions={weekMissions}
+              emptyLabel={missionsEmptyLabel}
+            />
+          )}
         </Animated.View>
 
         {/* Empty state for months with no data */}
@@ -1052,6 +1110,30 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     gap: spacing.sm,
   } as ViewStyle,
+  missionLogHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  } as ViewStyle,
+  missionLogHeaderMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    minWidth: 0,
+  } as ViewStyle,
+  missionLogHeaderTextCol: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  } as ViewStyle,
+  missionLogCollapsedHint: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
+    fontWeight: fontWeights.medium,
+    lineHeight: 18,
+  } as TextStyle,
   sectionTitle: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,

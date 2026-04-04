@@ -34,6 +34,46 @@ export function calcDistanceKm(coords: GpsPoint[]): number {
   return total;
 }
 
+/**
+ * Distance along a GPS path with drift suppression: ignores segments shorter than
+ * a noise floor derived from reported accuracy (or a small fallback when accuracy is missing).
+ */
+export function calcDistanceKmGps(coords: GpsPoint[]): number {
+  if (coords.length < 2) return 0;
+
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1]!;
+    const curr = coords[i]!;
+
+    const dLat = toRad(curr.latitude - prev.latitude);
+    const dLon = toRad(curr.longitude - prev.longitude);
+
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(prev.latitude)) *
+        Math.cos(toRad(curr.latitude)) *
+        Math.sin(dLon / 2) ** 2;
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const segKm = EARTH_RADIUS_KM * c;
+    const segM = segKm * 1000;
+
+    const pa = prev.accuracy;
+    const ca = curr.accuracy;
+    if (pa != null && ca != null && pa > 0 && ca > 0) {
+      const noiseFloorM = (pa + ca) * 0.25;
+      if (segM < noiseFloorM) continue;
+    } else if (segM < 4) {
+      continue;
+    }
+
+    total += segKm;
+  }
+
+  return total;
+}
+
 /** Format elapsed seconds as MM:SS */
 export function formatElapsed(totalSeconds: number): string {
   const mins = Math.floor(totalSeconds / 60);

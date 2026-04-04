@@ -1,6 +1,8 @@
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
+import { getBundledRunCueIndex } from '../audio/bundledRunCueStrings';
+import { RUN_CUE_REQUIRES } from '../audio/runCueRequires';
 import { OPENAI_API_KEY, TTS_VOICE, TTS_MODEL } from '../constants/openaiConfig';
 
 // Mute flag — set externally by the user store to avoid circular imports
@@ -8,7 +10,93 @@ let _muted = false;
 export function setAudioMutedFlag(muted: boolean) { _muted = muted; }
 export function isAudioMuted() { return _muted; }
 
-let onboardingAmbientPlayer: AudioPlayer | null = null;
+/**
+ * Run / mission audio: duckOthers + shouldPlayInBackground.
+ * duckOthers (.playback + .duckOthers category) works reliably for background
+ * playback on iOS whether the app is minimised or the screen is locked.
+ */
+const RUN_PLAYBACK_MODE = {
+  playsInSilentMode: true,
+  shouldPlayInBackground: true,
+  interruptionMode: 'duckOthers' as const,
+  allowsRecording: false,
+};
+
+/** Keep session alive between short clips so iOS doesn't tear it down mid-run. */
+const RUN_CUE_PLAYER_OPTIONS = { keepAudioSessionActive: true as const };
+
+function releaseRunAudioPlayer(
+  player: ReturnType<typeof createAudioPlayer>,
+  delayMs: number,
+  tempFile?: string,
+): void {
+  setTimeout(async () => {
+    try {
+      player.release();
+    } catch {
+      // ignore
+    }
+    if (tempFile) {
+      try {
+        await FileSystem.deleteAsync(tempFile, { idempotent: true });
+      } catch {
+        // ignore
+      }
+    }
+  }, delayMs);
+}
+
+// ─── Run audio session heartbeat ────────────────────────────────────────────
+// A near-silent looping player keeps AVAudioSession legitimately alive for the
+// entire run. Without it, iOS suspends the audio session between cues and the
+// next cue can't start from the background / locked screen.
+
+let _runHeartbeat: ReturnType<typeof createAudioPlayer> | null = null;
+
+/**
+ * Call when a run starts. Configures the audio mode AND starts a near-silent
+ * looping heartbeat that holds AVAudioSession open so cues can play at any time,
+ * even when the screen is locked or the app is minimised.
+ */
+export async function ensureRunPlaybackAudioMode(): Promise<void> {
+  try {
+    await setAudioModeAsync(RUN_PLAYBACK_MODE);
+    if (__DEV__) console.log('[audio] audio mode set: duckOthers + shouldPlayInBackground');
+  } catch (e) {
+    if (__DEV__) console.warn('[audio] setAudioModeAsync failed:', e);
+    return;
+  }
+
+  if (_runHeartbeat) return; // already running
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    _runHeartbeat = createAudioPlayer(require('../../assets/sounds/silence.wav'), {
+      keepAudioSessionActive: true,
+    });
+    _runHeartbeat.loop = true;
+    _runHeartbeat.volume = 0; // completely silent — just holds the session open
+    _runHeartbeat.play();
+    if (__DEV__) console.log('[audio] run heartbeat started');
+  } catch (e) {
+    if (__DEV__) console.warn('[audio] heartbeat start failed:', e);
+    _runHeartbeat = null;
+  }
+}
+
+/** Call when the run ends / is aborted to release the session heartbeat. */
+export function stopRunPlaybackAudioMode(): void {
+  if (!_runHeartbeat) return;
+  try {
+    _runHeartbeat.pause();
+    _runHeartbeat.release();
+  } catch {
+    // ignore
+  }
+  _runHeartbeat = null;
+  if (__DEV__) console.log('[audio] run heartbeat stopped');
+}
+
+let onboardingAmbientPlayer: ReturnType<typeof createAudioPlayer> | null = null;
 const ONBOARDING_AMBIENT_VOLUME = 0.32;
 
 /**
@@ -88,19 +176,16 @@ export async function playGoalReachedSound(): Promise<void> {
 
   // Audio chime
   try {
-    await setAudioModeAsync({ playsInSilentMode: true });
+    await setAudioModeAsync(RUN_PLAYBACK_MODE);
 
     const player = createAudioPlayer(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('../../assets/sounds/goal_reached.wav'),
+      RUN_CUE_PLAYER_OPTIONS,
     );
 
     player.play();
-
-    // Release the player after the chime duration (~1 s)
-    setTimeout(() => {
-      try { player.release(); } catch { /* ignore */ }
-    }, 2000);
+    releaseRunAudioPlayer(player, 2000);
   } catch {
     // Silent fail — audio is a nice-to-have
   }
@@ -115,38 +200,59 @@ export async function playMissionFailedSound(): Promise<void> {
   }
   if (_muted) return;
   try {
-    await setAudioModeAsync({ playsInSilentMode: true });
+    await setAudioModeAsync(RUN_PLAYBACK_MODE);
     const player = createAudioPlayer(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('../../assets/sounds/goal_reached.wav'),
+      RUN_CUE_PLAYER_OPTIONS,
     );
     player.volume = 0.35;
     player.play();
-    setTimeout(() => {
-      try { player.release(); } catch { /* ignore */ }
-    }, 2000);
+    releaseRunAudioPlayer(player, 2000);
   } catch {
     // ignore
   }
 }
 
 /**
- * Speak a narrative in-run voice cue via the OpenAI TTS API.
- *
- * Flow:
- *  1. POST text to /v1/audio/speech → mp3 bytes
- *  2. Write to a temp file in the app's cache directory
- *  3. Play with expo-audio's createAudioPlayer
- *  4. Delete the temp file after playback
- *
+ * In-run voice cue: bundled MP3 when the line matches `bundledRunCueStrings`, else OpenAI TTS (if key set).
  * Silent-fails on any error so it never disrupts the run screen.
- * Requires OPENAI_API_KEY to be set in src/constants/openaiConfig.ts.
  */
-/** Keep TTS input short; one sentence is ideal for in-run cues. */
 const MAX_TTS_CHARS = 220;
 
 export async function speakRunCue(line: string): Promise<void> {
-  if (!OPENAI_API_KEY || _muted) return;
+  if (__DEV__) console.log('[speakRunCue] called, muted=', _muted, 'line=', line.slice(0, 60));
+  if (_muted) return;
+
+  const bundledIdx = getBundledRunCueIndex(line);
+  if (__DEV__) console.log('[speakRunCue] bundledIdx=', bundledIdx);
+
+  if (bundledIdx !== undefined) {
+    const source = RUN_CUE_REQUIRES[bundledIdx];
+    if (source !== undefined) {
+      try {
+        await setAudioModeAsync(RUN_PLAYBACK_MODE);
+        const player = createAudioPlayer(source, RUN_CUE_PLAYER_OPTIONS);
+        player.play();
+        if (__DEV__) console.log('[speakRunCue] ✅ bundled cue playing, idx=', bundledIdx);
+        releaseRunAudioPlayer(player, 6000);
+        return;
+      } catch (e) {
+        if (__DEV__) console.warn('[speakRunCue] ❌ bundled play failed:', e);
+        // fall through to network TTS
+      }
+    }
+  }
+
+  if (!OPENAI_API_KEY) {
+    if (__DEV__) {
+      console.warn(
+        '[speakRunCue] ❌ No bundled match and no OPENAI_API_KEY. Line not found in bundledRunCueStrings:',
+        line.slice(0, 120),
+      );
+    }
+    return;
+  }
 
   const text =
     line.length > MAX_TTS_CHARS ? `${line.slice(0, MAX_TTS_CHARS - 1).trimEnd()}…` : line;
@@ -183,17 +289,13 @@ export async function speakRunCue(line: string): Promise<void> {
     });
 
     // 3. Play
-    await setAudioModeAsync({ playsInSilentMode: true });
-    const player = createAudioPlayer({ uri: tempPath });
+    await setAudioModeAsync(RUN_PLAYBACK_MODE);
+    const player = createAudioPlayer({ uri: tempPath }, RUN_CUE_PLAYER_OPTIONS);
     player.play();
+    if (__DEV__) console.log('[speakRunCue] ✅ TTS cue playing');
+    releaseRunAudioPlayer(player, 5000, tempPath);
 
-    // 4. Clean up temp file after playback (estimate ~3 s for short phrases)
-    setTimeout(async () => {
-      try { player.release(); } catch { /* ignore */ }
-      try { await FileSystem.deleteAsync(tempPath, { idempotent: true }); } catch { /* ignore */ }
-    }, 5000);
-
-  } catch {
-    // Silent fail — TTS is a nice-to-have, never breaks the run
+  } catch (e) {
+    if (__DEV__) console.warn('[speakRunCue] ❌ TTS failed:', e);
   }
 }

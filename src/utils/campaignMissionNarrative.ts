@@ -48,6 +48,25 @@ const THE_WORK: Record<MissionType, string> = {
     'Hard intervals, real recovery between. Each push is full gas; each easy segment is actually easy.',
 };
 
+/**
+ * Static milestone copy used for campaign missions (bundled MP3s + `narrativeForCampaignMission` pools).
+ * Start/complete pools remain dynamic (title/subtitle).
+ */
+export const CAMPAIGN_BUNDLED_MILESTONE_CUES = {
+  quarter: [
+    'Quarter down. Hold the plan.',
+    'Twenty-five percent. Stay on task.',
+  ],
+  half: [
+    'Halfway. Don’t improvise — same effort.',
+    'Midpoint. Pace holds.',
+  ],
+  threeQuarter: [
+    'Three quarters. Close it clean.',
+    'Last stretch. No drift.',
+  ],
+} as const;
+
 /** Briefing + in-run TTS for campaign missions (no long concatenated fluff). */
 export function narrativeForCampaignMission(
   type: MissionType,
@@ -68,18 +87,9 @@ export function narrativeForCampaignMission(
       `${t}. ${subtitle} Go now.`,
       `Out the door — ${t}. ${subtitle}`,
     ],
-    quarter: [
-      'Quarter down. Hold the plan.',
-      'Twenty-five percent. Stay on task.',
-    ],
-    half: [
-      'Halfway. Don’t improvise — same effort.',
-      'Midpoint. Pace holds.',
-    ],
-    threeQuarter: [
-      'Three quarters. Close it clean.',
-      'Last stretch. No drift.',
-    ],
+    quarter: [...CAMPAIGN_BUNDLED_MILESTONE_CUES.quarter],
+    half: [...CAMPAIGN_BUNDLED_MILESTONE_CUES.half],
+    threeQuarter: [...CAMPAIGN_BUNDLED_MILESTONE_CUES.threeQuarter],
     complete: [
       `${t} — done. Line holds.`,
       `Logged. ${t} closed.`,

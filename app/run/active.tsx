@@ -32,8 +32,14 @@ import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig 
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { formatDistance } from '../../src/utils/xpCalculator';
 import { formatElapsed, formatPace } from '../../src/utils/haversine';
-import { useGpsTracking } from '../../src/hooks/useGpsTracking';
-import { playGoalReachedSound, playMissionFailedSound, speakRunCue } from '../../src/services/audioService';
+import { useGpsTracking, initBackgroundCueTracking, stopBackgroundCueTracking } from '../../src/hooks/useGpsTracking';
+import {
+  playGoalReachedSound,
+  playMissionFailedSound,
+  speakRunCue,
+  ensureRunPlaybackAudioMode,
+  stopRunPlaybackAudioMode,
+} from '../../src/services/audioService';
 import { scheduleGoalReachedNotification } from '../../src/services/notificationService';
 import {
   MISSION_AUDIO_CUES,
@@ -66,6 +72,7 @@ export default function ActiveRunScreen() {
   const appendRunHistoryEntry = useUserStore((s) => s.appendRunHistoryEntry);
   const completeRun = useUserStore((s) => s.completeRun);
   const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
+  const recordStreakOnMissionStart = useUserStore((s) => s.recordStreakOnMissionStart);
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
@@ -87,15 +94,14 @@ export default function ActiveRunScreen() {
   const [goalReached, setGoalReached] = useState(false);
   const [timeFailed, setTimeFailed] = useState(false);
   const goalAnnouncedRef = useRef(false);
+  const streakRecordedForSessionRef = useRef(false);
   const startCueFired = useRef(false);
-  const milestone25Fired = useRef(false);
-  const milestone50Fired = useRef(false);
-  const milestone75Fired = useRef(false);
   const mapRef = useRef<MapView>(null);
   const [snappedPolyline, setSnappedPolyline] = useState<
     { latitude: number; longitude: number }[] | null
   >(null);
-  const snapDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathSnapRef = useRef(path);
+  pathSnapRef.current = path;
   const snapGenRef = useRef(0);
   const orsApiKey = (
     Constants.expoConfig?.extra?.openRouteServiceApiKey as string | undefined
@@ -138,36 +144,38 @@ export default function ActiveRunScreen() {
     start();
   }, [start]);
 
-  // 2-second start cue (skip for free run — no narrative)
+  // Profile day streak: once per calendar day when a campaign mission’s GPS session starts (outcome does not matter).
+  useEffect(() => {
+    if (!isTracking || !mission || isFreeRun || streakRecordedForSessionRef.current) return;
+    streakRecordedForSessionRef.current = true;
+    recordStreakOnMissionStart();
+  }, [isTracking, mission, isFreeRun, recordStreakOnMissionStart]);
+
+  useEffect(() => {
+    if (!isTracking) return;
+    ensureRunPlaybackAudioMode();
+    return () => stopRunPlaybackAudioMode();
+  }, [isTracking]);
+
+  // 5-second start cue (skip for free run — no narrative)
   useEffect(() => {
     if (!mission || !isTracking || isFreeRun || startCueFired.current) return;
     const timer = setTimeout(() => {
       startCueFired.current = true;
-      speakRunCue(buildMissionStartLiveCue(stripEmojis(mission.title)));
-    }, 2000);
+      speakRunCue(buildMissionStartLiveCue());
+    }, 5000);
     return () => clearTimeout(timer);
   }, [isTracking, mission, isFreeRun]);
 
-  // Milestone cues by distance progress only (skip for free run — no targets)
+  // Initialise background-safe milestone cues when the run starts.
+  // Cues fire directly from the location callback and background task handler so
+  // they work when the app is minimised or the screen is locked.
   useEffect(() => {
-    if (!mission || !isTracking || isFreeRun) return;
-
+    if (!isTracking || !mission || isFreeRun || targetDistanceKm <= 0) return;
     const cues = mission.audioCues ?? MISSION_AUDIO_CUES[mission.type];
-    const distRatio = targetDistanceKm > 0 ? distanceKm / targetDistanceKm : 0;
-
-    if (!milestone25Fired.current && distRatio >= 0.25) {
-      milestone25Fired.current = true;
-      speakRunCue(pickCue(cues.quarter));
-    }
-    if (!milestone50Fired.current && distRatio >= 0.5) {
-      milestone50Fired.current = true;
-      speakRunCue(pickCue(cues.half));
-    }
-    if (!milestone75Fired.current && distRatio >= 0.75) {
-      milestone75Fired.current = true;
-      speakRunCue(pickCue(cues.threeQuarter));
-    }
-  }, [distanceKm, isTracking, isFreeRun, mission, targetDistanceKm]);
+    initBackgroundCueTracking(targetDistanceKm, cues);
+    return () => stopBackgroundCueTracking();
+  }, [isTracking, mission, isFreeRun, targetDistanceKm]);
 
   // Goal: reach target distance with elapsed whole minutes still ≤ target time (e.g. 35:55 counts as minute 35).
   useEffect(() => {
@@ -381,7 +389,7 @@ export default function ActiveRunScreen() {
     return () => sub.remove();
   }, [isTracking, timeFailed, confirmAbort, handleTimeFailureToJourney]);
 
-  // Debounced road snap for map polyline (ORS); distance still uses raw GPS path.
+  // Road snap for map (ORS): interval + ref so updates are not reset by every GPS tick (debounce never fired before).
   useEffect(() => {
     if (path.length < 2) {
       setSnappedPolyline(null);
@@ -391,20 +399,27 @@ export default function ActiveRunScreen() {
       setSnappedPolyline(null);
       return;
     }
-    if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
-    snapDebounceRef.current = setTimeout(() => {
+    let cancelled = false;
+    const runSnap = () => {
+      if (cancelled) return;
+      const p = pathSnapRef.current;
+      if (p.length < 2) return;
       const gen = ++snapGenRef.current;
       const ac = new AbortController();
-      snapPathForMapDisplay(path, activityMode, orsApiKey, ac.signal)
+      snapPathForMapDisplay(p, activityMode, orsApiKey, ac.signal)
         .then((coords) => {
-          if (gen === snapGenRef.current) setSnappedPolyline(coords);
+          if (cancelled || gen !== snapGenRef.current) return;
+          setSnappedPolyline(coords);
         })
         .catch(() => {});
-    }, 3200);
-    return () => {
-      if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
     };
-  }, [path, activityMode, orsApiKey]);
+    runSnap();
+    const id = setInterval(runSnap, 4500);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [path.length >= 2, activityMode, orsApiKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only (re)start when path becomes snap-ready
 
   const polylineCoords = useMemo(() => {
     const raw = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
@@ -500,6 +515,7 @@ export default function ActiveRunScreen() {
               strokeWidth={5}
               lineCap="round"
               lineJoin="round"
+              geodesic
             />
           )}
         </MapView>

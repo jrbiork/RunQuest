@@ -43,21 +43,21 @@ function CompletedResultCard({
   const goalMet = run.goalMet;
 
   return (
-    <View style={[rc.card, rc.cardGoal]}>
+    <View style={[rc.card, goalMet ? rc.cardGoal : rc.cardFail]}>
       {/* Status banner + share button */}
       <View style={rc.bannerRow}>
-        <View style={[rc.banner, rc.bannerGoal]}>
+        <View style={[rc.banner, goalMet ? rc.bannerGoal : rc.bannerFail]}>
           <MaterialIcons
-            name={goalMet ? 'emoji-events' : 'check-circle'}
+            name={goalMet ? 'emoji-events' : 'close'}
             size={14}
             color={colors.textInverse}
           />
           <Text style={[rc.bannerText, rc.bannerTextGoal]}>
-            {goalMet ? 'MISSION COMPLETE' : 'FINISHED EARLY'}
+            {goalMet ? 'MISSION COMPLETE' : 'FAILED'}
           </Text>
         </View>
         <TouchableOpacity onPress={onShare} style={rc.shareBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialIcons name="ios-share" size={16} color={colors.orange} />
+          <MaterialIcons name="ios-share" size={16} color={goalMet ? colors.orange : colors.red} />
         </TouchableOpacity>
       </View>
 
@@ -212,6 +212,7 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                       <Text style={styles.distanceText}>{formatDistance(mission.targetDistanceKm)}</Text>
                       <Text style={styles.durationText}>~{formatDuration(mission.targetDurationMin)}</Text>
                     </View>
+                    <Text style={styles.metaPipe}>|</Text>
                     <View style={styles.distancePill}>
                       <MaterialIcons name="directions-bike" size={12} color={colors.textSecondary} />
                       <Text style={styles.distanceText}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
@@ -312,6 +313,15 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                       ~{formatDuration(mission.targetDurationMin)}
                     </Text>
                   </View>
+                  <Text
+                    style={[
+                      styles.metaPipe,
+                      isLocked && styles.metaPipeLocked,
+                      isFailed && styles.metaPipeFailed,
+                    ]}
+                  >
+                    |
+                  </Text>
                   <View style={styles.distancePill}>
                     <MaterialIcons
                       name="directions-bike"
@@ -368,6 +378,10 @@ const rc = StyleSheet.create({
     backgroundColor: 'rgba(103,144,88,0.08)',
     borderColor: colors.primary,
   } as ViewStyle,
+  cardFail: {
+    backgroundColor: 'rgba(217,69,60,0.08)',
+    borderColor: colors.red,
+  } as ViewStyle,
   bannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -386,6 +400,7 @@ const rc = StyleSheet.create({
     paddingVertical: spacing.sm,
   } as ViewStyle,
   bannerGoal: { backgroundColor: colors.primary } as ViewStyle,
+  bannerFail: { backgroundColor: colors.red } as ViewStyle,
   bannerText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
@@ -665,8 +680,23 @@ const styles = StyleSheet.create({
   distancePills: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
+    flexShrink: 1,
   } as ViewStyle,
+  metaPipe: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textTertiary,
+    paddingHorizontal: 2,
+  } as TextStyle,
+  metaPipeLocked: {
+    color: colors.textTertiary,
+    opacity: 0.7,
+  } as TextStyle,
+  metaPipeFailed: {
+    color: colors.red,
+    opacity: 0.85,
+  } as TextStyle,
   distancePill: {
     flexDirection: 'row',
     alignItems: 'center',

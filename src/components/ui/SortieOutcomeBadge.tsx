@@ -28,10 +28,10 @@ const BADGE_STYLES: Record<
   },
   aborted: {
     wrap: {
-      borderColor: colors.orange,
-      backgroundColor: colors.orangeLight,
+      borderColor: colors.red,
+      backgroundColor: colors.redLight,
     },
-    text: { color: colors.orange },
+    text: { color: colors.red },
   },
 };
 

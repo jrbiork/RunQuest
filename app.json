@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.rbiork.runquest"
+      "bundleIdentifier": "com.rbiork.runquest",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -47,7 +50,10 @@
           "locationWhenInUsePermission": "RunQuest needs your location to track your run distance and path."
         }
       ],
-      "expo-audio",
+      [
+        "expo-audio",
+        { "enableBackgroundPlayback": true }
+      ],
       "expo-sharing",
       [
         "expo-media-library",
