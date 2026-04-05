@@ -441,7 +441,7 @@ export default function RunCompleteScreen() {
             <Card style={styles.gpsCard}>
               <Text style={styles.progressSectionLabel}>This run</Text>
               <View style={styles.gpsRow}>
-                <GpsStat icon="straighten" label="Distance" value={formatDistance(actualDistanceKm!)} color={colors.blue} />
+                <GpsStat icon="straighten" label="Distance" value={formatDistance(actualDistanceKm!)} color={colors.textPrimary} />
                 <View style={styles.gpsDivider} />
                 <GpsStat icon="timer" label="Time" value={`${Math.round(actualDurationMin!)} min`} color={colors.orange} />
                 <View style={styles.gpsDivider} />

@@ -44,6 +44,7 @@ export default function OnboardingLayout() {
         <Stack.Screen name="distance" options={{ gestureEnabled: false }} />
         <Stack.Screen name="experience" options={{ gestureEnabled: false }} />
         <Stack.Screen name="goal" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="tailoring" options={{ gestureEnabled: false }} />
       </Stack>
     </OnboardingContext.Provider>
   );

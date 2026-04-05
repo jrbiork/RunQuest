@@ -3,6 +3,7 @@ import type {
   CycleDistanceAnswer,
   DayOfWeek,
   ExperienceAnswer,
+  ExperienceLevel,
   GoalAnswer,
   PersonaId,
   RunDistanceAnswer,
@@ -122,6 +123,22 @@ export function personaIdFromScore(total: number): PersonaId {
 
 export function computePersonaId(answers: PersonaSurveyAnswers): PersonaId {
   return personaIdFromScore(computePersonaScore(answers));
+}
+
+/** Map onboarding experience answer → profile experience tier (profile / UI labels). */
+export function experienceAnswerToLevel(answer: ExperienceAnswer): ExperienceLevel {
+  switch (answer) {
+    case 'never':
+    case 'lt3m':
+      return 'beginner';
+    case '3-12m':
+      return 'intermediate';
+    case '1-3y':
+    case '3yplus':
+      return 'advanced';
+    default:
+      return 'beginner';
+  }
 }
 
 /** Linear class progression for evolution UI and dev tools (ghost → … → vanguard). */

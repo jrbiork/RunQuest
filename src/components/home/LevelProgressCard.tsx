@@ -28,8 +28,8 @@ export function LevelProgressCard({ levelInfo }: LevelProgressCardProps) {
 
       <ProgressBar
         progress={progress}
-        color={colors.blue}
-        backgroundColor={colors.blueLight}
+        color={colors.primary}
+        backgroundColor={colors.primaryLight}
         height={8}
         style={styles.bar}
       />
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   } as TextStyle,
   xpBold: {
     fontWeight: fontWeights.bold,
-    color: colors.blue,
+    color: colors.primary,
   } as TextStyle,
   xpDim: {
     color: colors.textSecondary,

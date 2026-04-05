@@ -30,7 +30,7 @@ import { getNowISOString } from '../../src/utils/dateUtils';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig } from '../../src/constants/theme';
 import { stripEmojis } from '../../src/utils/stripEmojis';
-import { formatDistance } from '../../src/utils/xpCalculator';
+import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
 import { formatElapsed, formatPace } from '../../src/utils/haversine';
 import { useGpsTracking, initBackgroundCueTracking, stopBackgroundCueTracking } from '../../src/hooks/useGpsTracking';
 import {
@@ -93,6 +93,8 @@ export default function ActiveRunScreen() {
 
   const [goalReached, setGoalReached] = useState(false);
   const [timeFailed, setTimeFailed] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
   const goalAnnouncedRef = useRef(false);
   const streakRecordedForSessionRef = useRef(false);
   const startCueFired = useRef(false);
@@ -140,8 +142,9 @@ export default function ActiveRunScreen() {
     return () => setRunActive(false);
   }, [setRunActive]);
 
-  useEffect(() => {
+  const handleStartSession = useCallback(() => {
     start();
+    setSessionStarted(true);
   }, [start]);
 
   // Profile day streak: once per calendar day when a campaign mission’s GPS session starts (outcome does not matter).
@@ -376,7 +379,7 @@ export default function ActiveRunScreen() {
   ]);
 
   useEffect(() => {
-    if (!isTracking) return;
+    if (!sessionStarted || !isTracking) return;
     const handler = () => {
       if (timeFailed) {
         handleTimeFailureToJourney();
@@ -387,7 +390,7 @@ export default function ActiveRunScreen() {
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', handler);
     return () => sub.remove();
-  }, [isTracking, timeFailed, confirmAbort, handleTimeFailureToJourney]);
+  }, [sessionStarted, isTracking, timeFailed, confirmAbort, handleTimeFailureToJourney]);
 
   // Road-following polyline (ORS Directions geometry, snap fallback): interval + ref so updates are not reset by every GPS tick.
   useEffect(() => {
@@ -467,7 +470,17 @@ export default function ActiveRunScreen() {
   const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
   const initialRegion = path.length > 0
     ? { latitude: path[0]!.latitude, longitude: path[0]!.longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }
-    : undefined;
+    : {
+        latitude: 48.8566,
+        longitude: 2.3522,
+        latitudeDelta: 0.08,
+        longitudeDelta: 0.08,
+      };
+
+  const remainingWholeMin =
+    !isFreeRun && targetDurationMin > 0
+      ? Math.max(0, targetDurationMin - Math.floor(elapsedSec / 60))
+      : null;
 
   return (
     <SafeAreaView style={styles.safeOuter} edges={['top']}>
@@ -485,14 +498,40 @@ export default function ActiveRunScreen() {
         <Text style={styles.missionTitle} numberOfLines={1}>{stripEmojis(mission.title)}</Text>
 
         {/* Right: elapsed time badge */}
-        <View style={[styles.elapsedBadge, isPaused && styles.elapsedBadgePaused]}>
+        <View
+          style={[
+            styles.elapsedBadge,
+            isPaused && sessionStarted && styles.elapsedBadgePaused,
+          ]}
+        >
           <MaterialIcons
-            name={isPaused ? 'pause' : 'timer'}
+            name={
+              !sessionStarted
+                ? 'play-circle-outline'
+                : isPaused
+                  ? 'pause'
+                  : 'timer'
+            }
             size={12}
-            color={isPaused ? colors.orange : colors.textSecondary}
+            color={
+              !sessionStarted
+                ? colors.primary
+                : isPaused
+                  ? colors.orange
+                  : colors.textSecondary
+            }
           />
-          <Text style={[styles.elapsedText, isPaused && styles.elapsedTextPaused]}>
-            {isPaused ? 'PAUSED' : formatElapsed(elapsedSec)}
+          <Text
+            style={[
+              styles.elapsedText,
+              isPaused && sessionStarted && styles.elapsedTextPaused,
+            ]}
+          >
+            {!sessionStarted
+              ? 'READY'
+              : isPaused
+                ? 'PAUSED'
+                : formatElapsed(elapsedSec)}
           </Text>
         </View>
       </Animated.View>
@@ -504,6 +543,7 @@ export default function ActiveRunScreen() {
           style={StyleSheet.absoluteFillObject}
           provider={PROVIDER_DEFAULT}
           initialRegion={initialRegion}
+          onMapReady={() => setMapReady(true)}
           showsUserLocation
           showsMyLocationButton={false}
           mapType="standard"
@@ -519,6 +559,84 @@ export default function ActiveRunScreen() {
             />
           )}
         </MapView>
+
+        {sessionStarted && (
+          <>
+            {!isFreeRun && (
+              <View style={styles.mapTargetStrip} pointerEvents="none">
+                <View style={styles.mapTargetStripInner}>
+                  <View style={styles.mapTargetCol}>
+                    <Text style={styles.mapTargetLabel}>TARGET DISTANCE</Text>
+                    <Text style={[styles.mapTargetValue, { color: colors.primary }]}>
+                      {formatDistance(targetDistanceKm)}
+                    </Text>
+                  </View>
+                  <View style={styles.mapTargetStripDivider} />
+                  <View style={styles.mapTargetCol}>
+                    <Text style={styles.mapTargetLabel}>TIME LIMIT</Text>
+                    <Text style={[styles.mapTargetValue, { color: colors.orange }]}>
+                      ~{formatDuration(targetDurationMin)}
+                    </Text>
+                    {remainingWholeMin != null && isTracking && !goalHit && (
+                      <Text style={styles.mapTargetSub}>{remainingWholeMin} min remaining</Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+            {isFreeRun && (
+              <View style={styles.mapFreeRunHint} pointerEvents="none">
+                <Text style={styles.mapFreeRunHintText}>FREE RUN · NO TARGETS</Text>
+              </View>
+            )}
+          </>
+        )}
+
+        {!sessionStarted && (
+          <View style={styles.preStartOverlay}>
+            <View style={styles.preStartCard}>
+              {!mapReady ? (
+                <Text style={styles.preStartLoading}>Loading map…</Text>
+              ) : (
+                <>
+                  {!isFreeRun && (
+                    <View style={styles.preStartTargets}>
+                      <View style={styles.preStartTargetBlock}>
+                        <Text style={styles.preStartTargetLabel}>DISTANCE</Text>
+                        <Text style={styles.preStartTargetBig}>{formatDistance(targetDistanceKm)}</Text>
+                      </View>
+                      <View style={styles.preStartTargetBlock}>
+                        <Text style={styles.preStartTargetLabel}>TIME</Text>
+                        <Text style={styles.preStartTargetBig}>~{formatDuration(targetDurationMin)}</Text>
+                      </View>
+                    </View>
+                  )}
+                  {isFreeRun && (
+                    <Text style={styles.preStartFreeTitle}>Free run</Text>
+                  )}
+                  {mapReady ? (
+                    <Text style={styles.preStartHint}>GPS tracking starts when you tap Start.</Text>
+                  ) : null}
+                </>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[styles.startMissionBtn, !mapReady && styles.startMissionBtnDisabled]}
+              onPress={handleStartSession}
+              disabled={!mapReady}
+              activeOpacity={0.85}
+            >
+              <MaterialIcons
+                name={isFreeRun ? 'directions-run' : activityIcon}
+                size={28}
+                color={colors.textInverse}
+              />
+              <Text style={styles.startMissionBtnText}>
+                {isFreeRun ? 'START FREE RUN' : 'START MISSION'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Goal reached banner — floats over the map */}
         {goalHit && (
@@ -541,16 +659,16 @@ export default function ActiveRunScreen() {
       </View>
 
       {/* ─── Bottom HUD ───────────────────────────────────────────── */}
-      {!timeFailed && (
+      {!timeFailed && sessionStarted && (
       <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
         <View style={styles.hud}>
           {/* Stats row */}
           <View style={styles.statsRow}>
-            <StatTile label="TIME" value={formatElapsed(elapsedSec)} icon="timer" accent={colors.blue} />
+            <StatTile label="TIME" value={formatElapsed(elapsedSec)} icon="timer" accent={colors.textSecondary} />
             <View style={styles.statDivider} />
-            <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon={activityIcon} accent={config.color} large />
+            <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon={activityIcon} accent={colors.primary} large />
             <View style={styles.statDivider} />
-            <StatTile label="PACE" value={formatPace(distanceKm, elapsedSec)} icon="speed" accent={colors.ochre} />
+            <StatTile label="PACE" value={formatPace(distanceKm, elapsedSec)} icon="speed" accent={colors.textSecondary} />
           </View>
 
           {/* Target + progress — hidden for free run */}
@@ -785,6 +903,159 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   } as ViewStyle,
+
+  mapTargetStrip: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.lg,
+    right: spacing.lg,
+    zIndex: 15,
+  } as ViewStyle,
+  mapTargetStripInner: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadows.md,
+  } as ViewStyle,
+  mapTargetCol: {
+    flex: 1,
+    gap: 4,
+    alignItems: 'center',
+  } as ViewStyle,
+  mapTargetStripDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  } as ViewStyle,
+  mapTargetLabel: {
+    fontSize: 9,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  mapTargetValue: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    fontVariant: ['tabular-nums'],
+  } as TextStyle,
+  mapTargetSub: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    fontWeight: fontWeights.semibold,
+    marginTop: 2,
+  } as TextStyle,
+  mapFreeRunHint: {
+    position: 'absolute',
+    top: spacing.md,
+    alignSelf: 'center',
+    zIndex: 15,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  } as ViewStyle,
+  mapFreeRunHintText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    letterSpacing: 1,
+  } as TextStyle,
+
+  preStartOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 10, 8, 0.72)',
+    zIndex: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.xl,
+  } as ViewStyle,
+  preStartCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.md,
+  } as ViewStyle,
+  preStartLoading: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  } as TextStyle,
+  preStartTargets: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    justifyContent: 'space-around',
+  } as ViewStyle,
+  preStartTargetBlock: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  preStartTargetLabel: {
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  preStartTargetBig: {
+    fontSize: fontSizes.display,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  } as TextStyle,
+  preStartFreeTitle: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  } as TextStyle,
+  preStartHint: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  } as TextStyle,
+  startMissionBtn: {
+    width: '100%',
+    maxWidth: 400,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.orange,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    borderWidth: 2,
+    borderColor: colors.background,
+    ...shadows.lg,
+  } as ViewStyle,
+  startMissionBtnDisabled: {
+    opacity: 0.45,
+  } as ViewStyle,
+  startMissionBtnText: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textInverse,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  } as TextStyle,
 
   // ─── Pause overlay ────────────────────────────────────────────────────────
   pauseOverlay: {

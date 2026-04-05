@@ -193,7 +193,7 @@ export default function JourneyScreen() {
         {/* Intel tip */}
         {!allComplete && totalMissions > 0 && completedCount < totalMissions && (
           <View style={styles.tip}>
-            <MaterialIcons name="radio" size={16} color={colors.blue} />
+            <MaterialIcons name="radio" size={16} color={colors.primary} />
             <Text style={styles.tipText}>
               Tap any active mission to view briefing and begin your sortie.
             </Text>
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   accentBar: {
     width: 3,
     height: 16,
-    backgroundColor: colors.ochre,
+    backgroundColor: colors.primary,
     borderRadius: 2,
   } as ViewStyle,
   missionsSectionTitle: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   tip: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.blueLight,
+    backgroundColor: colors.primaryLight,
     borderRadius: radii.lg,
     padding: spacing.lg,
     gap: spacing.sm,
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   tipText: {
     flex: 1,
     fontSize: fontSizes.sm,
-    color: colors.blue,
+    color: colors.primary,
     lineHeight: 18,
   } as TextStyle,
 });

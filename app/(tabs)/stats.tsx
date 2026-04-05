@@ -348,13 +348,13 @@ function DayDetailPanel({
                   icon="straighten"
                   value={formatDistance(run.distanceKm)}
                   label="Distance"
-                  color={colors.blue}
+                  color={colors.textPrimary}
                 />
                 <DetailStat
                   icon="timer"
                   value={`${Math.round(run.durationMin)} min`}
                   label="Duration"
-                  color={colors.orange}
+                  color={colors.textPrimary}
                 />
                 <DetailStat
                   icon="speed"
@@ -494,7 +494,7 @@ function MonthSummaryRow({
         value={formatDistance(totalDistanceKm)}
         unit="total"
         icon="straighten"
-        color={colors.blue}
+        color={colors.primary}
       />
     </View>
   );

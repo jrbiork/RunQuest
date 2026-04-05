@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.blueLight,
+    backgroundColor: colors.primaryLight,
     borderRadius: radii.full,
   } as ViewStyle,
   sm: {
@@ -44,12 +44,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   } as ViewStyle,
   levelNum: {
-    color: colors.blue,
+    color: colors.primary,
     fontWeight: fontWeights.extrabold,
     textAlign: 'center',
   } as TextStyle,
   levelLabel: {
-    color: colors.blue,
+    color: colors.primary,
     fontWeight: fontWeights.bold,
   } as TextStyle,
   num_sm: { fontSize: fontSizes.xs } as TextStyle,

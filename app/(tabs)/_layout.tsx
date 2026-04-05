@@ -64,7 +64,7 @@ function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
                   activeOpacity={0.8}
                   style={[styles.runBtn, isFreeRun && styles.runBtnFreeRun]}
                 >
-                  <MaterialIcons name="directions-run" size={30} color={colors.textInverse} />
+                  <MaterialIcons name="directions-run" size={34} color={colors.textInverse} />
                 </TouchableOpacity>
                 <Text style={styles.runLabel}>{isFreeRun ? 'FREE RUN' : 'DEPLOY'}</Text>
               </View>
@@ -112,8 +112,8 @@ export default function TabsLayout() {
   );
 }
 
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 82 : 68;
-const RUN_BTN_SIZE = 62;
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 88 : 74;
+const RUN_BTN_SIZE = 74;
 
 const styles = StyleSheet.create({
   tabBarContainer: {
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   } as ViewStyle,
   runLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: fontWeights.extrabold,
     color: colors.orange,
     letterSpacing: 1,

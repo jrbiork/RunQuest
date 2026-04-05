@@ -9,6 +9,7 @@ import { useMissionsStore } from '../../src/store/missionsStore';
 import type { GoalAnswer, UserProfile } from '../../src/types';
 import {
   computePersonaId,
+  experienceAnswerToLevel,
   preferredDaysFromScheduleDays,
   type PersonaSurveyAnswers,
 } from '../../src/utils/personaScoring';
@@ -61,11 +62,12 @@ export default function OnboardingGoalScreen() {
       defaultActivityMode: mode,
       preferredDays,
       weeklyTargetRuns: preferredDays.length,
+      experienceLevel: experienceAnswerToLevel(exp),
     };
 
     completeOnboarding(profile);
     initCampaign(profile);
-    router.replace('/(tabs)');
+    router.replace('/onboarding/tailoring');
   };
 
   return (

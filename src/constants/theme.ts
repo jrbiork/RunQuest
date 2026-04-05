@@ -22,12 +22,12 @@ export const colors = {
   ochre: '#B95C37',               // Burnt ochre (same as purple token)
   tacticalGreen: '#679058',       // Tactical green (same as primary token)
 
-  // Mission type colors
-  missionEasy: '#679058',         // Grid Patrol — tactical green
-  missionTempo: '#F68F4D',        // Signal Rush — safety orange
-  missionLong: '#B95C37',         // Supply Route — burnt ochre
-  missionRecovery: '#4F8BA4',     // Scout — steel blue
-  missionInterval: '#D9453C',     // Surge — crimson
+  // Mission type colors (limited palette: green / orange / red)
+  missionEasy: '#679058',
+  missionTempo: '#F68F4D',
+  missionLong: '#F68F4D',
+  missionRecovery: '#679058',
+  missionInterval: '#D9453C',
 
   // Backgrounds — charcoal green family
   background: '#0E1210',
@@ -42,8 +42,8 @@ export const colors = {
   textTertiary: '#5C5850',
   textInverse: '#0E1210',
 
-  // Tab bar
-  tabActive: '#F68F4D',
+  // Tab bar (active = navigation; Deploy button stays orange separately)
+  tabActive: '#679058',
   tabInactive: '#5C5850',
 } as const;
 
@@ -135,13 +135,13 @@ export const missionConfig = {
   },
   long: {
     color: colors.missionLong,
-    bgColor: 'rgba(185,92,55,0.12)',
+    bgColor: 'rgba(246,143,77,0.12)',
     label: 'Supply Route',
     icon: 'terrain',
   },
   recovery: {
     color: colors.missionRecovery,
-    bgColor: 'rgba(79,139,164,0.12)',
+    bgColor: 'rgba(103,144,88,0.12)',
     label: 'Scout',
     icon: 'explore',
   },

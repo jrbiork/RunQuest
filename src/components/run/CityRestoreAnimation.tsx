@@ -37,7 +37,7 @@ const SVG_W = 340;
 const SVG_H = 160;
 const GROUND_Y = SVG_H - 10;
 
-const W_COLORS = [colors.yellow, colors.primary, colors.blue, colors.orange, colors.yellow, colors.primary];
+const W_COLORS = [colors.orange, colors.primary, colors.orange, colors.primary, colors.orange, colors.primary];
 
 function makeWindows(x: number, bw: number, bh: number, cols: number, rows: number, baseDelay: number): WindowDef[] {
   const wins: WindowDef[] = [];

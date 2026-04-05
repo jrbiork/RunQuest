@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { Mission, CompletedRun } from '../../types';
@@ -74,11 +74,11 @@ function CompletedResultCard({
 
         {/* Actual stats grid */}
         <View style={rc.statsGrid}>
-          <StatChip icon="straighten" value={formatDistance(run.distanceKm)} label="Distance" color={colors.blue} />
+          <StatChip icon="straighten" value={formatDistance(run.distanceKm)} label="Distance" color={colors.textPrimary} />
           <View style={rc.divider} />
-          <StatChip icon="timer" value={formatDuration(run.durationMin)} label="Time" color={colors.orange} />
+          <StatChip icon="timer" value={formatDuration(run.durationMin)} label="Time" color={colors.textPrimary} />
           <View style={rc.divider} />
-          <StatChip icon="speed" value={formatPace(run.distanceKm, run.durationMin)} label="Pace" color={colors.ochre} />
+          <StatChip icon="speed" value={formatPace(run.distanceKm, run.durationMin)} label="Pace" color={colors.textPrimary} />
         </View>
 
         {/* XP footer */}
@@ -147,6 +147,7 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
   const isFailed = mission.status === 'failed';
   const isAborted = mission.status === 'aborted';
   const needsRetry = isFailed || isAborted;
+  const [completedExpanded, setCompletedExpanded] = useState(false);
 
   const handleRetryPress = () => {
     onRetry?.();
@@ -166,11 +167,63 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
         />
       )}
 
-      {/* Completed — rich result card */}
+      {/* Completed — collapsed summary by default; expand for full card */}
       {isCompleted && completedRun ? (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.touchable}>
-          <CompletedResultCard mission={mission} run={completedRun} onShare={onShare ?? (() => {})} />
-        </TouchableOpacity>
+        <View style={styles.touchable}>
+          {!completedExpanded ? (
+            <View style={styles.collapsedCompleted}>
+              <TouchableOpacity
+                style={styles.collapsedCompletedMain}
+                onPress={() => setCompletedExpanded(true)}
+                activeOpacity={0.85}
+              >
+                <View
+                  style={[
+                    styles.collapsedTypeIcon,
+                    { backgroundColor: config.bgColor, borderColor: config.color },
+                  ]}
+                >
+                  <MaterialIcons name={config.icon as any} size={16} color={config.color} />
+                </View>
+                <View style={styles.collapsedCompletedText}>
+                  <Text style={styles.collapsedCompletedTitle} numberOfLines={1}>
+                    {stripEmojis(mission.title)}
+                  </Text>
+                  <Text style={styles.collapsedCompletedMeta}>
+                    {completedRun.goalMet ? 'Complete' : 'Failed'} · {formatDistance(completedRun.distanceKm)}
+                  </Text>
+                </View>
+                <MaterialIcons name="expand-more" size={22} color={colors.textTertiary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onShare?.()}
+                style={styles.collapsedShareBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons
+                  name="ios-share"
+                  size={18}
+                  color={completedRun.goalMet ? colors.primary : colors.red}
+                />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <TouchableOpacity
+                style={styles.expandCollapseBar}
+                onPress={() => setCompletedExpanded(false)}
+                activeOpacity={0.75}
+              >
+                <MaterialIcons name="expand-less" size={22} color={colors.textSecondary} />
+                <Text style={styles.expandCollapseLabel}>Collapse</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+                <CompletedResultCard mission={mission} run={completedRun} onShare={onShare ?? (() => {})} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       ) : isAborted ? (
         <View style={styles.touchable}>
           <View style={[styles.node, styles.nodeAborted]}>
@@ -766,5 +819,75 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     letterSpacing: 2,
     textTransform: 'uppercase',
+  } as TextStyle,
+
+  collapsedCompleted: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    ...shadows.sm,
+  } as ViewStyle,
+  collapsedCompletedMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
+    minWidth: 0,
+  } as ViewStyle,
+  collapsedTypeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  } as ViewStyle,
+  collapsedCompletedText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  } as ViewStyle,
+  collapsedCompletedTitle: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  } as TextStyle,
+  collapsedCompletedMeta: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    fontWeight: fontWeights.semibold,
+  } as TextStyle,
+  collapsedShareBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  } as ViewStyle,
+  expandCollapseBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+  } as ViewStyle,
+  expandCollapseLabel: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
 });

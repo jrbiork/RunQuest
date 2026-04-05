@@ -46,8 +46,8 @@ import { useRunSessionStore } from '../../src/store/runSessionStore';
 import {
   CampaignProgressCard,
   OperativeFileCard,
-  personaLabelTitleCase,
 } from '../../src/components/home/ProfileSummaryCards';
+import { personaLabelTitleCase } from '../../src/utils/personaDisplay';
 import { PERSONA_LABELS } from '../../src/constants/campaigns';
 import { FUN_RUN_ID } from '../../src/constants/missions';
 const RANK_TITLES = [
@@ -235,7 +235,7 @@ export default function ProfileScreen() {
               label="Distance"
               value={formatDistance(displayOverallStats.distanceKm)}
               icon="straighten"
-              iconColor={colors.blue}
+              iconColor={colors.primary}
             />
             <StatBlock
               label="Mission"

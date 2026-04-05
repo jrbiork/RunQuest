@@ -9,17 +9,10 @@ import {
   fontWeights,
 } from '../../constants/theme';
 import { PERSONA_CAMPAIGNS, PERSONA_LABELS } from '../../constants/campaigns';
+import { EXPERIENCE_DISPLAY_LABELS } from '../../constants/experienceDisplay';
 import type { PersonaId, UserProfile } from '../../types';
 import { nextPersonaId } from '../../utils/personaScoring';
-
-/** Title-case persona label (e.g. SCOUT → Scout). */
-export function personaLabelTitleCase(upperLabel: string): string {
-  return upperLabel
-    .toLowerCase()
-    .split(/[\s-]+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
+import { personaLabelTitleCase } from '../../utils/personaDisplay';
 
 const GOAL_LABELS: Record<string, string> = {
   habit: 'Secure Perimeter',
@@ -27,12 +20,6 @@ const GOAL_LABELS: Record<string, string> = {
   distance: 'Expand Network',
   speed: 'Surge Protocol',
   race: 'Supply Run',
-};
-
-const EXPERIENCE_LABELS: Record<string, string> = {
-  beginner: 'Recruit',
-  intermediate: 'Operative',
-  advanced: 'Vanguard',
 };
 
 function frequencyPerWeekLabel(profile: UserProfile): string {
@@ -202,7 +189,7 @@ export function OperativeFileCard({ profile }: { profile: UserProfile }) {
               icon="fitness-center"
               label="Classification"
               value={
-                EXPERIENCE_LABELS[profile.experienceLevel ?? 'beginner'] ??
+                EXPERIENCE_DISPLAY_LABELS[profile.experienceLevel ?? 'beginner'] ??
                 'Recruit'
               }
             />
