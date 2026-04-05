@@ -49,6 +49,7 @@ import {
   personaLabelTitleCase,
 } from '../../src/components/home/ProfileSummaryCards';
 import { PERSONA_LABELS } from '../../src/constants/campaigns';
+import { FUN_RUN_ID } from '../../src/constants/missions';
 const RANK_TITLES = [
   'Field Recruit',
   'Patrol Runner',
@@ -361,6 +362,29 @@ export default function ProfileScreen() {
               />
             </TouchableOpacity>
           </View>
+
+          <Button
+            label="Test: run complete screen"
+            icon="flag"
+            variant="secondary"
+            fullWidth
+            onPress={() => {
+              router.push({
+                pathname: '/run/complete',
+                params: {
+                  id: FUN_RUN_ID,
+                  distanceKm: '5.25',
+                  durationMin: '42',
+                  pathJson: JSON.stringify([
+                    { latitude: 37.7749, longitude: -122.4194 },
+                    { latitude: 37.7833, longitude: -122.4077 },
+                  ]),
+                  goalMet: '1',
+                  activityMode: 'run',
+                },
+              });
+            }}
+          />
 
           {profile && (
             <View style={styles.devSeedBlock}>
