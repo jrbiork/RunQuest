@@ -1,79 +1,52 @@
 import { useEffect, useMemo } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
-import {
-  useMissionsStore,
-  selectCompletedCount,
-} from '../../src/store/missionsStore';
-import { useDevStore } from '../../src/store/devStore';
-import { getWeekStartISO } from '../../src/utils/dateUtils';
+import { useMissionsStore, selectCompletedCount } from '../../src/store/missionsStore';
 import { JourneyPath } from '../../src/components/journey/JourneyPath';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
-import { PERSONA_CAMPAIGNS, PERSONA_LABELS } from '../../src/constants/campaigns';
 import { colors, spacing, fontSizes, fontWeights, radii, shadows } from '../../src/constants/theme';
-import { getCampaignXpEarnedAndTotal } from '../../src/utils/campaignXp';
+import {
+  getLevelInfo,
+  getXpRemainingToNextClass,
+  LEVEL_CLASS_TITLES,
+  SCAVENGER_LEVEL_COUNT,
+} from '../../src/utils/xpCalculator';
+import { getDisplayXpTotal } from '../../src/utils/displayXp';
 
 export default function JourneyScreen() {
   const profile = useUserStore((s) => s.profile);
+  const xp = useUserStore((s) => s.xp);
   const runHistory = useUserStore((s) => s.runHistory);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
-  const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
+  const missionSetClassLevel = useMissionsStore((s) => s.missionSetClassLevel);
   const completedCount = useMissionsStore(selectCompletedCount);
+  const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
 
-  // Compute XP using actual run history for completed missions so the values
-  // match what's shown on each mission card, regardless of persisted xpReward.
-  const { campaignXpEarned, campaignXpTotal } = useMemo(
-    () => getCampaignXpEarnedAndTotal(campaignMissions, runHistory),
-    [campaignMissions, runHistory],
+  const displayXp = useMemo(
+    () => getDisplayXpTotal({ xp, runHistory }),
+    [xp, runHistory],
   );
-  const refreshMissions = useMissionsStore((s) => s.refreshIfNewWeek);
-  const generateWeek = useMissionsStore((s) => s.generateWeek);
-  const initCampaign = useMissionsStore((s) => s.initCampaign);
-  const advanceCampaign = useMissionsStore((s) => s.advanceCampaign);
-  const canAdvance = useMissionsStore((s) => s.canAdvanceCampaign());
-  const dayOffset = useDevStore((s) => s.dayOffset);
+  const levelInfo = useMemo(() => getLevelInfo(displayXp), [displayXp]);
+  const xpRemaining = useMemo(() => getXpRemainingToNextClass(displayXp), [displayXp]);
+  const nextTitle =
+    levelInfo.level < SCAVENGER_LEVEL_COUNT
+      ? LEVEL_CLASS_TITLES[levelInfo.level]
+      : null;
 
-  const missions = campaignMissions.length > 0 ? campaignMissions : weekMissions;
+  const missions = weekMissions;
   const allComplete = missions.length > 0 && missions.every((m) => m.status === 'completed');
   const totalMissions = missions.length;
-
-  const useCampaigns = !!profile?.personaId && campaignMissions.length > 0;
-  const personaId = profile?.personaId;
-  const campaigns = personaId ? PERSONA_CAMPAIGNS[personaId] : null;
-  const currentCampaign = campaigns?.[currentCampaignIndex];
-  const totalCampaigns = campaigns?.length ?? 10;
-  const personaLabel = personaId ? PERSONA_LABELS[personaId].label : null;
-
-  // Initial load
-  useEffect(() => {
-    if (!profile) return;
-    if (profile.personaId && campaignMissions.length === 0) {
-      initCampaign(profile);
-    } else {
-      refreshMissions(profile);
-    }
-  }, []);
-
-  // When dev tools shift to a different week, regenerate missions for that week
-  useEffect(() => {
-    if (!profile) return;
-    const mockedWeekStart = getWeekStartISO();
-    const storedWeekStart = useMissionsStore.getState().weekStartDate;
-    if (mockedWeekStart !== storedWeekStart) {
-      generateWeek(profile);
-    }
-  }, [dayOffset, profile]);
-
   const weekProgress = totalMissions > 0 ? completedCount / totalMissions : 0;
-  const campaignProgress = campaignXpTotal > 0 ? campaignXpEarned / campaignXpTotal : 0;
+  const classRingProgress = levelInfo.progress;
 
-  const handleAdvance = () => {
+  useEffect(() => {
     if (!profile) return;
-    advanceCampaign(profile);
-  };
+    if (weekMissions.length === 0) {
+      generateMissionsFromProfile(profile, useUserStore.getState().xp);
+    }
+  }, [profile, weekMissions.length, generateMissionsFromProfile]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -82,66 +55,64 @@ export default function JourneyScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
-          {useCampaigns && currentCampaign ? (
-            <>
-              <View style={styles.campaignBadge}>
-                <MaterialIcons name="flag" size={12} color={colors.orange} />
-                <Text style={styles.campaignBadgeText}>
-                  {personaLabel} · CAMPAIGN {currentCampaignIndex + 1} / {totalCampaigns}
-                </Text>
-              </View>
-              <Text style={styles.title}>{currentCampaign.title}</Text>
-              <Text style={styles.subtitle}>{currentCampaign.subtitle}</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>DEPLOYMENT LOG</Text>
-              <Text style={styles.subtitle}>
-                {allComplete
-                  ? 'ALL MISSIONS COMPLETE — ZONE RESTORED'
-                  : totalMissions === 0
-                  ? 'Complete onboarding to receive missions'
-                  : `${completedCount} / ${totalMissions} MISSIONS EXECUTED`}
-              </Text>
-            </>
-          )}
-        </View>
-
-        {/* Campaign progress */}
-        {useCampaigns && totalMissions > 0 && (
-          <View style={styles.weekCard}>
-            <View style={styles.weekCardHeader}>
-              <View style={styles.weekCardLeft}>
-                <MaterialIcons name="emoji-events" size={18} color={colors.orange} />
-                <Text style={styles.weekCardTitle}>Campaign</Text>
-              </View>
-              <Text style={styles.weekCardCount}>
-                {campaignXpEarned} / {campaignXpTotal} XP
-              </Text>
-            </View>
-            <ProgressBar
-              progress={campaignProgress}
-              color={colors.orange}
-              backgroundColor={colors.orangeLight}
-              height={8}
+          <View style={styles.classBadge}>
+            <View
+              style={[styles.classDot, { backgroundColor: levelInfo.accentColor }]}
             />
-            <Text style={styles.weekCardSub}>
-              {completedCount} / {totalMissions} missions completed
+            <Text style={[styles.classBadgeText, { color: levelInfo.accentColor }]}>
+              {levelInfo.title}
             </Text>
           </View>
+          <Text style={styles.title}>MISSION PATH</Text>
+          <Text style={styles.subtitle}>
+            {allComplete
+              ? 'ALL MISSIONS COMPLETE IN THIS SET'
+              : totalMissions === 0
+                ? 'Complete onboarding to receive missions'
+                : `${completedCount} / ${totalMissions} MISSIONS IN QUEUE`}
+          </Text>
+        </View>
+
+        {totalMissions > 0 && missionSetClassLevel != null && (
+          <Text style={styles.setHint}>
+            Mission set for class rank {missionSetClassLevel}. Earn XP to promote and refresh your queue.
+          </Text>
         )}
 
-        {/* Legacy week progress bar (non-campaign users) */}
-        {!useCampaigns && totalMissions > 0 && (
+        <View style={[styles.classCard, { borderColor: levelInfo.accentColor }]}>
+          <View style={styles.classCardHeader}>
+            <View style={styles.classCardLeft}>
+              <MaterialIcons name="military-tech" size={18} color={levelInfo.accentColor} />
+              <Text style={styles.classCardTitle}>Class progress</Text>
+            </View>
+            {nextTitle && xpRemaining > 0 ? (
+              <Text style={styles.classCardCount}>
+                +{xpRemaining} XP → {nextTitle}
+              </Text>
+            ) : (
+              <Text style={styles.classCardCount}>Max class</Text>
+            )}
+          </View>
+          <ProgressBar
+            progress={classRingProgress}
+            color={levelInfo.accentColor}
+            backgroundColor={`${levelInfo.accentColor}22`}
+            height={8}
+          />
+          <Text style={styles.classCardSub}>{displayXp.toLocaleString()} total XP</Text>
+        </View>
+
+        {totalMissions > 0 && (
           <View style={styles.weekCard}>
             <View style={styles.weekCardHeader}>
               <View style={styles.weekCardLeft}>
                 <MaterialIcons name="route" size={18} color={colors.primary} />
-                <Text style={styles.weekCardTitle}>Mission Path</Text>
+                <Text style={styles.weekCardTitle}>Mission queue</Text>
               </View>
-              <Text style={styles.weekCardCount}>{completedCount}/{totalMissions}</Text>
+              <Text style={styles.weekCardCount}>
+                {completedCount}/{totalMissions}
+              </Text>
             </View>
             <ProgressBar
               progress={weekProgress}
@@ -152,32 +123,6 @@ export default function JourneyScreen() {
           </View>
         )}
 
-        {/* Advance campaign button */}
-        {useCampaigns && canAdvance && currentCampaignIndex + 1 < totalCampaigns && (
-          <TouchableOpacity
-            style={styles.advanceBtn}
-            onPress={handleAdvance}
-            activeOpacity={0.85}
-          >
-            <MaterialIcons name="arrow-forward" size={20} color={colors.textInverse} />
-            <Text style={styles.advanceBtnText}>
-              ADVANCE TO CAMPAIGN {currentCampaignIndex + 2}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* All campaigns complete */}
-        {useCampaigns && canAdvance && currentCampaignIndex + 1 >= totalCampaigns && (
-          <View style={styles.allCampaignsDone}>
-            <MaterialIcons name="public" size={32} color={colors.primary} />
-            <Text style={styles.allCampaignsDoneTitle}>WORLD RESTORED</Text>
-            <Text style={styles.allCampaignsDoneSub}>
-              All 10 campaigns complete. The Runners saved the world.
-            </Text>
-          </View>
-        )}
-
-        {/* Missions section */}
         {totalMissions > 0 && (
           <View style={styles.missionsSection}>
             <View style={styles.missionsSectionHeader}>
@@ -187,10 +132,8 @@ export default function JourneyScreen() {
           </View>
         )}
 
-        {/* Mission path */}
         <JourneyPath missions={missions} allComplete={allComplete} />
 
-        {/* Intel tip */}
         {!allComplete && totalMissions > 0 && completedCount < totalMissions && (
           <View style={styles.tip}>
             <MaterialIcons name="radio" size={16} color={colors.primary} />
@@ -221,16 +164,20 @@ const styles = StyleSheet.create({
   header: {
     gap: spacing.xs,
   } as ViewStyle,
-  campaignBadge: {
+  classBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     marginBottom: spacing.xs,
   } as ViewStyle,
-  campaignBadgeText: {
+  classDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  } as ViewStyle,
+  classBadgeText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -246,6 +193,45 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  } as TextStyle,
+  setHint: {
+    fontSize: fontSizes.sm,
+    color: colors.textTertiary,
+    lineHeight: 20,
+  } as TextStyle,
+  classCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadows.sm,
+  } as ViewStyle,
+  classCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  } as ViewStyle,
+  classCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  classCardTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  } as TextStyle,
+  classCardCount: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+  } as TextStyle,
+  classCardSub: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
   } as TextStyle,
   weekCard: {
     backgroundColor: colors.surface,
@@ -276,52 +262,7 @@ const styles = StyleSheet.create({
   weekCardCount: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
-  } as TextStyle,
-  weekCardSub: {
-    fontSize: fontSizes.xs,
-    color: colors.textTertiary,
-    letterSpacing: 0.5,
-  } as TextStyle,
-  advanceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    ...shadows.md,
-  } as ViewStyle,
-  advanceBtnText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textInverse,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  allCampaignsDone: {
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    padding: spacing.xxl,
-  } as ViewStyle,
-  allCampaignsDoneTitle: {
-    fontSize: fontSizes.xl,
-    fontWeight: fontWeights.extrabold,
     color: colors.primary,
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  allCampaignsDoneSub: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
   } as TextStyle,
   missionsSection: {
     gap: spacing.sm,

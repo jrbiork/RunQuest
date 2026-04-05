@@ -22,7 +22,6 @@ interface JourneyPathProps {
 export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   const runHistory = useUserStore((s) => s.runHistory);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
 
   const retryMission = useMissionsStore((s) => s.retryMission);
 
@@ -51,7 +50,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
 
   const sharingRun = sharingMissionId ? completedRunByMission.get(sharingMissionId) : undefined;
   const sharingMission = sharingMissionId
-    ? findMissionById(campaignMissions, weekMissions, sharingMissionId)
+    ? findMissionById(weekMissions, sharingMissionId)
     : undefined;
 
   if (missions.length === 0) {
@@ -59,7 +58,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
       <View style={styles.empty}>
         <MaterialIcons name="map" size={48} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No missions yet</Text>
-        <Text style={styles.emptyText}>Complete onboarding to unlock your weekly mission path.</Text>
+        <Text style={styles.emptyText}>Complete onboarding to unlock your mission path.</Text>
       </View>
     );
   }
@@ -70,8 +69,10 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
         <View style={styles.completeBanner}>
           <MaterialIcons name="celebration" size={32} color={colors.primary} />
           <View>
-            <Text style={styles.completeBannerTitle}>Week complete!</Text>
-            <Text style={styles.completeBannerSub}>You crushed every mission. Rest up — new missions drop Monday.</Text>
+            <Text style={styles.completeBannerTitle}>Set complete</Text>
+            <Text style={styles.completeBannerSub}>
+              You finished every mission in this batch. Earn XP to promote — your next set unlocks at the next class.
+            </Text>
           </View>
         </View>
       )}
@@ -94,7 +95,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
                 : undefined
             }
             onRetry={
-              mission.status === 'failed' || mission.status === 'aborted'
+              mission.status === 'aborted'
                 ? () => retryMission(mission.id)
                 : undefined
             }

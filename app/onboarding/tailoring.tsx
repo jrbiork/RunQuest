@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
+import { useMissionsStore } from '../../src/store/missionsStore';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { Button } from '../../src/components/ui/Button';
 import {
@@ -20,18 +21,22 @@ import {
   fontSizes,
   fontWeights,
 } from '../../src/constants/theme';
-import { PERSONA_LABELS } from '../../src/constants/campaigns';
-import { EXPERIENCE_DISPLAY_LABELS } from '../../src/constants/experienceDisplay';
-import { getLevelInfo } from '../../src/utils/xpCalculator';
-import { countPersonaPath } from '../../src/utils/personaCampaignStats';
-import { personaLabelTitleCase } from '../../src/utils/personaDisplay';
+import {
+  getLevelInfo,
+  getXpRemainingToNextClass,
+  LEVEL_CLASS_TITLES,
+  SCAVENGER_LEVEL_COUNT,
+} from '../../src/utils/xpCalculator';
+import { getDisplayXpTotal } from '../../src/utils/displayXp';
 
-const TAILOR_MS = 2400;
+const TAILOR_MS = 2200;
 const TICK_MS = 48;
 
 export default function OnboardingTailoringScreen() {
   const profile = useUserStore((s) => s.profile);
   const xp = useUserStore((s) => s.xp);
+  const runHistory = useUserStore((s) => s.runHistory);
+  const missionCount = useMissionsStore((s) => s.weekMissions.length);
   const [progress, setProgress] = useState(0);
   const [phaseDone, setPhaseDone] = useState(false);
 
@@ -54,20 +59,25 @@ export default function OnboardingTailoringScreen() {
     }
   }, [profile?.personaId]);
 
-  const levelInfo = useMemo(() => getLevelInfo(xp), [xp]);
-  const personaId = profile?.personaId;
-  const personaMeta = personaId ? PERSONA_LABELS[personaId] : null;
-  const pathStats = personaId ? countPersonaPath(personaId) : null;
-  const expLabel =
-    profile?.experienceLevel != null
-      ? EXPERIENCE_DISPLAY_LABELS[profile.experienceLevel]
-      : '—';
+  const displayXp = useMemo(
+    () => getDisplayXpTotal({ xp, runHistory }),
+    [xp, runHistory],
+  );
 
-  if (!profile?.personaId || !personaMeta || !pathStats) {
+  const levelInfo = useMemo(() => getLevelInfo(displayXp), [displayXp]);
+  const xpToNext = useMemo(
+    () => getXpRemainingToNextClass(displayXp),
+    [displayXp],
+  );
+
+  const nextRankTitle = useMemo(() => {
+    if (levelInfo.level >= SCAVENGER_LEVEL_COUNT) return null;
+    return LEVEL_CLASS_TITLES[levelInfo.level] ?? null;
+  }, [levelInfo.level]);
+
+  if (!profile?.personaId) {
     return null;
   }
-
-  const personaTitle = personaLabelTitleCase(personaMeta.label);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -86,56 +96,58 @@ export default function OnboardingTailoringScreen() {
       >
         <View style={styles.badge}>
           <MaterialIcons name="wifi" size={11} color={colors.orange} />
-          <Text style={styles.badgeText}>TRANSMISSION 6 / 6</Text>
+          <Text style={styles.badgeText}>CLASS ASSIGNMENT</Text>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.kicker}>CALIBRATION</Text>
-          <Text style={styles.title}>Tailoring your missions</Text>
+          <Text style={styles.kicker}>YOUR CLASS</Text>
+          <Text style={styles.title}>You&apos;re cleared to start</Text>
           <Text style={styles.sub}>
-            Based on your answers, we are assigning your operative path and objectives.
+            You begin as <Text style={styles.subEm}>{levelInfo.title}</Text>. Your mission queue matches
+            how often you train. Complete missions for XP — reach the next class to get a fresh set. Hit
+            distance under target time for full credit.
           </Text>
         </View>
 
         <View style={styles.progressBlock}>
-          <ProgressBar progress={progress} color={colors.primary} height={8} />
+          <ProgressBar progress={progress} color={levelInfo.accentColor} height={8} />
         </View>
+
+        {phaseDone && (
+          <View style={[styles.rankCard, { borderColor: levelInfo.accentColor }]}>
+            <View
+              style={[styles.rankSwatch, { backgroundColor: levelInfo.accentColor }]}
+            />
+            <View style={styles.rankBody}>
+              <Text style={styles.summaryLabel}>Starting class</Text>
+              <Text style={[styles.rankName, { color: levelInfo.accentColor }]}>
+                {levelInfo.title}
+              </Text>
+              <Text style={styles.summaryDesc}>
+                Rank {levelInfo.level} of {SCAVENGER_LEVEL_COUNT}. Earn XP from missions to cross the
+                next threshold.
+              </Text>
+              {nextRankTitle && xpToNext > 0 ? (
+                <Text style={styles.nextRank}>
+                  +{xpToNext} XP to{' '}
+                  <Text style={styles.nextRankBold}>{nextRankTitle}</Text>
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
 
         {phaseDone && (
           <View style={styles.summary}>
             <View style={styles.summaryRow}>
-              <MaterialIcons name="military-tech" size={20} color={colors.primary} />
+              <MaterialIcons name="route" size={20} color={colors.primary} />
               <View style={styles.summaryTextCol}>
-                <Text style={styles.summaryLabel}>Level</Text>
+                <Text style={styles.summaryLabel}>Missions queued</Text>
                 <Text style={styles.summaryValue}>
-                  Level {levelInfo.level} · {levelInfo.title}
+                  {missionCount > 0 ? `${missionCount} in queue` : 'Open journey to sync'}
                 </Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <MaterialIcons name={personaMeta.icon as any} size={20} color={colors.orange} />
-              <View style={styles.summaryTextCol}>
-                <Text style={styles.summaryLabel}>Persona</Text>
-                <Text style={styles.summaryValue}>{personaTitle}</Text>
-                <Text style={styles.summaryDesc}>{personaMeta.description}</Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <MaterialIcons name="school" size={20} color={colors.textSecondary} />
-              <View style={styles.summaryTextCol}>
-                <Text style={styles.summaryLabel}>Experience</Text>
-                <Text style={styles.summaryValue}>{expLabel}</Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <MaterialIcons name="map" size={20} color={colors.textSecondary} />
-              <View style={styles.summaryTextCol}>
-                <Text style={styles.summaryLabel}>Path ahead</Text>
-                <Text style={styles.summaryValue}>
-                  {pathStats.campaignCount} campaigns · {pathStats.missionCount} missions
+                <Text style={styles.summaryDesc}>
+                  Finish them in order. When you promote to a new class, you get a fresh set.
                 </Text>
               </View>
             </View>
@@ -219,11 +231,47 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 22,
   } as TextStyle,
+  subEm: {
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
   progressBlock: {
     marginTop: spacing.md,
   } as ViewStyle,
+  rankCard: {
+    flexDirection: 'row',
+    marginTop: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    overflow: 'hidden',
+  } as ViewStyle,
+  rankSwatch: {
+    width: 8,
+    alignSelf: 'stretch',
+  } as ViewStyle,
+  rankBody: {
+    flex: 1,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  } as ViewStyle,
+  rankName: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  } as TextStyle,
+  nextRank: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  } as TextStyle,
+  nextRankBold: {
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
   summary: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: 1,

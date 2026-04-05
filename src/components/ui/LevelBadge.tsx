@@ -7,13 +7,29 @@ interface LevelBadgeProps {
   size?: 'sm' | 'md' | 'lg';
   style?: ViewStyle;
   showLabel?: boolean;
+  accentColor?: string;
 }
 
-export function LevelBadge({ level, size = 'md', style, showLabel = false }: LevelBadgeProps) {
+export function LevelBadge({
+  level,
+  size = 'md',
+  style,
+  showLabel = false,
+  accentColor = colors.primary,
+}: LevelBadgeProps) {
   return (
-    <View style={[styles.badge, styles[size], style]}>
-      <Text style={[styles.levelNum, styles[`num_${size}`]]}>{level}</Text>
-      {showLabel && <Text style={[styles.levelLabel, styles[`num_${size}`]]}>  LVL</Text>}
+    <View
+      style={[
+        styles.badge,
+        styles[size],
+        { backgroundColor: `${accentColor}22` },
+        style,
+      ]}
+    >
+      <Text style={[styles.levelNum, styles[`num_${size}`], { color: accentColor }]}>{level}</Text>
+      {showLabel && (
+        <Text style={[styles.levelLabel, styles[`num_${size}`], { color: accentColor }]}> RANK</Text>
+      )}
     </View>
   );
 }
@@ -22,7 +38,6 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryLight,
     borderRadius: radii.full,
   } as ViewStyle,
   sm: {
@@ -44,12 +59,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   } as ViewStyle,
   levelNum: {
-    color: colors.primary,
     fontWeight: fontWeights.extrabold,
     textAlign: 'center',
   } as TextStyle,
   levelLabel: {
-    color: colors.primary,
     fontWeight: fontWeights.bold,
   } as TextStyle,
   num_sm: { fontSize: fontSizes.xs } as TextStyle,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useReducer, useState } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -13,17 +13,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import {
-  useUserStore,
-  selectWeeklyRunsTarget,
-  selectWeeklyDistanceTarget,
-} from '../../src/store/userStore';
+import { useUserStore } from '../../src/store/userStore';
 import {
   getLevelInfo,
   getOverallLevelRingProgress,
   getScavengerLevelRows,
+  getXpRemainingToNextClass,
   formatDistance,
   formatDuration,
+  LEVEL_CLASS_TITLES,
   SCAVENGER_LEVEL_COUNT,
 } from '../../src/utils/xpCalculator';
 import { getDisplayXpTotal } from '../../src/utils/displayXp';
@@ -31,7 +29,6 @@ import { useMissionsStore } from '../../src/store/missionsStore';
 import { getNextIncompleteMission } from '../../src/utils/missionGenerator';
 import { useStreak } from '../../src/hooks/useStreak';
 import { DailyMissionCard } from '../../src/components/home/DailyMissionCard';
-import { WeeklyProgressCard } from '../../src/components/home/WeeklyProgressCard';
 import { CircularStatBadge } from '../../src/components/ui/CircularStatBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
@@ -43,8 +40,6 @@ import {
   fontWeights,
 } from '../../src/constants/theme';
 import { REST_DAY_MESSAGES } from '../../src/constants/missions';
-import { useDevStore } from '../../src/store/devStore';
-import { getWeekStartISO, parseLocalDate } from '../../src/utils/dateUtils';
 import type { CompletedRun } from '../../src/types';
 import { resolveOutcome } from '../../src/utils/runOutcome';
 import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
@@ -115,64 +110,33 @@ type HomeStatModal = null | 'streak' | 'level' | 'sorties';
 
 export default function HomeScreen() {
   const profile = useUserStore((s) => s.profile);
-  const rootPersonaId = useUserStore((s) => s.personaId);
-  const personaIdForXp = profile?.personaId ?? rootPersonaId ?? undefined;
   const xp = useUserStore((s) => s.xp);
   const runHistory = useUserStore((s) => s.runHistory);
-  const totalCampaignsCompleted = useUserStore(
-    (s) => s.totalCampaignsCompleted,
-  );
   const totalRuns = useUserStore((s) => s.totalRuns);
   const hasSeenIntro = useUserStore((s) => s.hasSeenIntro);
-  const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
   const displayXpTotal = useMemo(
-    () =>
-      getDisplayXpTotal({
-        xp,
-        runHistory,
-        personaId: personaIdForXp,
-        totalCampaignsCompleted,
-        currentCampaignIndex,
-      }),
-    [
-      xp,
-      runHistory,
-      personaIdForXp,
-      totalCampaignsCompleted,
-      currentCampaignIndex,
-    ],
+    () => getDisplayXpTotal({ xp, runHistory }),
+    [xp, runHistory],
   );
   const levelInfo = useMemo(
     () => getLevelInfo(displayXpTotal),
     [displayXpTotal],
   );
-  /** Cumulative XP required to reach the next level. */
-  const nextLevelXpThreshold = useMemo(() => {
-    const li = levelInfo;
-    return li.totalXp - li.xpInLevel + li.xpToNextLevel;
-  }, [levelInfo]);
-  /** e.g. "+10 XP to Level 3" */
   const levelProgressLabel = useMemo(() => {
     const li = levelInfo;
     if (li.level >= SCAVENGER_LEVEL_COUNT) {
-      return 'Max level';
+      return 'Max class';
     }
-    const xpRemaining = Math.max(
-      0,
-      Math.round(nextLevelXpThreshold - displayXpTotal),
-    );
-    return `+${xpRemaining} XP to Level ${li.level + 1}`;
-  }, [levelInfo, nextLevelXpThreshold, displayXpTotal]);
-  const runsTarget = useUserStore(selectWeeklyRunsTarget);
-  const distanceTarget = useUserStore(selectWeeklyDistanceTarget);
-  const weeklyProgress = useUserStore((s) => s.weeklyProgress);
-  const refreshWeekly = useUserStore((s) => s.refreshWeeklyProgressIfNeeded);
+    const xpRemaining = getXpRemainingToNextClass(displayXpTotal);
+    const nextName = LEVEL_CLASS_TITLES[li.level] ?? `Rank ${li.level + 1}`;
+    return `+${xpRemaining} XP to ${nextName}`;
+  }, [levelInfo, displayXpTotal]);
 
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const generateWeek = useMissionsStore((s) => s.generateWeek);
+  const generateMissionsFromProfile = useMissionsStore(
+    (s) => s.generateMissionsFromProfile,
+  );
   const { streak } = useStreak();
-  const dayOffset = useDevStore((s) => s.dayOffset);
 
   const [statModal, setStatModal] = useState<HomeStatModal>(null);
 
@@ -190,19 +154,15 @@ export default function HomeScreen() {
     [runHistory],
   );
 
-  // Forces weekly date-range label + mission sync when dev “mock date” changes.
-  const [dateTick, bumpDateTick] = useReducer((n: number) => n + 1, 0);
-
-  // Mirrors the Journey tab pattern: compare stored week start vs mocked week start,
-  // call generateWeek directly when they differ (avoids refreshIfNewWeek race condition).
-  function syncMissions(p: typeof profile) {
-    if (!p) return;
-    const mockedWeekStart = getWeekStartISO();
-    const storedWeekStart = useMissionsStore.getState().weekStartDate;
-    if (mockedWeekStart !== storedWeekStart) {
-      generateWeek(p);
-    }
-  }
+  const ensureMissionQueue = useCallback(
+    (p: typeof profile) => {
+      if (!p) return;
+      if (useMissionsStore.getState().weekMissions.length === 0) {
+        generateMissionsFromProfile(p, useUserStore.getState().xp);
+      }
+    },
+    [generateMissionsFromProfile],
+  );
 
   useEffect(() => {
     if (!hasSeenIntro) {
@@ -213,50 +173,19 @@ export default function HomeScreen() {
       router.replace('/onboarding');
       return;
     }
-    refreshWeekly();
-    syncMissions(profile);
+    ensureMissionQueue(profile);
   }, []);
 
-  // Re-check every time the dev-tool day changes (profile tab → home tab background)
-  useEffect(() => {
-    refreshWeekly();
-    syncMissions(profile);
-    bumpDateTick();
-  }, [dayOffset]);
-
-  // Re-check every time this tab gains focus (e.g. navigating back from profile)
   useFocusEffect(
     useCallback(() => {
-      refreshWeekly();
-      syncMissions(profile);
-      bumpDateTick();
-    }, [dayOffset, profile]),
+      ensureMissionQueue(profile);
+    }, [profile, generateMissionsFromProfile]),
   );
 
-  // Same order as Journey: first mission that is not completed (no calendar / weekday pick).
-  const nextMission = useMemo(() => {
-    const list = campaignMissions.length > 0 ? campaignMissions : weekMissions;
-    return getNextIncompleteMission(list);
-  }, [campaignMissions, weekMissions]);
-
-  // Week date range label — recomputed on every date tick
-  const weekDateRange = useMemo(() => {
-    const startIso = getWeekStartISO();
-    const start = parseLocalDate(startIso);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    const fmt = (d: Date) =>
-      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${fmt(start)} – ${fmt(end)}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateTick]);
-
-  const runsCompleted = weeklyProgress?.runsCompleted ?? 0;
-  const distanceCompleted = weeklyProgress?.distanceCompletedKm ?? 0;
-
-  const weeklyRunProgress = runsTarget > 0 ? runsCompleted / runsTarget : 0;
-  const weeklyDistProgress =
-    distanceTarget > 0 ? distanceCompleted / distanceTarget : 0;
+  const nextMission = useMemo(
+    () => getNextIncompleteMission(weekMissions),
+    [weekMissions],
+  );
 
   const handleStartRun = () => {
     if (nextMission) {
@@ -281,10 +210,7 @@ export default function HomeScreen() {
         refreshControl={
           <RefreshControl
             refreshing={false}
-            onRefresh={() => {
-              refreshWeekly();
-              syncMissions(profile);
-            }}
+            onRefresh={() => ensureMissionQueue(profile)}
             tintColor={colors.orange}
           />
         }
@@ -301,7 +227,7 @@ export default function HomeScreen() {
               />
               <View style={styles.levelBadgeTextRow}>
                 <Text style={styles.levelBadgeLabel}>
-                  LVL {levelInfo.level} {levelInfo.title}
+                  {levelInfo.title}
                 </Text>
                 <Text style={styles.levelBadgeMeta}> {levelProgressLabel}</Text>
               </View>
@@ -351,7 +277,7 @@ export default function HomeScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {statModal === 'streak' && 'Streak days'}
-                  {statModal === 'level' && 'Levels'}
+                  {statModal === 'level' && 'Classes'}
                   {statModal === 'sorties' && 'Sortie log'}
                 </Text>
                 <TouchableOpacity
@@ -399,9 +325,7 @@ export default function HomeScreen() {
                 {statModal === 'level' && (
                   <>
                     <Text style={styles.modalSub}>
-                      {personaIdForXp
-                        ? `All operatives share the same level ladder.`
-                        : `Level ladder.`}
+                      Class ranks — earn XP from missions to promote.
                     </Text>
                     {scavengerLevels.map((row) => {
                       const current = row.level === levelInfo.level;
@@ -417,6 +341,7 @@ export default function HomeScreen() {
                             style={[
                               styles.levelRowNum,
                               current && styles.levelRowNumCurrent,
+                              { color: row.accentColor },
                             ]}
                           >
                             {row.level}
@@ -498,22 +423,6 @@ export default function HomeScreen() {
             </View>
           </View>
         </Modal>
-
-        {/* ─── Weekly Goal ─────────────────────────────────────────────── */}
-        {/* <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.accentBar} />
-            <Text style={styles.sectionTitle}>Weekly Goal</Text>
-          </View>
-          <WeeklyProgressCard
-            runsCompleted={runsCompleted}
-            runsTarget={runsTarget}
-            distanceCompletedKm={distanceCompleted}
-            distanceTargetKm={distanceTarget}
-            mode={profile?.weeklyTargetMode ?? 'runs'}
-            dateRange={weekDateRange}
-          />
-        </View> */}
 
         {/* ─── Circular Stat Badges (bottom of home) ────────────────────── */}
         <View style={styles.statsBadgeRow}>

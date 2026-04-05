@@ -28,10 +28,9 @@ function darkenHex(hex: string, factor = 0.74): string {
 export default function RunDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = normalizeRouteParam(params.id);
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
+  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
   const defaultActivityMode = useUserStore((s) => s.profile?.defaultActivityMode ?? 'cycle');
   const [activityMode, setActivityMode] = useState<ActivityMode>(defaultActivityMode);
 

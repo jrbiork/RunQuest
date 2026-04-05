@@ -8,6 +8,7 @@ import { formatDistance } from '../../utils/xpCalculator';
 import { stripEmojis } from '../../utils/stripEmojis';
 import { useUserStore } from '../../store/userStore';
 import { getStreakDayIndex0 } from '../../utils/streakDisplay';
+import { resolveOutcome } from '../../utils/runOutcome';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -40,24 +41,30 @@ function CompletedResultCard({
   const runHistory = useUserStore((s) => s.runHistory);
   const streakDayIndex = getStreakDayIndex0(run, runHistory);
   const config = missionConfig[mission.type];
-  const goalMet = run.goalMet;
+  const outcome = resolveOutcome(run);
+  const isSuccess = outcome === 'success';
+  const isPartial = outcome === 'partial_time';
 
   return (
-    <View style={[rc.card, goalMet ? rc.cardGoal : rc.cardFail]}>
+    <View style={[rc.card, isSuccess ? rc.cardGoal : rc.cardFail]}>
       {/* Status banner + share button */}
       <View style={rc.bannerRow}>
-        <View style={[rc.banner, goalMet ? rc.bannerGoal : rc.bannerFail]}>
+        <View style={[rc.banner, isSuccess ? rc.bannerGoal : rc.bannerFail]}>
           <MaterialIcons
-            name={goalMet ? 'emoji-events' : 'close'}
+            name={isSuccess ? 'emoji-events' : isPartial ? 'schedule' : 'close'}
             size={14}
             color={colors.textInverse}
           />
           <Text style={[rc.bannerText, rc.bannerTextGoal]}>
-            {goalMet ? 'MISSION COMPLETE' : 'FAILED'}
+            {isSuccess ? 'MISSION COMPLETE' : isPartial ? 'PARTIAL CREDIT' : 'INCOMPLETE'}
           </Text>
         </View>
         <TouchableOpacity onPress={onShare} style={rc.shareBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialIcons name="ios-share" size={16} color={goalMet ? colors.orange : colors.red} />
+          <MaterialIcons
+            name="ios-share"
+            size={16}
+            color={isSuccess ? colors.orange : isPartial ? colors.orange : colors.red}
+          />
         </TouchableOpacity>
       </View>
 
@@ -144,10 +151,19 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
   const config = missionConfig[mission.type];
   const isCompleted = mission.status === 'completed';
   const isLocked = mission.status === 'locked';
-  const isFailed = mission.status === 'failed';
   const isAborted = mission.status === 'aborted';
-  const needsRetry = isFailed || isAborted;
+  const needsRetry = isAborted;
   const [completedExpanded, setCompletedExpanded] = useState(false);
+  const completedOutcome =
+    isCompleted && completedRun ? resolveOutcome(completedRun) : null;
+  const completedOutcomeWord =
+    completedOutcome === 'success'
+      ? 'Complete'
+      : completedOutcome === 'partial_time'
+        ? 'Partial'
+        : completedOutcome
+          ? 'Incomplete'
+          : '';
 
   const handleRetryPress = () => {
     onRetry?.();
@@ -162,7 +178,7 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
           style={[
             styles.connector,
             isCompleted && styles.connectorDone,
-            isFailed && styles.connectorFailed,
+            isAborted && styles.connectorFailed,
           ]}
         />
       )}
@@ -190,7 +206,7 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     {stripEmojis(mission.title)}
                   </Text>
                   <Text style={styles.collapsedCompletedMeta}>
-                    {completedRun.goalMet ? 'Complete' : 'Failed'} · {formatDistance(completedRun.distanceKm)}
+                    {completedOutcomeWord} · {formatDistance(completedRun.distanceKm)}
                   </Text>
                 </View>
                 <MaterialIcons name="expand-more" size={22} color={colors.textTertiary} />
@@ -204,7 +220,13 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                 <MaterialIcons
                   name="ios-share"
                   size={18}
-                  color={completedRun.goalMet ? colors.primary : colors.red}
+                  color={
+                    completedOutcome === 'success'
+                      ? colors.primary
+                      : completedOutcome === 'partial_time'
+                        ? colors.orange
+                        : colors.red
+                  }
                 />
               </TouchableOpacity>
             </View>
@@ -292,27 +314,19 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
           </View>
         </View>
       ) : (
-        /* Active / upcoming / locked / failed — quest card */
+        /* Active / upcoming / locked — quest card */
         <TouchableOpacity
           onPress={needsRetry ? handleRetryPress : onPress}
           disabled={isLocked}
           activeOpacity={0.8}
           style={styles.touchable}
         >
-          <View style={[styles.node, isLocked && styles.nodeLocked, isFailed && styles.nodeFailed]}>
-            {(isLocked || isFailed) && (
-              <View style={[styles.nodeTopRow, isFailed && styles.nodeTopRowFailed]}>
-                {isLocked && (
-                  <View style={styles.questBadgeLocked}>
-                    <Text style={[styles.questBadgeText, styles.textLocked]}>LOCKED</Text>
-                  </View>
-                )}
-                {isFailed && (
-                  <View style={styles.failBadge}>
-                    <MaterialIcons name="close" size={10} color={colors.textInverse} />
-                    <Text style={styles.failBadgeText}>FAILED</Text>
-                  </View>
-                )}
+          <View style={[styles.node, isLocked && styles.nodeLocked]}>
+            {isLocked && (
+              <View style={styles.nodeTopRow}>
+                <View style={styles.questBadgeLocked}>
+                  <Text style={[styles.questBadgeText, styles.textLocked]}>LOCKED</Text>
+                </View>
               </View>
             )}
 
@@ -322,22 +336,20 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                   style={[
                     styles.typeIconBlock,
                     {
-                      backgroundColor: isLocked ? colors.border : isFailed ? colors.redLight : config.bgColor,
-                      borderColor: isLocked ? colors.border : isFailed ? colors.red : config.color,
+                      backgroundColor: isLocked ? colors.border : config.bgColor,
+                      borderColor: isLocked ? colors.border : config.color,
                     },
                   ]}
                 >
                   {isLocked ? (
                     <MaterialIcons name="lock" size={18} color={colors.textTertiary} />
-                  ) : isFailed ? (
-                    <MaterialIcons name="close" size={18} color={colors.red} />
                   ) : (
                     <MaterialIcons name={config.icon as any} size={18} color={config.color} />
                   )}
                 </View>
                 <View style={styles.nodeTitleBlock}>
                   <Text
-                    style={[styles.missionTitle, isLocked && styles.textLocked, isFailed && styles.textFailed]}
+                    style={[styles.missionTitle, isLocked && styles.textLocked]}
                     numberOfLines={2}
                   >
                     {stripEmojis(mission.title)}
@@ -351,13 +363,12 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     <MaterialIcons
                       name="directions-run"
                       size={12}
-                      color={isLocked ? colors.textTertiary : isFailed ? colors.red : colors.textSecondary}
+                      color={isLocked ? colors.textTertiary : colors.textSecondary}
                     />
                     <Text
                       style={[
                         styles.distanceText,
                         isLocked && styles.textLocked,
-                        isFailed && styles.textFailed,
                       ]}
                     >
                       {formatDistance(mission.targetDistanceKm)}
@@ -370,7 +381,6 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     style={[
                       styles.metaPipe,
                       isLocked && styles.metaPipeLocked,
-                      isFailed && styles.metaPipeFailed,
                     ]}
                   >
                     |
@@ -379,13 +389,12 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     <MaterialIcons
                       name="directions-bike"
                       size={12}
-                      color={isLocked ? colors.textTertiary : isFailed ? colors.red : colors.textSecondary}
+                      color={isLocked ? colors.textTertiary : colors.textSecondary}
                     />
                     <Text
                       style={[
                         styles.distanceText,
                         isLocked && styles.textLocked,
-                        isFailed && styles.textFailed,
                       ]}
                     >
                       {formatDistance(mission.targetCyclingDistanceKm)}
@@ -400,17 +409,10 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
 
               {!isLocked && (
                 <View style={styles.progressRow}>
-                  <ProgressBar progress={isCompleted ? 1 : 0} color={isFailed ? colors.red : config.color} />
+                  <ProgressBar progress={isCompleted ? 1 : 0} color={config.color} />
                 </View>
               )}
             </View>
-
-            {isFailed && (
-              <View style={[styles.retryBtn, styles.retryBtnFailed]}>
-                <MaterialIcons name="replay" size={16} color={colors.textInverse} />
-                <Text style={styles.retryBtnText}>MISSION FAILED — RETRY</Text>
-              </View>
-            )}
           </View>
         </TouchableOpacity>
       )}

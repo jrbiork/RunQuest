@@ -8,10 +8,9 @@ import {
   fontSizes,
   fontWeights,
 } from '../../constants/theme';
-import { PERSONA_CAMPAIGNS, PERSONA_LABELS } from '../../constants/campaigns';
+import { PERSONA_LABELS } from '../../constants/campaigns';
 import { EXPERIENCE_DISPLAY_LABELS } from '../../constants/experienceDisplay';
-import type { PersonaId, UserProfile } from '../../types';
-import { nextPersonaId } from '../../utils/personaScoring';
+import type { UserProfile } from '../../types';
 import { personaLabelTitleCase } from '../../utils/personaDisplay';
 
 const GOAL_LABELS: Record<string, string> = {
@@ -28,132 +27,6 @@ function frequencyPerWeekLabel(profile: UserProfile): string {
   return `${n}x per week`;
 }
 
-type Props = {
-  profile: UserProfile;
-  /** Campaigns finished for this class (aligned with journey / store). */
-  campaignsCompleted: number;
-};
-
-/** Interpolate hex component between two values, 0–1. */
-function lerpHex(from: number, to: number, t: number): number {
-  return Math.round(from + (to - from) * t);
-}
-
-function ChevronProgressBar({
-  completed,
-  total,
-  currentLabel,
-  nextLabel,
-}: {
-  completed: number;
-  total: number;
-  currentLabel: string;
-  nextLabel: string | null;
-}) {
-  const count = Math.max(1, total);
-
-  return (
-    <View style={styles.chevronContainer}>
-      <Text style={styles.chevronRankLabel}>{currentLabel}</Text>
-
-      <View style={styles.chevronTrack}>
-        {Array.from({ length: count }).map((_, i) => {
-          const filled = i < completed;
-          let bodyColor: string;
-          if (filled) {
-            // Gradient: ochre #B95C37 → orange #F68F4D across filled range
-            const t = completed > 1 ? i / (completed - 1) : 1;
-            const r = lerpHex(0xb9, 0xf6, t);
-            const g = lerpHex(0x5c, 0x8f, t);
-            const b = lerpHex(0x37, 0x4d, t);
-            bodyColor = `rgb(${r},${g},${b})`;
-          } else {
-            bodyColor = colors.surfaceElevated;
-          }
-          return (
-            <View key={i} style={styles.chevronArrowWrapper}>
-              {/* Rectangular body */}
-              <View
-                style={[
-                  styles.chevronBody,
-                  { backgroundColor: bodyColor },
-                  !filled && styles.chevronBodyEmpty,
-                ]}
-              />
-              {/* Right-pointing triangle tip */}
-              <View
-                style={[styles.chevronTip, { borderLeftColor: bodyColor }]}
-              />
-            </View>
-          );
-        })}
-      </View>
-
-      <Text style={[styles.chevronRankLabel, styles.chevronRankLabelRight]}>
-        {nextLabel ?? '—'}
-      </Text>
-    </View>
-  );
-}
-
-const ARROW_COUNT = 15;
-
-export function CampaignProgressCard({ profile, campaignsCompleted }: Props) {
-  const personaId = profile.personaId;
-  if (!personaId) return null;
-
-  const personaMeta = PERSONA_LABELS[personaId];
-  const totalCampaigns = Math.max(1, PERSONA_CAMPAIGNS[personaId]?.length ?? 1);
-  const campaignProgress = Math.min(
-    Math.max(campaignsCompleted / totalCampaigns, 0),
-    1,
-  );
-  const filledArrows = Math.round(campaignProgress * ARROW_COUNT);
-  const completedShown = Math.min(
-    Math.max(0, Math.floor(campaignsCompleted)),
-    totalCampaigns,
-  );
-  const remainingOnTrack = Math.max(0, totalCampaigns - completedShown);
-  const nextId = nextPersonaId(personaId);
-  const nextTitle = nextId
-    ? personaLabelTitleCase(PERSONA_LABELS[nextId].label)
-    : null;
-  const currentTitle = personaLabelTitleCase(personaMeta.label);
-
-  return (
-    <Card style={styles.evolutionCard}>
-      <View style={styles.classRowInline}>
-        <Text style={styles.evolutionRowLabel}>
-          Class: <Text style={styles.evolutionRowValue}>{currentTitle}</Text>
-        </Text>
-        <Text style={styles.classInlineSep}> · </Text>
-        <Text style={styles.evolutionRowLabel}>
-          Next:{' '}
-          <Text style={styles.evolutionRowValue}>{nextTitle ?? '—'}</Text>
-        </Text>
-      </View>
-
-      <Text style={styles.evolutionSectionTitle}>Class Evolution progress</Text>
-
-      <ChevronProgressBar
-        completed={filledArrows}
-        total={ARROW_COUNT}
-        currentLabel={currentTitle}
-        nextLabel={nextTitle}
-      />
-
-      <View style={styles.bulletList}>
-        <Text style={styles.bulletLine}>
-          Campaigns completed:{' '}
-          <Text style={styles.evolutionRowValue}>
-            {completedShown} / {totalCampaigns}
-          </Text>
-        </Text>
-      </View>
-    </Card>
-  );
-}
-
 export function OperativeFileCard({ profile }: { profile: UserProfile }) {
   return (
     <Card style={styles.profileCard}>
@@ -163,7 +36,7 @@ export function OperativeFileCard({ profile }: { profile: UserProfile }) {
           <>
             <ProfileRow
               icon="military-tech"
-              label="Class"
+              label="Operative style"
               value={personaLabelTitleCase(
                 PERSONA_LABELS[profile.personaId].label,
               )}
@@ -270,93 +143,6 @@ function Divider() {
 }
 
 const styles = StyleSheet.create({
-  evolutionCard: {
-    gap: spacing.sm,
-  } as ViewStyle,
-  classRowInline: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    gap: 0,
-  } as ViewStyle,
-  classInlineSep: {
-    fontSize: fontSizes.sm,
-    color: colors.textTertiary,
-  } as TextStyle,
-  evolutionRowLabel: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-  } as TextStyle,
-  evolutionRowValue: {
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
-  } as TextStyle,
-  evolutionSectionTitle: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.semibold,
-    color: colors.orange,
-    letterSpacing: 0.4,
-    marginTop: spacing.sm,
-  } as TextStyle,
-  chevronContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  } as ViewStyle,
-  chevronTrack: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  } as ViewStyle,
-  chevronArrowWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  } as ViewStyle,
-  chevronBody: {
-    flex: 1,
-    height: 16,
-  } as ViewStyle,
-  chevronBodyEmpty: {
-    borderWidth: 1,
-    borderRightWidth: 0,
-    borderColor: colors.border,
-  } as ViewStyle,
-  chevronTip: {
-    width: 0,
-    height: 0,
-    borderTopWidth: 8,
-    borderBottomWidth: 8,
-    borderLeftWidth: 8,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-  } as ViewStyle,
-  chevronRankLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    flexShrink: 0,
-  } as TextStyle,
-  chevronRankLabelRight: {
-    color: colors.textTertiary,
-  } as TextStyle,
-  bulletList: {
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  } as ViewStyle,
-  bulletLine: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-  } as TextStyle,
-  evolutionSubLine: {
-    fontSize: fontSizes.xs,
-    color: colors.textTertiary,
-    lineHeight: 18,
-  } as TextStyle,
-
   profileCard: { gap: spacing.sm } as ViewStyle,
   profileRows: { gap: 2 } as ViewStyle,
   profileRow: {

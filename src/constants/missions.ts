@@ -578,7 +578,7 @@ export const REST_DAY_MESSAGES = [
 ];
 
 export const WEEKLY_COMPLETE_MESSAGES = [
-  'All missions complete. The world is stronger this week.',
+  'All missions complete in this set. The world is stronger.',
   'Perfect week. Every zone restored.',
   'Full mission week. Legendary Runner.',
 ];

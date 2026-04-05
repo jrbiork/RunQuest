@@ -48,13 +48,16 @@ Debug builds load JavaScript from the **Metro bundler** and do **not** embed `ma
 
 ### Optional: map polyline snapping (OpenRouteService)
 
-Road snapping on the active run map uses [OpenRouteService](https://openrouteservice.org/). Set a public API key when starting Expo:
+The active run map draws a road-following polyline using a two-tier snap strategy:
+
+1. **Google Roads API** (map matching — best accuracy, no corner-cutting): set `GOOGLE_ROADS_API_KEY`
+2. **OpenRouteService** (routing fallback): set `EXPO_PUBLIC_OPENROUTESERVICE_KEY`
 
 ```bash
-EXPO_PUBLIC_OPENROUTESERVICE_KEY=your_key npx expo start
+GOOGLE_ROADS_API_KEY=your_key EXPO_PUBLIC_OPENROUTESERVICE_KEY=your_key npx expo start
 ```
 
-The app reads it from `expo.extra` via [`app.config.js`](app.config.js). Without a key, the map falls back to raw GPS points.
+Both keys are read from `expo.extra` via [`app.config.js`](app.config.js). Without either key the map falls back to raw GPS points.
 
 ---
 

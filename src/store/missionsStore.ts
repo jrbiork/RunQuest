@@ -1,293 +1,133 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Mission, MissionsState, UserProfile, PersonaId, CampaignTemplate } from '../types';
-import { useUserStore } from './userStore';
-import { generateWeekMissions, getNextIncompleteMission } from '../utils/missionGenerator';
-import { getWeekStartISO, isNewWeek, getTodayISO, getScheduledDatesForWeek, getWeekStart, getNow } from '../utils/dateUtils';
-import { PERSONA_CAMPAIGNS } from '../constants/campaigns';
-import { BASE_XP } from '../utils/xpCalculator';
-import { narrativeForCampaignMission } from '../utils/campaignMissionNarrative';
-import { stripEmojis } from '../utils/stripEmojis';
+import type { Mission, MissionsState, UserProfile } from '../types';
+import {
+  generateMissionsFromProfile as buildMissionQueueFromProfile,
+  getNextIncompleteMission,
+} from '../utils/missionGenerator';
+import { getLevelInfo } from '../utils/xpCalculator';
 
 interface MissionsActions {
-  // Legacy weekly generation (free run compatibility)
-  generateWeek: (profile: UserProfile) => void;
+  /** Replace mission queue from profile and current total XP (derives class rank). */
+  generateMissionsFromProfile: (profile: UserProfile, totalXp: number) => void;
+  /** After a run, refill missions when the user crossed into a higher class rank. */
+  regenerateMissionsIfPromoted: (
+    profile: UserProfile,
+    xpBefore: number,
+    xpAfter: number,
+  ) => void;
   completeMission: (missionId: string, xpEarned?: number) => void;
-  failMission: (missionId: string) => void;
-  /** User stopped the run from the active screen — distinct from failing the goal on complete. */
   abortMission: (missionId: string) => void;
   retryMission: (missionId: string) => void;
-  refreshIfNewWeek: (profile: UserProfile) => void;
-
-  // Campaign actions
-  initCampaign: (profile: UserProfile) => void;
-  advanceCampaign: (profile: UserProfile) => void;
-  canAdvanceCampaign: () => boolean;
-
   resetMissions: () => void;
 }
 
 type MissionsStore = MissionsState & MissionsActions;
 
-function buildCampaignMissions(
-  profile: UserProfile,
-  campaign: CampaignTemplate,
-  campaignIndex: number,
-): Mission[] {
-  const { preferredDays } = profile;
-  const today = getTodayISO();
-  const weekStart = getWeekStart(getNow());
-  const scheduledDates = getScheduledDatesForWeek(preferredDays, weekStart);
-
-  return preferredDays.map((day, dayIdx) => {
-    const templateIdx = dayIdx % campaign.missionTemplates.length;
-    const template = campaign.missionTemplates[templateIdx]!;
-    const scheduledDate = scheduledDates[dayIdx] ?? today;
-    const title = stripEmojis(template.title);
-    const subtitle = stripEmojis(template.subtitle);
-    const generated = narrativeForCampaignMission(
-      template.type,
-      title,
-      subtitle,
-      campaign.title,
-    );
-
-    // Sequential campaign path — Run uses first incomplete mission, not the calendar.
-    const status: Mission['status'] = dayIdx === 0 ? 'active' : 'upcoming';
-
-    return {
-      id: `campaign-${campaignIndex}-day-${dayIdx}`,
-      type: template.type,
-      title,
-      subtitle,
-      description: stripEmojis(template.description ?? generated.description),
-      audioCues: template.audioCues ?? generated.audioCues,
-      targetDistanceKm: template.targetDistanceKm,
-      targetDurationMin: template.targetDurationMin,
-      targetCyclingDistanceKm: template.targetCyclingDistanceKm,
-      targetCyclingDurationMin: template.targetCyclingDurationMin,
-      xpReward: template.xpReward,
-      day,
-      scheduledDate,
-      status,
-      campaignIndex,
-      campaignMissionIndex: dayIdx,
-    } satisfies Mission;
-  });
+function normalizeMissionStatuses(list: Mission[]): Mission[] {
+  return list.map((m) =>
+    (m.status as string) === 'failed' ? { ...m, status: 'active' as const } : m,
+  );
 }
 
 export const useMissionsStore = create<MissionsStore>()(
   persist(
     (set, get) => ({
-      // ─── Initial State ────────────────────────────────────────────────
       weekMissions: [],
-      weekStartDate: null,
-      currentCampaignIndex: 0,
-      campaignMissions: [],
-      campaignStartDate: null,
+      missionSetClassLevel: null,
 
-      // ─── Legacy Weekly Actions ────────────────────────────────────────
-
-      generateWeek: (profile: UserProfile) => {
-        const state = get();
-        // Campaign path is authoritative — do not replace with legacy weekly missions
-        if (state.campaignMissions.length > 0) {
-          set({
-            weekMissions: [...state.campaignMissions],
-            weekStartDate: getWeekStartISO(),
-          });
-          return;
-        }
-        const missions = generateWeekMissions(profile);
+      generateMissionsFromProfile: (profile: UserProfile, totalXp: number) => {
+        const classLevel = getLevelInfo(totalXp).level;
+        const missions = buildMissionQueueFromProfile(profile, classLevel);
         set({
           weekMissions: missions,
-          weekStartDate: getWeekStartISO(),
+          missionSetClassLevel: classLevel,
         });
+      },
+
+      /** If XP crosses at least one class threshold, rebuild the queue for the new rank. Multi-rank jumps in one run use the final rank (one new batch). */
+      regenerateMissionsIfPromoted: (profile, xpBefore, xpAfter) => {
+        const beforeLv = getLevelInfo(xpBefore).level;
+        const afterLv = getLevelInfo(xpAfter).level;
+        if (afterLv <= beforeLv) return;
+        get().generateMissionsFromProfile(profile, xpAfter);
       },
 
       completeMission: (missionId: string, xpEarned?: number) => {
-        set((state) => {
-          const updateList = (list: Mission[]) =>
-            list.map((m) =>
-              m.id === missionId
-                ? { ...m, status: 'completed' as const, ...(xpEarned !== undefined ? { xpReward: xpEarned } : {}) }
-                : m,
-            );
-          return {
-            weekMissions: updateList(state.weekMissions),
-            campaignMissions: updateList(state.campaignMissions),
-          };
-        });
-      },
-
-      failMission: (missionId: string) => {
-        set((state) => {
-          const updateList = (list: Mission[]) =>
-            list.map((m) => (m.id === missionId ? { ...m, status: 'failed' as const } : m));
-          return {
-            weekMissions: updateList(state.weekMissions),
-            campaignMissions: updateList(state.campaignMissions),
-          };
-        });
+        set((state) => ({
+          weekMissions: state.weekMissions.map((m) =>
+            m.id === missionId
+              ? {
+                  ...m,
+                  status: 'completed' as const,
+                  ...(xpEarned !== undefined ? { xpReward: xpEarned } : {}),
+                }
+              : m,
+          ),
+        }));
       },
 
       abortMission: (missionId: string) => {
-        set((state) => {
-          const updateList = (list: Mission[]) =>
-            list.map((m) => (m.id === missionId ? { ...m, status: 'aborted' as const } : m));
-          return {
-            weekMissions: updateList(state.weekMissions),
-            campaignMissions: updateList(state.campaignMissions),
-          };
-        });
+        set((state) => ({
+          weekMissions: state.weekMissions.map((m) =>
+            m.id === missionId ? { ...m, status: 'aborted' as const } : m,
+          ),
+        }));
       },
 
       retryMission: (missionId: string) => {
-        set((state) => {
-          const updateList = (list: Mission[]) =>
-            list.map((m) =>
-              m.id === missionId && (m.status === 'failed' || m.status === 'aborted')
-                ? { ...m, status: 'active' as const }
-                : m,
-            );
-          return {
-            weekMissions: updateList(state.weekMissions),
-            campaignMissions: updateList(state.campaignMissions),
-          };
-        });
-      },
-
-      refreshIfNewWeek: (profile: UserProfile) => {
-        const state = get();
-        if (isNewWeek(state.weekStartDate) || state.weekMissions.length === 0) {
-          if (state.campaignMissions.length > 0) {
-            set({
-              weekMissions: [...state.campaignMissions],
-              weekStartDate: getWeekStartISO(),
-            });
-            return;
-          }
-          const missions = generateWeekMissions(profile);
-          set({
-            weekMissions: missions,
-            weekStartDate: getWeekStartISO(),
-          });
-        }
-      },
-
-      // ─── Campaign Actions ─────────────────────────────────────────────
-
-      initCampaign: (profile: UserProfile) => {
-        const state = get();
-        const personaId = profile.personaId;
-        const campaigns = PERSONA_CAMPAIGNS[personaId];
-        if (!campaigns) return;
-
-        const idx = state.currentCampaignIndex;
-        const campaign = campaigns[idx];
-        if (!campaign) return;
-
-        const missions = buildCampaignMissions(profile, campaign, idx);
-        set({
-          campaignMissions: missions,
-          campaignStartDate: getTodayISO(),
-          weekMissions: missions,
-          weekStartDate: getWeekStartISO(),
-        });
-      },
-
-      advanceCampaign: (profile: UserProfile) => {
-        const state = get();
-        if (!get().canAdvanceCampaign()) return;
-
-        const personaId = profile.personaId;
-        const campaigns = PERSONA_CAMPAIGNS[personaId];
-        const nextIdx = state.currentCampaignIndex + 1;
-
-        if (!campaigns || nextIdx >= campaigns.length) {
-          // All campaigns complete — just mark all done
-          set({ currentCampaignIndex: nextIdx });
-          useUserStore.getState().incrementCampaignsCompleted();
-          return;
-        }
-
-        const nextCampaign = campaigns[nextIdx]!;
-        const missions = buildCampaignMissions(profile, nextCampaign, nextIdx);
-        set({
-          currentCampaignIndex: nextIdx,
-          campaignMissions: missions,
-          campaignStartDate: getTodayISO(),
-          weekMissions: missions,
-          weekStartDate: getWeekStartISO(),
-        });
-        useUserStore.getState().incrementCampaignsCompleted();
-      },
-
-      canAdvanceCampaign: () => {
-        const { campaignMissions } = get();
-        if (campaignMissions.length === 0) return false;
-        const hasFailed = campaignMissions.some(
-          (m) => m.status === 'failed' || m.status === 'aborted',
-        );
-        const hasActive = campaignMissions.some(
-          (m) => m.status === 'active' || m.status === 'upcoming',
-        );
-        return !hasFailed && !hasActive;
+        set((state) => ({
+          weekMissions: state.weekMissions.map((m) =>
+            m.id === missionId && m.status === 'aborted'
+              ? { ...m, status: 'active' as const }
+              : m,
+          ),
+        }));
       },
 
       resetMissions: () => {
         set({
           weekMissions: [],
-          weekStartDate: null,
-          currentCampaignIndex: 0,
-          campaignMissions: [],
-          campaignStartDate: null,
+          missionSetClassLevel: null,
         });
       },
     }),
     {
       name: 'runquest-missions',
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      migrate: (persisted: unknown) => {
+        const s = persisted as {
+          weekMissions?: Mission[];
+          campaignMissions?: Mission[];
+          missionSetClassLevel?: number | null;
+        };
+        const raw =
+          s.campaignMissions && s.campaignMissions.length > 0
+            ? s.campaignMissions
+            : s.weekMissions ?? [];
+        return {
+          weekMissions: normalizeMissionStatuses(raw),
+          missionSetClassLevel: s.missionSetClassLevel ?? null,
+        };
+      },
+      partialize: (state) => ({
+        weekMissions: state.weekMissions,
+        missionSetClassLevel: state.missionSetClassLevel,
+      }),
     },
   ),
 );
 
-// ─── Derived selectors ────────────────────────────────────────────────────────
-
-/** Same list Journey / home use — campaign missions when active, else weekly legacy */
-function primaryMissionList(state: MissionsStore): Mission[] {
-  return state.campaignMissions.length > 0 ? state.campaignMissions : state.weekMissions;
-}
-
 export const selectTodaysMission = (state: MissionsStore): Mission | null =>
-  getNextIncompleteMission(primaryMissionList(state));
+  getNextIncompleteMission(state.weekMissions);
 
 export const selectCompletedCount = (state: MissionsStore): number =>
-  state.campaignMissions.length > 0
-    ? state.campaignMissions.filter((m) => m.status === 'completed').length
-    : state.weekMissions.filter((m) => m.status === 'completed').length;
+  state.weekMissions.filter((m) => m.status === 'completed').length;
 
-export const selectAllComplete = (state: MissionsStore): boolean => {
-  const missions = state.campaignMissions.length > 0 ? state.campaignMissions : state.weekMissions;
-  return missions.length > 0 && missions.every((m) => m.status === 'completed');
-};
+export const selectAllComplete = (state: MissionsStore): boolean =>
+  state.weekMissions.length > 0 && state.weekMissions.every((m) => m.status === 'completed');
 
 export const selectNextMission = (state: MissionsStore): Mission | null =>
-  getNextIncompleteMission(primaryMissionList(state));
-
-export const selectCampaignXpEarned = (state: MissionsStore): number =>
-  state.campaignMissions
-    .filter((m) => m.status === 'completed')
-    .reduce((sum, m) => sum + m.xpReward, 0);
-
-export const selectCampaignXpTotal = (state: MissionsStore): number =>
-  state.campaignMissions.reduce((sum, m) => sum + m.xpReward, 0);
-
-export const selectCurrentCampaign = (
-  state: MissionsStore,
-  personaId: PersonaId,
-): CampaignTemplate | null => {
-  const campaigns = PERSONA_CAMPAIGNS[personaId];
-  return campaigns?.[state.currentCampaignIndex] ?? null;
-};
+  getNextIncompleteMission(state.weekMissions);

@@ -37,6 +37,7 @@ import {
 import { formatDistance } from '../../src/utils/xpCalculator';
 import { resolveOutcome } from '../../src/utils/runOutcome';
 import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
+import { RunDetailsModal } from '../../src/components/run/RunDetailsModal';
 import {
   colors,
   spacing,
@@ -201,18 +202,18 @@ function DayDetailPanel({
   dateStr,
   runs,
   runHistory,
-  campaignMissions,
   weekMissions,
   onDismiss,
   onShare,
+  onRunPress,
 }: {
   dateStr: string;
   runs: CompletedRun[];
   runHistory: CompletedRun[];
-  campaignMissions: Mission[];
   weekMissions: Mission[];
   onDismiss: () => void;
   onShare: () => void;
+  onRunPress: (run: CompletedRun) => void;
 }) {
   const date = new Date(dateStr + 'T12:00:00');
   const dayNames = [
@@ -288,32 +289,16 @@ function DayDetailPanel({
       ) : (
         /* Run(s) on this day */
         runs.map((run) => {
-          const mission = findMissionById(
-            campaignMissions,
-            weekMissions,
-            run.missionId,
-          );
+          const mission = findMissionById(weekMissions, run.missionId);
           const mType = mission?.type ?? 'easy';
           const config = missionConfig[mType];
           const outcome = resolveOutcome(run);
-          const statusLabel =
-            outcome === 'success'
-              ? 'COMPLETED'
-              : outcome === 'aborted'
-                ? 'ABORTED'
-                : 'FAILED';
-          const statusBadgeStyle =
-            outcome === 'success'
-              ? styles.detailStatusBadgeOk
-              : styles.detailStatusBadgeBad;
-          const statusBadgeTextStyle =
-            outcome === 'success'
-              ? styles.detailStatusBadgeTextOk
-              : styles.detailStatusBadgeTextBad;
           return (
-            <View
+            <TouchableOpacity
               key={`${run.missionId}-${run.completedAt}`}
               style={styles.detailRunCard}
+              onPress={() => onRunPress(run)}
+              activeOpacity={0.85}
             >
               <View style={styles.detailRunHeaderRow}>
                 <View
@@ -333,13 +318,7 @@ function DayDetailPanel({
                     {config.label}
                   </Text>
                 </View>
-                <View style={[styles.detailStatusBadge, statusBadgeStyle]}>
-                  <Text
-                    style={[styles.detailStatusBadgeText, statusBadgeTextStyle]}
-                  >
-                    {statusLabel}
-                  </Text>
-                </View>
+                <SortieOutcomeBadge outcome={outcome} />
               </View>
 
               {/* Stats row */}
@@ -381,7 +360,7 @@ function DayDetailPanel({
                   </Text>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })
       )}
@@ -531,14 +510,14 @@ function formatMissionLogDayHeader(dayKey: string): string {
 
 function MissionLogList({
   runs,
-  campaignMissions,
   weekMissions,
   emptyLabel = 'No mission attempts yet.',
+  onRunPress,
 }: {
   runs: CompletedRun[];
-  campaignMissions: Mission[];
   weekMissions: Mission[];
   emptyLabel?: string;
+  onRunPress: (run: CompletedRun) => void;
 }) {
   const personaId = useUserStore((s) => s.profile?.personaId ?? s.personaId);
 
@@ -578,11 +557,7 @@ function MissionLogList({
             {formatMissionLogDayHeader(dayKey)}
           </Text>
           {dayRuns.map((run, runIdx) => {
-            const mission = findMissionById(
-              campaignMissions,
-              weekMissions,
-              run.missionId,
-            );
+            const mission = findMissionById(weekMissions, run.missionId);
             const title = resolveMissionDisplayTitle(
               run.missionId,
               mission,
@@ -596,13 +571,15 @@ function MissionLogList({
             });
 
             return (
-              <View
+              <TouchableOpacity
                 key={`${run.missionId}-${run.completedAt}`}
                 style={[
                   styles.missionLogRow,
                   runIdx === dayRuns.length - 1 &&
                     styles.missionLogRowLastInSection,
                 ]}
+                onPress={() => onRunPress(run)}
+                activeOpacity={0.85}
               >
                 <View style={styles.missionLogLeft}>
                   <Text style={styles.missionLogTitle} numberOfLines={1}>
@@ -618,7 +595,7 @@ function MissionLogList({
                   )}
                 </View>
                 <SortieOutcomeBadge outcome={outcome} />
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -641,9 +618,10 @@ export default function StatsScreen() {
   const [isDaySharing, setIsDaySharing] = useState(false);
   const [isMonthSharing, setIsMonthSharing] = useState(false);
   const [missionLogExpanded, setMissionLogExpanded] = useState(false);
+  const [runDetails, setRunDetails] = useState<CompletedRun | null>(null);
 
   const runHistory = useUserStore((s) => s.runHistory);
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
+  const profilePersona = useUserStore((s) => s.profile?.personaId ?? s.personaId);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
 
   const dayShareRef = useRef<ViewShot>(null);
@@ -881,10 +859,10 @@ export default function StatsScreen() {
             dateStr={selectedDate}
             runs={selectedRuns}
             runHistory={runHistory}
-            campaignMissions={campaignMissions}
             weekMissions={weekMissions}
             onDismiss={() => setSelectedDate(null)}
             onShare={handleDayShare}
+            onRunPress={(run) => setRunDetails(run)}
           />
         )}
 
@@ -949,9 +927,9 @@ export default function StatsScreen() {
           {missionLogHasRuns && missionLogExpanded && (
             <MissionLogList
               runs={runsForMissionLog}
-              campaignMissions={campaignMissions}
               weekMissions={weekMissions}
               emptyLabel={missionsEmptyLabel}
+              onRunPress={(run) => setRunDetails(run)}
             />
           )}
         </Animated.View>
@@ -977,6 +955,18 @@ export default function StatsScreen() {
         )}
       </ScrollView>
 
+      <RunDetailsModal
+        visible={runDetails != null}
+        onClose={() => setRunDetails(null)}
+        run={runDetails}
+        mission={
+          runDetails
+            ? findMissionById(weekMissions, runDetails.missionId)
+            : undefined
+        }
+        personaId={profilePersona}
+      />
+
       {/* Off-screen share cards — invisible, captured by viewShot */}
       <View style={styles.offscreen} pointerEvents="none">
         {/* Day share card — shows first run of the selected day */}
@@ -984,11 +974,7 @@ export default function StatsScreen() {
           selectedRuns.length > 0 &&
           (() => {
             const run = selectedRuns[0]!;
-            const mission = findMissionById(
-              campaignMissions,
-              weekMissions,
-              run.missionId,
-            );
+            const mission = findMissionById(weekMissions, run.missionId);
             return (
               <RunShareCard
                 ref={dayShareRef}

@@ -68,10 +68,30 @@ export function isStreakAlive(lastRunDate: string | null): boolean {
   return diffDays <= 2;
 }
 
-// Returns true if the stored weekStartDate is not this week's Monday
-export function isNewWeek(storedWeekStart: string | null): boolean {
-  if (!storedWeekStart) return true;
-  return storedWeekStart !== getWeekStartISO();
+/** Calendar dates for the next `count` sessions, in order, using each preferred weekday in turn (wraps). Starts from today (respects `getNow()` / dev offset). Not tied to ISO week rollover. */
+export function getNextPreferredDayOccurrences(
+  preferredDaysInOrder: DayOfWeek[],
+  count: number,
+): string[] {
+  if (preferredDaysInOrder.length === 0 || count <= 0) return [];
+  const dates: string[] = [];
+  let anchor = parseLocalDate(getTodayISO());
+  anchor.setHours(12, 0, 0, 0);
+  for (let i = 0; i < count; i++) {
+    const targetDay = preferredDaysInOrder[i % preferredDaysInOrder.length]!;
+    const targetIdx = DAY_NAMES.indexOf(targetDay);
+    const d = new Date(anchor);
+    for (let g = 0; g < 8; g++) {
+      const js = d.getDay();
+      const idx = js === 0 ? 6 : js - 1;
+      if (idx === targetIdx) break;
+      d.setDate(d.getDate() + 1);
+    }
+    dates.push(toISODate(d));
+    anchor = new Date(d);
+    anchor.setDate(anchor.getDate() + 1);
+  }
+  return dates;
 }
 
 // Given an array of DayOfWeek, return the ISO dates for this week's occurrences

@@ -11,7 +11,13 @@ import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
+import { OptionCard } from '../../src/components/onboarding/OptionCard';
 import { useOnboardingDraft } from './_layout';
+import type {
+  ActivityMode,
+  CycleDistanceAnswer,
+  RunDistanceAnswer,
+} from '../../src/types';
 import {
   colors,
   spacing,
@@ -26,15 +32,55 @@ function clampDays(n: number): number {
   return Math.max(1, Math.min(7, Math.round(n)));
 }
 
-export default function OnboardingFrequencyScreen() {
+const RUN_OPTS: {
+  value: RunDistanceAnswer;
+  label: string;
+  description: string;
+  icon: string;
+}[] = [
+  { value: 'lt3', label: '< 3 km', description: 'Short sessions', icon: 'straighten' },
+  { value: '3-5', label: '3 – 5 km', description: 'Typical easy distance', icon: 'straighten' },
+  { value: '5-10', label: '5 – 10 km', description: 'Solid midweek run', icon: 'straighten' },
+  { value: '10plus', label: '10+ km', description: 'Long or race-ready', icon: 'straighten' },
+];
+
+const CYCLE_OPTS: {
+  value: CycleDistanceAnswer;
+  label: string;
+  description: string;
+  icon: string;
+}[] = [
+  { value: 'lt10', label: '< 10 km', description: 'Short spins', icon: 'route' },
+  { value: '10-25', label: '10 – 25 km', description: 'Regular rides', icon: 'route' },
+  { value: '25-60', label: '25 – 60 km', description: 'Endurance blocks', icon: 'route' },
+  { value: '60plus', label: '60+ km', description: 'Long or event prep', icon: 'route' },
+];
+
+export default function OnboardingVolumeScreen() {
   const draft = useOnboardingDraft();
+  const mode: ActivityMode = draft.current.defaultActivityMode ?? 'run';
   const [days, setDays] = useState(() =>
     clampDays(draft.current.trainingDaysPerWeek ?? 3),
+  );
+  const [runSel, setRunSel] = useState<RunDistanceAnswer | null>(
+    draft.current.runDistance ?? null,
+  );
+  const [cycleSel, setCycleSel] = useState<CycleDistanceAnswer | null>(
+    draft.current.cycleDistance ?? null,
   );
 
   const handleNext = () => {
     draft.current.trainingDaysPerWeek = days;
-    router.push('/onboarding/distance' as any);
+    if (mode === 'run') {
+      if (!runSel) return;
+      draft.current.runDistance = runSel;
+      draft.current.cycleDistance = undefined;
+    } else {
+      if (!cycleSel) return;
+      draft.current.cycleDistance = cycleSel;
+      draft.current.runDistance = undefined;
+    }
+    router.push('/onboarding/goal' as any);
   };
 
   const onSliderChange = useCallback((raw: number) => {
@@ -47,21 +93,24 @@ export default function OnboardingFrequencyScreen() {
     });
   }, []);
 
+  const distOk = mode === 'run' ? runSel !== null : cycleSel !== null;
+
   return (
     <OnboardingLayout
       step={2}
-      totalSteps={5}
-      title="How many days per week do you currently train?"
-      subtitle="Training load"
+      totalSteps={3}
+      title="How often do you train, and what distance fits you?"
+      subtitle="Volume"
       onNext={handleNext}
       nextLabel="Continue"
+      nextDisabled={!distOk}
     >
       <View style={styles.card}>
+        <Text style={styles.sectionLabel}>DAYS PER WEEK</Text>
         <View style={styles.valueBlock}>
           <Text style={styles.value}>{days}</Text>
           <Text style={styles.unit}>DAYS / WEEK</Text>
         </View>
-
         <View style={styles.sliderBlock}>
           <View style={styles.edgeLabels}>
             <Text style={styles.edgeLabel}>1</Text>
@@ -78,12 +127,6 @@ export default function OnboardingFrequencyScreen() {
             maximumTrackTintColor={colors.surfaceElevated}
             thumbTintColor={colors.orange}
             accessibilityLabel="Training days per week"
-            accessibilityValue={{
-              min: 1,
-              max: 7,
-              now: days,
-              text: `${days} days per week`,
-            }}
           />
           <View style={styles.tickLabels}>
             {[1, 2, 3, 4, 5, 6, 7].map((n) => (
@@ -96,7 +139,6 @@ export default function OnboardingFrequencyScreen() {
             ))}
           </View>
         </View>
-
         <View style={styles.quickRow}>
           {[1, 3, 5, 7].map((n) => (
             <TouchableOpacity
@@ -106,7 +148,6 @@ export default function OnboardingFrequencyScreen() {
                 setDays(n);
                 Haptics.selectionAsync();
               }}
-              accessibilityLabel={`Set to ${n} days`}
             >
               <Text
                 style={[
@@ -120,6 +161,33 @@ export default function OnboardingFrequencyScreen() {
           ))}
         </View>
       </View>
+
+      <Text style={[styles.sectionLabel, styles.sectionLabelSpaced]}>
+        {mode === 'run' ? 'TYPICAL RUN DISTANCE' : 'TYPICAL RIDE DISTANCE'}
+      </Text>
+      <View style={styles.options}>
+        {mode === 'run'
+          ? RUN_OPTS.map((o) => (
+              <OptionCard
+                key={o.value}
+                label={o.label}
+                description={o.description}
+                icon={o.icon}
+                selected={runSel === o.value}
+                onPress={() => setRunSel(o.value)}
+              />
+            ))
+          : CYCLE_OPTS.map((o) => (
+              <OptionCard
+                key={o.value}
+                label={o.label}
+                description={o.description}
+                icon={o.icon}
+                selected={cycleSel === o.value}
+                onPress={() => setCycleSel(o.value)}
+              />
+            ))}
+      </View>
     </OnboardingLayout>
   );
 }
@@ -131,8 +199,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.xl,
-    gap: spacing.xl,
+    gap: spacing.md,
   } as ViewStyle,
+  sectionLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 2,
+  } as TextStyle,
+  sectionLabelSpaced: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  } as TextStyle,
   valueBlock: {
     alignItems: 'center',
     gap: spacing.xs,
@@ -161,7 +239,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
     color: colors.textTertiary,
-    fontVariant: ['tabular-nums'],
   } as TextStyle,
   slider: {
     width: '100%',
@@ -178,7 +255,6 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     width: 14,
     textAlign: 'center',
-    fontVariant: ['tabular-nums'],
   } as TextStyle,
   tickLabelActive: {
     color: colors.primary,
@@ -210,4 +286,7 @@ const styles = StyleSheet.create({
   quickChipTextActive: {
     color: colors.orange,
   } as TextStyle,
+  options: {
+    gap: 16,
+  } as ViewStyle,
 });

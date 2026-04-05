@@ -61,7 +61,6 @@ export type MissionStatus =
   | 'active'
   | 'upcoming'
   | 'locked'
-  | 'failed'
   | 'aborted';
 
 /** In-run TTS cue variants per progress milestone (pickCue chooses one string per phase). */
@@ -87,11 +86,8 @@ export interface Mission {
   day: DayOfWeek;
   scheduledDate: string;   // ISO date string YYYY-MM-DD
   status: MissionStatus;
-  /** When set (e.g. campaign missions), overrides type-based MISSION_AUDIO_CUES during the run. */
+  /** When set, overrides type-based MISSION_AUDIO_CUES during the run. */
   audioCues?: MissionAudioCueSet;
-  // Campaign references
-  campaignIndex?: number;  // 0-based campaign index
-  campaignMissionIndex?: number;  // index within the campaign
 }
 
 // ─── Campaign Types ──────────────────────────────────────────────────────────
@@ -131,7 +127,11 @@ export interface GpsPoint {
 // ─── Run / Completion ────────────────────────────────────────────────────────
 
 /** How a mission attempt ended for history / stats. Omitted on older persisted runs. */
-export type MissionOutcome = 'success' | 'failed_goal' | 'aborted';
+export type MissionOutcome =
+  | 'success'
+  | 'partial_time'
+  | 'aborted'
+  | 'incomplete';
 
 export interface CompletedRun {
   missionId: string;
@@ -152,20 +152,12 @@ export interface CompletedRun {
 export interface LevelInfo {
   level: number;
   title: string;
+  /** Primary UI accent for this class rank (hex). */
+  accentColor: string;
   xpInLevel: number;
   xpToNextLevel: number;
   progress: number;        // 0–1
   totalXp: number;
-}
-
-// ─── Weekly Progress ─────────────────────────────────────────────────────────
-
-export interface WeeklyProgress {
-  weekStartDate: string;   // ISO date YYYY-MM-DD (Monday)
-  runsCompleted: number;
-  distanceCompletedKm: number;
-  missionsCompleted: string[];  // mission IDs
-  bonusXpAwarded: boolean;
 }
 
 // ─── App State ───────────────────────────────────────────────────────────────
@@ -181,19 +173,15 @@ export interface UserState {
   totalRuns: number;
   totalDistanceKm: number;
   longestStreak: number;
-  weeklyProgress: WeeklyProgress | null;
   runHistory: CompletedRun[];
   personaId: PersonaId | null;
-  totalCampaignsCompleted: number;
 }
 
 export interface MissionsState {
+  /** Ordered mission queue (not week-based). */
   weekMissions: Mission[];
-  weekStartDate: string | null;  // ISO date YYYY-MM-DD (Monday this week started)
-  // Campaign state
-  currentCampaignIndex: number;   // 0-based
-  campaignMissions: Mission[];
-  campaignStartDate: string | null;
+  /** Class rank (1-based) this mission set was generated for. */
+  missionSetClassLevel: number | null;
 }
 
 // ─── Onboarding Temp State ───────────────────────────────────────────────────

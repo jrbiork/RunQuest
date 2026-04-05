@@ -4,7 +4,8 @@ import { colors, radii, spacing, fontSizes, fontWeights } from '../../constants/
 
 const LABELS: Record<MissionOutcome, string> = {
   success: 'COMPLETED',
-  failed_goal: 'FAILED',
+  partial_time: 'PARTIAL',
+  incomplete: 'INCOMPLETE',
   aborted: 'ABORTED',
 };
 
@@ -19,19 +20,26 @@ const BADGE_STYLES: Record<
     },
     text: { color: colors.primary },
   },
-  failed_goal: {
+  partial_time: {
     wrap: {
-      borderColor: colors.red,
-      backgroundColor: colors.redLight,
+      borderColor: colors.orange,
+      backgroundColor: colors.orangeLight,
     },
-    text: { color: colors.red },
+    text: { color: colors.orange },
+  },
+  incomplete: {
+    wrap: {
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+    },
+    text: { color: colors.textSecondary },
   },
   aborted: {
     wrap: {
-      borderColor: colors.red,
-      backgroundColor: colors.redLight,
+      borderColor: colors.textTertiary,
+      backgroundColor: colors.surfaceElevated,
     },
-    text: { color: colors.red },
+    text: { color: colors.textTertiary },
   },
 };
 

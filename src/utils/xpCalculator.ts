@@ -10,48 +10,70 @@ export const BASE_XP: Record<MissionType, number> = {
   long: 100,
 };
 
-// ─── Level Thresholds ─────────────────────────────────────────────────────────
+// ─── Level Thresholds (cumulative XP to reach each class rank) ───────────────
 
-// XP required to REACH each level (cumulative)
-// Designed so early levels are fast, later levels require sustained effort
 const LEVEL_THRESHOLDS = [
-  0,     // Level 1
-  150,   // Level 2
-  350,   // Level 3
-  650,   // Level 4
-  1050,  // Level 5
-  1550,  // Level 6
-  2200,  // Level 7
-  3000,  // Level 8
-  4000,  // Level 9
-  5250,  // Level 10
-  6750,  // Level 11
-  8500,  // Level 12
-  10500, // Level 13
-  12800, // Level 14
-  15400, // Level 15 (max displayed)
+  0,
+  150,
+  350,
+  650,
+  1050,
+  1550,
+  2200,
+  3000,
+  4000,
+  5250,
+  6750,
+  8500,
+  10500,
+  12800,
+  15400,
 ];
 
-/** Number of Scavenger / personal-runner levels (1 … MAX inclusive). */
+/** Number of class ranks (1 … MAX inclusive). */
 export const SCAVENGER_LEVEL_COUNT = LEVEL_THRESHOLDS.length;
 
-const LEVEL_TITLES = [
-  'Rookie Runner',
-  'Pavement Pounder',
-  'Trail Blazer',
-  'Momentum Builder',
-  'Endurance Seeker',
-  'Distance Chaser',
-  'Speed Demon',
-  'Race Ready',
-  'Iron Legs',
-  'Ultramarathoner',
-  'Running Legend',
-  'Elite Pacer',
-  'Marathon Master',
-  'Unstoppable',
-  'RunQuest Champion',
-];
+/** Display names — class ladder (15 ranks). */
+export const LEVEL_CLASS_TITLES = [
+  'Recruit',
+  'Runner',
+  'Strider',
+  'Pacer',
+  'Scout',
+  'Pathfinder',
+  'Ranger',
+  'Striker',
+  'Operative',
+  'Sentinel',
+  'Elite',
+  'Vanguard',
+  'Apex',
+  'Legend',
+  'Sovereign',
+] as const;
+
+/** Primary accent per class rank (hex), aligned with LEVEL_THRESHOLDS indices. */
+export const LEVEL_CLASS_ACCENTS = [
+  '#6B7280',
+  '#22C55E',
+  '#14B8A6',
+  '#0EA5E9',
+  '#6366F1',
+  '#8B5CF6',
+  '#A855F7',
+  '#D946EF',
+  '#EC4899',
+  '#F43F5E',
+  '#F97316',
+  '#EAB308',
+  '#84CC16',
+  '#10B981',
+  '#FBBF24',
+] as const;
+
+export function getLevelAccentForIndex(levelIndex0: number): string {
+  return LEVEL_CLASS_ACCENTS[levelIndex0] ?? LEVEL_CLASS_ACCENTS[LEVEL_CLASS_ACCENTS.length - 1]!;
+}
 
 export function getLevelInfo(totalXp: number): LevelInfo {
   let level = 1;
@@ -77,7 +99,8 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 
   return {
     level,
-    title: LEVEL_TITLES[levelIdx] ?? 'RunQuest Champion',
+    title: LEVEL_CLASS_TITLES[levelIdx] ?? 'Sovereign',
+    accentColor: getLevelAccentForIndex(levelIdx),
     xpInLevel,
     xpToNextLevel,
     progress,
@@ -86,8 +109,8 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 }
 
 /**
- * Progress ring 0–1 across the full Scavenger ladder (levels 1..SCAVENGER_LEVEL_COUNT),
- * not just XP within the current level.
+ * Progress ring 0–1 across the full class ladder (ranks 1..SCAVENGER_LEVEL_COUNT),
+ * not just XP within the current rank.
  */
 export function getOverallLevelRingProgress(info: LevelInfo): number {
   const max = SCAVENGER_LEVEL_COUNT;
@@ -96,16 +119,23 @@ export function getOverallLevelRingProgress(info: LevelInfo): number {
   return Math.min(1, (info.level - 1 + info.progress) / (max - 1));
 }
 
-/** Ladder rows for UI (same for all personas — global Scavenger thresholds). */
-export function getScavengerLevelRows(): { level: number; title: string; minXp: number }[] {
+/** Ladder rows for UI (global thresholds). */
+export function getScavengerLevelRows(): { level: number; title: string; minXp: number; accentColor: string }[] {
   return LEVEL_THRESHOLDS.map((minXp, i) => ({
     level: i + 1,
-    title: LEVEL_TITLES[i] ?? `Level ${i + 1}`,
+    title: LEVEL_CLASS_TITLES[i] ?? `Rank ${i + 1}`,
     minXp,
+    accentColor: getLevelAccentForIndex(i),
   }));
 }
 
 // ─── XP Calculation ───────────────────────────────────────────────────────────
+
+/** Multiplier applied to base mission XP when distance is met at or under target time. */
+export const ON_TIME_XP_MULTIPLIER = 1.25;
+
+/** Fraction of base mission XP when distance is met after target time (partial completion). */
+export const LATE_COMPLETION_XP_FRACTION = 0.5;
 
 export function calculateXpEarned(
   missionType: MissionType,
@@ -113,13 +143,28 @@ export function calculateXpEarned(
   completionRatio: number = 1,
 ): number {
   const base = BASE_XP[missionType];
-  // Proportional to distance actually run (capped at 1.0 — no bonus for going over)
   const ratio = Math.min(Math.max(completionRatio, 0), 1);
   return Math.ceil(base * ratio);
 }
 
-// Weekly completion bonus XP
-export const WEEKLY_BONUS_XP = 150;
+export type TimedMissionXpKind = 'on_time' | 'late' | 'incomplete';
+
+/**
+ * XP for a mission attempt: on-time bonus, half for late distance completion, none for incomplete.
+ */
+export function calculateTimedMissionXp(
+  missionType: MissionType,
+  streak: number,
+  kind: TimedMissionXpKind,
+  completionRatio: number = 1,
+): number {
+  if (kind === 'incomplete') return 0;
+  const base = calculateXpEarned(missionType, streak, completionRatio);
+  if (kind === 'late') {
+    return Math.max(1, Math.floor(base * LATE_COMPLETION_XP_FRACTION));
+  }
+  return Math.max(1, Math.ceil(base * ON_TIME_XP_MULTIPLIER));
+}
 
 // ─── Level-up check ──────────────────────────────────────────────────────────
 
@@ -129,6 +174,15 @@ export function didLevelUp(xpBefore: number, xpAfter: number): boolean {
 
 export function getNewLevel(xpAfter: number): number {
   return getLevelInfo(xpAfter).level;
+}
+
+/** XP still needed to enter the next class rank (0 if max rank). */
+export function getXpRemainingToNextClass(totalXp: number): number {
+  const info = getLevelInfo(totalXp);
+  if (info.level >= SCAVENGER_LEVEL_COUNT) return 0;
+  const nextMin = LEVEL_THRESHOLDS[info.level];
+  if (nextMin == null) return 0;
+  return Math.max(0, nextMin - totalXp);
 }
 
 // ─── Format helpers ──────────────────────────────────────────────────────────

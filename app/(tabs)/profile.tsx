@@ -14,10 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Switch } from 'react-native';
-import {
-  useUserStore,
-  selectWeeklyRunsTarget,
-} from '../../src/store/userStore';
+import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
@@ -40,34 +37,12 @@ import {
   useDevStore,
   getMockedDateLabel,
   devCompleteSuccessfulMissions,
-  devCompleteAllCampaignsAndUpgradePersona,
 } from '../../src/store/devStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
-import {
-  CampaignProgressCard,
-  OperativeFileCard,
-} from '../../src/components/home/ProfileSummaryCards';
+import { OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
 import { personaLabelTitleCase } from '../../src/utils/personaDisplay';
 import { PERSONA_LABELS } from '../../src/constants/campaigns';
 import { FUN_RUN_ID } from '../../src/constants/missions';
-const RANK_TITLES = [
-  'Field Recruit',
-  'Patrol Runner',
-  'Zone Scout',
-  'Network Courier',
-  'Signal Runner',
-  'Grid Operative',
-  'Sector Vanguard',
-  'Zone Commander',
-  'Iron Legs',
-  'Wasteland Ranger',
-  'Signal Legend',
-  'Grid Phantom',
-  'Marathon Survivor',
-  'Ghost Runner',
-  'RunQuest Champion',
-];
-
 export default function ProfileScreen() {
   const profile = useUserStore((s) => s.profile);
   const rootPersonaId = useUserStore((s) => s.personaId);
@@ -76,45 +51,22 @@ export default function ProfileScreen() {
   const totalRuns = useUserStore((s) => s.totalRuns);
   const totalDistanceKm = useUserStore((s) => s.totalDistanceKm);
   const runHistory = useUserStore((s) => s.runHistory);
-  const totalCampaignsCompleted = useUserStore(
-    (s) => s.totalCampaignsCompleted,
-  );
-  const weeklyProgress = useUserStore((s) => s.weeklyProgress);
-  const runsTarget = useUserStore(selectWeeklyRunsTarget);
   const resetOnboarding = useUserStore((s) => s.resetOnboarding);
   const resetMissions = useMissionsStore((s) => s.resetMissions);
   const audioMuted = useUserStore((s) => s.audioMuted);
   const setAudioMuted = useUserStore((s) => s.setAudioMuted);
   const dayOffset = useDevStore((s) => s.dayOffset);
-  void dayOffset; // consumed for reactivity
+  void dayOffset;
   const adjustDay = useDevStore((s) => s.adjustDay);
   const resetDateOffset = useDevStore((s) => s.resetDateOffset);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
-  const generateWeek = useMissionsStore((s) => s.generateWeek);
-  const currentCampaignIndex = useMissionsStore((s) => s.currentCampaignIndex);
-
-  /** Completed campaigns: store counter + index stay aligned; max() covers older saves. */
-  const campaignsCompletedDisplay = useMemo(
-    () => Math.max(totalCampaignsCompleted, currentCampaignIndex),
-    [totalCampaignsCompleted, currentCampaignIndex],
+  const generateMissionsFromProfile = useMissionsStore(
+    (s) => s.generateMissionsFromProfile,
   );
 
   const displayXpTotal = useMemo(
-    () =>
-      getDisplayXpTotal({
-        xp,
-        runHistory,
-        personaId: personaIdForStats,
-        totalCampaignsCompleted,
-        currentCampaignIndex,
-      }),
-    [
-      xp,
-      runHistory,
-      personaIdForStats,
-      totalCampaignsCompleted,
-      currentCampaignIndex,
-    ],
+    () => getDisplayXpTotal({ xp, runHistory }),
+    [xp, runHistory],
   );
   const levelInfo = useMemo(
     () => getLevelInfo(displayXpTotal),
@@ -127,28 +79,15 @@ export default function ProfileScreen() {
         totalRuns,
         totalDistanceKm,
         runHistory,
-        personaId: personaIdForStats,
-        campaignsCompleted: campaignsCompletedDisplay,
         activityMode: profile?.defaultActivityMode ?? 'cycle',
       }),
-    [
-      totalRuns,
-      totalDistanceKm,
-      runHistory,
-      personaIdForStats,
-      profile?.defaultActivityMode,
-      campaignsCompletedDisplay,
-    ],
+    [totalRuns, totalDistanceKm, runHistory, profile?.defaultActivityMode],
   );
 
   const [showGoalEditor, setShowGoalEditor] = useState(false);
   void showGoalEditor;
   const [devTestMissionCountInput, setDevTestMissionCountInput] =
     useState('1');
-
-  const runsThisWeek = weeklyProgress?.runsCompleted ?? 0;
-  const weekProgress =
-    runsTarget > 0 ? Math.min(runsThisWeek / runsTarget, 1) : 0;
 
   const handleReset = () => {
     Alert.alert(
@@ -196,7 +135,7 @@ export default function ProfileScreen() {
               <MaterialIcons
                 name="military-tech"
                 size={13}
-                color={colors.ochre}
+                color={levelInfo.accentColor}
               />
               <Text style={styles.levelBadgeText}>
                 {levelInfo.title} · LVL {levelInfo.level} /{' '}
@@ -205,12 +144,8 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.classTitle}>
               {personaIdForStats && PERSONA_LABELS[personaIdForStats]
-                ? `Class: ${personaLabelTitleCase(
-                    PERSONA_LABELS[personaIdForStats].label,
-                  )}`
-                : RANK_TITLES[
-                    Math.min(levelInfo.level - 1, RANK_TITLES.length - 1)
-                  ]}
+                ? `${personaLabelTitleCase(PERSONA_LABELS[personaIdForStats].label)} · operative style`
+                : 'Runner'}
             </Text>
             <Text style={styles.xpTotal}>
               {displayXpTotal.toLocaleString()} XP
@@ -244,27 +179,13 @@ export default function ProfileScreen() {
               iconColor={colors.orange}
             />
             <StatBlock
-              label="Campaign"
-              value={campaignsCompletedDisplay.toString()}
-              icon="public"
-              iconColor={colors.yellow}
+              label="Class rank"
+              value={`${levelInfo.level} / ${SCAVENGER_LEVEL_COUNT}`}
+              icon="military-tech"
+              iconColor={levelInfo.accentColor}
             />
           </View>
         </View>
-
-        {/* ─── Campaign (from home) ─────────────────────────────────── */}
-        {profile?.personaId && (
-          <View style={styles.campaignBlock}>
-            <View style={styles.campaignTitleRow}>
-              <View style={styles.campaignAccent} />
-              <Text style={styles.campaignTitle}>Class Evolution</Text>
-            </View>
-            <CampaignProgressCard
-              profile={profile}
-              campaignsCompleted={campaignsCompletedDisplay}
-            />
-          </View>
-        )}
 
         {/* ─── Operative file ─────────────────────────────────────────── */}
         {profile && (
@@ -427,7 +348,7 @@ export default function ProfileScreen() {
                   }
                   Alert.alert(
                     'Complete missions?',
-                    `Marks the next ${n} incomplete mission${n === 1 ? '' : 's'} as successful (goal met), records runs and XP like a real finish. Stops early if fewer missions remain. Does not change campaign progress.`,
+                    `Marks the next ${n} incomplete mission${n === 1 ? '' : 's'} as successful (on-time XP), records runs like a real finish. Stops early if fewer missions remain.`,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {
@@ -457,66 +378,6 @@ export default function ProfileScreen() {
                   );
                 }}
               />
-              <Button
-                label="Test: all campaigns + class up"
-                icon="trending-up"
-                variant="secondary"
-                fullWidth
-                onPress={() => {
-                  if (!profile.personaId) {
-                    Alert.alert(
-                      'Class required',
-                      'Choose a class during onboarding to use this shortcut.',
-                    );
-                    return;
-                  }
-                  Alert.alert(
-                    'Finish all campaigns?',
-                    'Completes every mission in every campaign for your current class (like successful runs), then promotes you to the next class and loads their first campaign. If you are already Vanguard, you only complete the remaining Vanguard campaigns.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Run',
-                        onPress: () => {
-                          const r =
-                            devCompleteAllCampaignsAndUpgradePersona(profile);
-                          if (r == null) {
-                            Alert.alert('Error', 'No profile class found.');
-                            return;
-                          }
-                          if (r.outcome === 'upgraded') {
-                            const fromLabel = personaLabelTitleCase(
-                              PERSONA_LABELS[r.previousPersona].label,
-                            );
-                            const toLabel = personaLabelTitleCase(
-                              PERSONA_LABELS[r.newPersona].label,
-                            );
-                            Alert.alert(
-                              'Class upgraded',
-                              `${fromLabel} → ${toLabel}. Journey and profile now use your new class.`,
-                            );
-                          } else if (r.outcome === 'max_tier') {
-                            Alert.alert(
-                              'Done',
-                              'All Vanguard campaigns are complete. You are already at the highest class.',
-                            );
-                          } else if (r.outcome === 'stuck') {
-                            Alert.alert(
-                              'Could not finish',
-                              'Progress did not advance — check mission state or try resetting missions.',
-                            );
-                          } else {
-                            Alert.alert(
-                              'No campaigns',
-                              'No campaign data for this class.',
-                            );
-                          }
-                        },
-                      },
-                    ],
-                  );
-                }}
-              />
             </View>
           )}
         </Card>
@@ -524,23 +385,24 @@ export default function ProfileScreen() {
         {/* ─── Actions ─────────────────────────────────────────────── */}
         {profile && (
           <Button
-            label="Reset This Week's Missions"
+            label="Reset mission queue"
             icon="refresh"
             onPress={() => {
               Alert.alert(
                 'Reset Missions?',
-                'This will wipe all current missions and generate a fresh deployment schedule for this week. Any progress will be lost.',
+                'This clears your current mission list and builds a new queue for your class rank. Mission completion progress in this set will be lost.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
                     text: 'Reset',
                     style: 'destructive',
                     onPress: () => {
-                      generateWeek(profile);
-                      Alert.alert(
-                        'Missions Reset',
-                        'Your weekly deployment schedule has been updated.',
+                      resetMissions();
+                      generateMissionsFromProfile(
+                        profile,
+                        useUserStore.getState().xp,
                       );
+                      Alert.alert('Missions reset', 'A new mission queue is ready.');
                     },
                   },
                 ],

@@ -35,7 +35,6 @@ import { formatElapsed, formatPace } from '../../src/utils/haversine';
 import { useGpsTracking, initBackgroundCueTracking, stopBackgroundCueTracking } from '../../src/hooks/useGpsTracking';
 import {
   playGoalReachedSound,
-  playMissionFailedSound,
   speakRunCue,
   ensureRunPlaybackAudioMode,
   stopRunPlaybackAudioMode,
@@ -65,16 +64,13 @@ export default function ActiveRunScreen() {
         ? 'run'
         : profileDefaultMode;
 
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const abortMission = useMissionsStore((s) => s.abortMission);
-  const failMission = useMissionsStore((s) => s.failMission);
   const appendRunHistoryEntry = useUserStore((s) => s.appendRunHistoryEntry);
-  const completeRun = useUserStore((s) => s.completeRun);
   const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
   const recordStreakOnMissionStart = useUserStore((s) => s.recordStreakOnMissionStart);
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
+  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
   const { path, distanceKm, elapsedSec, isTracking, isPaused, hasPermission, start, stop, pause, resume } =
     useGpsTracking();
@@ -91,8 +87,10 @@ export default function ActiveRunScreen() {
     ? (mission?.targetCyclingDurationMin ?? 0)
     : (mission?.targetDurationMin ?? 0);
 
-  const [goalReached, setGoalReached] = useState(false);
-  const [timeFailed, setTimeFailed] = useState(false);
+  const [distanceGoalReached, setDistanceGoalReached] = useState(false);
+  const [distanceMetOnTime, setDistanceMetOnTime] = useState(true);
+  const metOnTimeRef = useRef<boolean>(true);
+  const firstDistanceMetRecordedRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const goalAnnouncedRef = useRef(false);
@@ -105,8 +103,14 @@ export default function ActiveRunScreen() {
   const pathSnapRef = useRef(path);
   pathSnapRef.current = path;
   const snapGenRef = useRef(0);
+  // Tracks how many path points were used in the last successful snap so the raw GPS
+  // tail (points added since) can be appended to polylineCoords for zero-lag live tracking.
+  const snappedPathCountRef = useRef(0);
   const orsApiKey = (
     Constants.expoConfig?.extra?.openRouteServiceApiKey as string | undefined
+  )?.trim();
+  const googleRoadsApiKey = (
+    Constants.expoConfig?.extra?.googleRoadsApiKey as string | undefined
   )?.trim();
 
   // Reanimated values for goal-reached banner
@@ -180,16 +184,18 @@ export default function ActiveRunScreen() {
     return () => stopBackgroundCueTracking();
   }, [isTracking, mission, isFreeRun, targetDistanceKm]);
 
-  // Goal: reach target distance with elapsed whole minutes still ≤ target time (e.g. 35:55 counts as minute 35).
+  // First time target distance is met: lock whether that was on-time (for XP). User can finish any time after.
   useEffect(() => {
-    if (!mission || !isTracking || isFreeRun || goalReached) return;
+    if (!mission || !isTracking || isFreeRun || targetDistanceKm <= 0) return;
+    const distanceMet = distanceKm >= targetDistanceKm;
+    if (!distanceMet || firstDistanceMetRecordedRef.current) return;
+    firstDistanceMetRecordedRef.current = true;
     const elapsedMinFloor = Math.floor(elapsedSec / 60);
-    const distanceMet = targetDistanceKm > 0 && distanceKm >= targetDistanceKm;
     const withinTime =
       targetDurationMin <= 0 ? true : elapsedMinFloor <= targetDurationMin;
-    if (distanceMet && withinTime) {
-      setGoalReached(true);
-    }
+    metOnTimeRef.current = withinTime;
+    setDistanceMetOnTime(withinTime);
+    setDistanceGoalReached(true);
   }, [
     distanceKm,
     elapsedSec,
@@ -198,35 +204,15 @@ export default function ActiveRunScreen() {
     mission,
     targetDistanceKm,
     targetDurationMin,
-    goalReached,
   ]);
 
-  // Announce goal + banner once when distance goal is met in time
+  // Announce goal + banner once when distance target is met
   useEffect(() => {
-    if (!goalReached || !mission || isFreeRun || goalAnnouncedRef.current) return;
+    if (!distanceGoalReached || !mission || isFreeRun || goalAnnouncedRef.current) return;
     goalAnnouncedRef.current = true;
     speakRunCue(pickMissionCompleteLiveCue());
     triggerGoalReached(stripEmojis(mission.title));
-  }, [goalReached, mission, isFreeRun, triggerGoalReached]);
-
-  // Time limit: fail when clock reaches (target + 1) full minutes without a valid goal (e.g. 36:00 for 35 min target).
-  useEffect(() => {
-    if (isFreeRun || !mission || !isTracking || goalReached || timeFailed) return;
-    if (targetDurationMin <= 0) return;
-    if (elapsedSec < (targetDurationMin + 1) * 60) return;
-    setTimeFailed(true);
-    pause();
-    playMissionFailedSound();
-  }, [
-    elapsedSec,
-    isFreeRun,
-    mission,
-    isTracking,
-    goalReached,
-    timeFailed,
-    targetDurationMin,
-    pause,
-  ]);
+  }, [distanceGoalReached, mission, isFreeRun, triggerGoalReached]);
 
   // Pan map to follow latest GPS point
   useEffect(() => {
@@ -258,47 +244,12 @@ export default function ActiveRunScreen() {
         durationMin: String(durationMin),
         elapsedSec: String(elapsedSec),
         pathJson: sampled.length >= 2 ? JSON.stringify(sampled) : '',
-        goalMet: goalReached ? '1' : '0',
+        goalMet: distanceGoalReached ? '1' : '0',
+        onTime: distanceGoalReached && metOnTimeRef.current ? '1' : '0',
         activityMode,
       },
     });
   };
-
-  const handleTimeFailureToJourney = useCallback(() => {
-    if (!mission) {
-      setRunActive(false);
-      stop();
-      router.replace('/(tabs)/journey');
-      return;
-    }
-    setRunActive(false);
-    stop();
-    const durationMin = Math.max(1, Math.round(elapsedSec / 60));
-    const step = Math.ceil(path.length / 100);
-    const sampled = path.filter((_, i) => i % step === 0);
-    failMission(mission.id);
-    completeRun(
-      mission.id,
-      mission.type,
-      distanceKm,
-      durationMin,
-      sampled.length >= 2 ? sampled : undefined,
-      false,
-      activityMode,
-      elapsedSec,
-    );
-    router.replace('/(tabs)/journey');
-  }, [
-    mission,
-    failMission,
-    completeRun,
-    distanceKm,
-    elapsedSec,
-    path,
-    activityMode,
-    setRunActive,
-    stop,
-  ]);
 
   const handlePauseResume = useCallback(() => {
     if (isPaused) {
@@ -379,26 +330,29 @@ export default function ActiveRunScreen() {
   ]);
 
   useEffect(() => {
-    if (!sessionStarted || !isTracking) return;
-    const handler = () => {
-      if (timeFailed) {
-        handleTimeFailureToJourney();
+    if (!sessionStarted) {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        router.back();
         return true;
-      }
+      });
+      return () => sub.remove();
+    }
+    if (!isTracking) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       confirmAbort();
       return true;
-    };
-    const sub = BackHandler.addEventListener('hardwareBackPress', handler);
+    });
     return () => sub.remove();
-  }, [sessionStarted, isTracking, timeFailed, confirmAbort, handleTimeFailureToJourney]);
+  }, [sessionStarted, isTracking, confirmAbort]);
 
-  // Road-following polyline (ORS Directions geometry, snap fallback): interval + ref so updates are not reset by every GPS tick.
+  // Road-following polyline (Google Roads map matching → ORS Directions → ORS Snap fallback):
+  // interval + ref so updates are not reset by every GPS tick.
   useEffect(() => {
     if (path.length < 2) {
       setSnappedPolyline(null);
       return;
     }
-    if (!orsApiKey) {
+    if (!googleRoadsApiKey && !orsApiKey) {
       setSnappedPolyline(null);
       return;
     }
@@ -409,9 +363,11 @@ export default function ActiveRunScreen() {
       if (p.length < 2) return;
       const gen = ++snapGenRef.current;
       const ac = new AbortController();
-      snapPathForMapDisplay(p, activityMode, orsApiKey, ac.signal)
+      const snapPathCount = p.length;
+      snapPathForMapDisplay(p, activityMode, orsApiKey ?? '', ac.signal, googleRoadsApiKey)
         .then((coords) => {
           if (cancelled || gen !== snapGenRef.current) return;
+          snappedPathCountRef.current = snapPathCount;
           setSnappedPolyline(coords);
         })
         .catch(() => {});
@@ -422,13 +378,18 @@ export default function ActiveRunScreen() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [path.length >= 2, activityMode, orsApiKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only (re)start when path becomes snap-ready
+  }, [path.length >= 2, activityMode, orsApiKey, googleRoadsApiKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only (re)start when path becomes snap-ready
 
   const polylineCoords = useMemo(() => {
     const raw = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
-    if (!orsApiKey || !snappedPolyline || snappedPolyline.length < 2) return raw;
-    return snappedPolyline;
-  }, [path, snappedPolyline, orsApiKey]);
+    if (!snappedPolyline || snappedPolyline.length < 2) return raw;
+    // Append raw GPS points recorded after the last snap so the drawn path
+    // stays flush with the current position (blue dot) between snap intervals.
+    const tail = path
+      .slice(snappedPathCountRef.current)
+      .map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
+    return tail.length > 0 ? [...snappedPolyline, ...tail] : snappedPolyline;
+  }, [path, snappedPolyline]);
 
   // ─── Error states ─────────────────────────────────────────────────────────
 
@@ -465,7 +426,7 @@ export default function ActiveRunScreen() {
   const config = missionConfig[mission.type];
   const distanceProgress = targetDistanceKm > 0 ? Math.min(distanceKm / targetDistanceKm, 1) : 0;
   const overallProgress = distanceProgress;
-  const goalHit = goalReached;
+  const goalHit = distanceGoalReached;
 
   const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
   const initialRegion = path.length > 0
@@ -486,13 +447,24 @@ export default function ActiveRunScreen() {
     <SafeAreaView style={styles.safeOuter} edges={['top']}>
       {/* ─── Mission header — pinned above the map ────────────────── */}
       <Animated.View entering={FadeIn.duration(400)} style={[styles.header, { borderBottomColor: config.color }]}>
-        {/* Left: type pill */}
-        <View style={[styles.typePill, { borderColor: config.color }]}>
-          <MaterialIcons name={activityIcon} size={12} color={config.color} />
-          <Text style={[styles.typeLabel, { color: config.color }]}>
-            {activityMode === 'cycle' ? 'CYCLE' : config.label}
-          </Text>
-        </View>
+        {!sessionStarted ? (
+          <TouchableOpacity
+            style={styles.headerBack}
+            onPress={() => router.back()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Back to mission briefing"
+          >
+            <MaterialIcons name="arrow-back" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.typePill, { borderColor: config.color }]}>
+            <MaterialIcons name={activityIcon} size={12} color={config.color} />
+            <Text style={[styles.typeLabel, { color: config.color }]}>
+              {activityMode === 'cycle' ? 'CYCLE' : config.label}
+            </Text>
+          </View>
+        )}
 
         {/* Center: mission title */}
         <Text style={styles.missionTitle} numberOfLines={1}>{stripEmojis(mission.title)}</Text>
@@ -644,7 +616,11 @@ export default function ActiveRunScreen() {
             <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
               <MaterialIcons name="emoji-events" size={18} color={colors.primary} />
               <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
-              <Text style={styles.goalBannerSub}>Goal reached — tap Finish when ready</Text>
+              <Text style={styles.goalBannerSub}>
+                {distanceMetOnTime
+                  ? 'Goal reached — tap Finish when ready'
+                  : 'Distance met over time — partial XP. Tap Finish when ready.'}
+              </Text>
             </Animated.View>
           </Animated.View>
         )}
@@ -659,7 +635,7 @@ export default function ActiveRunScreen() {
       </View>
 
       {/* ─── Bottom HUD ───────────────────────────────────────────── */}
-      {!timeFailed && sessionStarted && (
+      {sessionStarted && (
       <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
         <View style={styles.hud}>
           {/* Stats row */}
@@ -747,24 +723,6 @@ export default function ActiveRunScreen() {
         </View>
       </SafeAreaView>
       )}
-
-      {timeFailed && (
-        <View style={styles.timeFailOverlay}>
-          <MaterialIcons name="timer-off" size={48} color={colors.red} />
-          <Text style={styles.timeFailTitle}>Mission failed</Text>
-          <Text style={styles.timeFailSub}>
-            Target time reached before you covered the required distance.
-          </Text>
-          <TouchableOpacity
-            style={styles.timeFailBtn}
-            onPress={handleTimeFailureToJourney}
-            activeOpacity={0.85}
-          >
-            <MaterialIcons name="map" size={20} color={colors.textInverse} />
-            <Text style={styles.timeFailBtnText}>Back to journey</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -844,6 +802,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderBottomWidth: 2,
     gap: spacing.md,
+  } as ViewStyle,
+  headerBack: {
+    width: 40,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   } as ViewStyle,
   typePill: {
     flexDirection: 'row',

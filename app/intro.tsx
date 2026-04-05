@@ -8,6 +8,7 @@ import {
   PanResponder,
   ViewStyle,
   TextStyle,
+  type ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -47,7 +48,7 @@ interface Slide {
   headline: string;
   body: string;
   accentColor: string;
-  bg: ReturnType<typeof require>;
+  bg: ImageSourcePropType;
   bgOverlay: string;
 }
 

@@ -7,6 +7,7 @@ import type {
   GoalAnswer,
   PersonaId,
   RunDistanceAnswer,
+  RunningGoal,
 } from '../types';
 
 /** Training days per week (1–7) from onboarding slider; legacy 0 may still appear in stored data. */
@@ -138,6 +139,42 @@ export function experienceAnswerToLevel(answer: ExperienceAnswer): ExperienceLev
       return 'advanced';
     default:
       return 'beginner';
+  }
+}
+
+/** Infer experience tier from volume + goal when the dedicated experience step is omitted (3-step onboarding). */
+export function inferExperienceFromVolumeAndGoal(
+  goal: GoalAnswer,
+  trainingDaysPerWeek: number,
+  mode: ActivityMode,
+  runDistance: RunDistanceAnswer | null,
+  cycleDistance: CycleDistanceAnswer | null,
+): ExperienceAnswer {
+  const days = trainingDaysPerWeek;
+  let score = frequencyScore(days) + effortScore(goal);
+  if (mode === 'run' && runDistance != null) score += distanceScoreRun(runDistance);
+  if (mode === 'cycle' && cycleDistance != null) score += distanceScoreCycle(cycleDistance);
+  if (score <= 3) return 'never';
+  if (score <= 5) return 'lt3m';
+  if (score <= 7) return '3-12m';
+  if (score <= 9) return '1-3y';
+  return '3yplus';
+}
+
+export function goalAnswerToRunningGoal(goal: GoalAnswer): RunningGoal {
+  switch (goal) {
+    case 'started':
+      return 'habit';
+    case 'fit':
+      return 'consistency';
+    case 'endurance':
+      return 'distance';
+    case 'speed':
+      return 'speed';
+    case 'event':
+      return 'race';
+    default:
+      return 'consistency';
   }
 }
 

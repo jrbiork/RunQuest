@@ -2,18 +2,16 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setDateOffsetMs } from '../utils/dateUtils';
-import type { PersonaId, UserProfile } from '../types';
-import { PERSONA_CAMPAIGNS } from '../constants/campaigns';
+import type { UserProfile } from '../types';
 import { getNextIncompleteMission } from '../utils/missionGenerator';
-import { nextPersonaId } from '../utils/personaScoring';
-import { calculateXpEarned } from '../utils/xpCalculator';
+import { calculateTimedMissionXp } from '../utils/xpCalculator';
 import { MIN_EFFORT_SECONDS, useUserStore } from './userStore';
 import { useMissionsStore } from './missionsStore';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface DevStore {
-  dayOffset: number; // integer days (can be negative)
+  dayOffset: number;
   adjustDay: (delta: number) => void;
   resetDateOffset: () => void;
 }
@@ -38,7 +36,6 @@ export const useDevStore = create<DevStore>()(
       name: 'runquest-dev',
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
-        // Re-apply the persisted offset on app boot
         if (state && state.dayOffset !== 0) {
           setDateOffsetMs(state.dayOffset * MS_PER_DAY);
         }
@@ -47,7 +44,6 @@ export const useDevStore = create<DevStore>()(
   ),
 );
 
-/** Convenience selector: formatted mocked date string for display */
 export function getMockedDateLabel(dayOffset: number): string {
   if (dayOffset === 0) return 'Today (real)';
   const d = new Date(Date.now() + dayOffset * MS_PER_DAY);
@@ -61,9 +57,7 @@ export type DevCompleteMissionsResult = {
 };
 
 /**
- * Marks up to `count` current journey missions as completed and appends matching
- * successful runs (XP, history, weekly progress) like finishing each with goal met.
- * Stops when there are no more incomplete missions. Does not advance campaigns.
+ * Marks up to `count` current journey missions as completed and logs successful runs (on-time XP).
  */
 export function devCompleteSuccessfulMissions(
   profile: UserProfile,
@@ -75,12 +69,11 @@ export function devCompleteSuccessfulMissions(
   const activityMode = profile.defaultActivityMode ?? 'run';
   const completeMission = useMissionsStore.getState().completeMission;
   const completeRun = useUserStore.getState().completeRun;
-  const markWeeklyBonusAwarded = useUserStore.getState().markWeeklyBonusAwarded;
+  const regenerateMissionsIfPromoted = useMissionsStore.getState().regenerateMissionsIfPromoted;
 
   let completed = 0;
   for (let i = 0; i < count; i++) {
-    const { campaignMissions, weekMissions } = useMissionsStore.getState();
-    const list = campaignMissions.length > 0 ? campaignMissions : weekMissions;
+    const list = useMissionsStore.getState().weekMissions;
     const next = getNextIncompleteMission(list);
     if (!next) break;
 
@@ -94,7 +87,8 @@ export function devCompleteSuccessfulMissions(
         : next.targetDurationMin;
 
     const streak = useUserStore.getState().streak;
-    const xpEarned = calculateXpEarned(next.type, streak);
+    const xpEarned = calculateTimedMissionXp(next.type, streak, 'on_time');
+    const xpBefore = useUserStore.getState().xp;
 
     completeMission(next.id, xpEarned);
     completeRun(
@@ -106,81 +100,14 @@ export function devCompleteSuccessfulMissions(
       true,
       activityMode,
       MIN_EFFORT_SECONDS,
+      { onTime: true },
     );
+
+    const xpAfter = useUserStore.getState().xp;
+    const p = useUserStore.getState().profile ?? profile;
+    regenerateMissionsIfPromoted(p, xpBefore, xpAfter);
     completed += 1;
   }
 
-  const { campaignMissions: cm, weekMissions: wm } = useMissionsStore.getState();
-  const allMissions = cm.length > 0 ? cm : wm;
-  const allDone =
-    allMissions.length > 0 && allMissions.every((m) => m.status === 'completed');
-  const weeklyProgress = useUserStore.getState().weeklyProgress;
-  if (allDone && weeklyProgress && !weeklyProgress.bonusXpAwarded) {
-    markWeeklyBonusAwarded();
-  }
-
   return { completed, requested };
-}
-
-export type DevFullCompleteAndUpgradeResult =
-  | { outcome: 'upgraded'; previousPersona: PersonaId; newPersona: PersonaId }
-  | { outcome: 'max_tier'; previousPersona: PersonaId }
-  | { outcome: 'stuck'; previousPersona: PersonaId }
-  | { outcome: 'no_campaigns'; previousPersona: PersonaId };
-
-/**
- * Finishes every mission in every campaign for the current class, then bumps
- * `personaId` to the next tier (e.g. ghost → scout), resets campaign counter
- * state for the new track, and loads the first campaign of the new class.
- */
-export function devCompleteAllCampaignsAndUpgradePersona(
-  profile: UserProfile,
-): DevFullCompleteAndUpgradeResult | null {
-  const previousPersona = profile.personaId;
-  if (!previousPersona) return null;
-
-  const campaigns = PERSONA_CAMPAIGNS[previousPersona];
-  if (!campaigns?.length) {
-    return { outcome: 'no_campaigns', previousPersona };
-  }
-
-  const missions = useMissionsStore.getState();
-  if (missions.campaignMissions.length === 0) {
-    missions.initCampaign(profile);
-  }
-
-  const advanceCampaign = useMissionsStore.getState().advanceCampaign;
-  let guard = 0;
-  const guardMax = 500;
-
-  while (useMissionsStore.getState().currentCampaignIndex < campaigns.length) {
-    if (guard++ >= guardMax) {
-      return { outcome: 'stuck', previousPersona };
-    }
-
-    const p = useUserStore.getState().profile ?? profile;
-    devCompleteSuccessfulMissions(p, 9999);
-
-    if (!useMissionsStore.getState().canAdvanceCampaign()) {
-      return { outcome: 'stuck', previousPersona };
-    }
-
-    advanceCampaign(p);
-  }
-
-  const nextId = nextPersonaId(previousPersona);
-  if (!nextId) {
-    return { outcome: 'max_tier', previousPersona };
-  }
-
-  useUserStore.setState({ totalCampaignsCompleted: 0 });
-  useUserStore.getState().updateProfile({ personaId: nextId });
-
-  useMissionsStore.setState({ currentCampaignIndex: 0 });
-  const updatedProfile = useUserStore.getState().profile;
-  if (updatedProfile) {
-    useMissionsStore.getState().initCampaign(updatedProfile);
-  }
-
-  return { outcome: 'upgraded', previousPersona, newPersona: nextId };
 }

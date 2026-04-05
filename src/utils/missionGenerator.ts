@@ -8,12 +8,7 @@ import type {
 } from '../types';
 import { MISSION_TEMPLATES } from '../constants/missions';
 import { BASE_XP } from './xpCalculator';
-import {
-  getScheduledDatesForWeek,
-  getWeekStart,
-  getTodayISO,
-  getNow,
-} from './dateUtils';
+import { getNextPreferredDayOccurrences, getTodayISO } from './dateUtils';
 import { stripEmojis } from './stripEmojis';
 
 // ─── Mission Mix Rules ────────────────────────────────────────────────────────
@@ -142,6 +137,7 @@ function buildMission(
   scheduledDate: string,
   level: ExperienceLevel,
   index: number,
+  classLevel: number,
 ): Mission {
   const template = MISSION_TEMPLATES[type];
   const targets = getTargets(type, level);
@@ -155,7 +151,7 @@ function buildMission(
   const rawDescription = variant?.description ?? pick(template.descriptions);
 
   return {
-    id: `mission-${scheduledDate}-${type}-${index}`,
+    id: `mission-L${classLevel}-i${index}-${scheduledDate}-${type}`,
     type,
     title: stripEmojis(rawTitle),
     subtitle: stripEmojis(rawSubtitle),
@@ -172,34 +168,51 @@ function buildMission(
   };
 }
 
+// ─── Class rank → mission difficulty tier ────────────────────────────────────
+
+/** Map game class rank (1…15) to mission generator experience band. */
+export function experienceTierForClassLevel(classLevel: number): ExperienceLevel {
+  if (classLevel <= 5) return 'beginner';
+  if (classLevel <= 10) return 'intermediate';
+  return 'advanced';
+}
+
 // ─── Main Generator ───────────────────────────────────────────────────────────
 
-export function generateWeekMissions(profile: UserProfile): Mission[] {
+/**
+ * Build the ordered mission queue from onboarding profile and current class rank.
+ * `classLevel` is the user's game level (1-based) used for difficulty scaling.
+ */
+export function generateMissionsFromProfile(profile: UserProfile, classLevel: number): Mission[] {
   const {
-    experienceLevel = 'beginner',
     runningGoal = 'consistency',
     weeklyTargetMode,
     weeklyTargetRuns,
     preferredDays,
   } = profile;
 
+  const experienceLevel = experienceTierForClassLevel(classLevel);
+
   const runsPerWeek =
     weeklyTargetMode === 'runs'
       ? Math.min(weeklyTargetRuns ?? preferredDays.length, preferredDays.length)
-      : Math.min(preferredDays.length, preferredDays.length); // default: use all preferred days
+      : preferredDays.length;
 
-  // Trim days to the target run count (take first N preferred days)
   const activeDays = preferredDays.slice(0, runsPerWeek);
-  const weekStart = getWeekStart(getNow());
-  const scheduledDates = getScheduledDatesForWeek(activeDays, weekStart);
   const missionMix = getMissionMix(experienceLevel, runningGoal, runsPerWeek);
+  const scheduledDates = getNextPreferredDayOccurrences(activeDays, missionMix.length);
   const today = getTodayISO();
 
   return missionMix.map((type, idx) => {
-    const date = scheduledDates[idx] ?? scheduledDates[0] ?? today;
+    const date = scheduledDates[idx] ?? today;
     const day = activeDays[idx] ?? activeDays[0] ?? 'Mon';
-    return buildMission(type, day, date, experienceLevel, idx);
+    return buildMission(type, day, date, experienceLevel, idx, classLevel);
   });
+}
+
+/** @deprecated Prefer generateMissionsFromProfile(profile, classLevel). */
+export function generateWeekMissions(profile: UserProfile): Mission[] {
+  return generateMissionsFromProfile(profile, 1);
 }
 
 // ─── Next mission in journey order (same order as Journey list) ───────────────

@@ -34,7 +34,7 @@ import {
   fontWeights,
   missionConfig,
 } from '../../src/constants/theme';
-import { calculateXpEarned, formatDistance } from '../../src/utils/xpCalculator';
+import { calculateTimedMissionXp, formatDistance } from '../../src/utils/xpCalculator';
 import { MISSION_IMPACT_MESSAGES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
@@ -62,10 +62,6 @@ const gpsStyles = StyleSheet.create({
   value: { fontSize: fontSizes.lg, fontWeight: fontWeights.extrabold, color: colors.textPrimary } as TextStyle,
   label: { fontSize: fontSizes.xs, color: colors.textSecondary, fontWeight: fontWeights.medium, textTransform: 'uppercase', letterSpacing: 0.5 } as TextStyle,
 });
-
-function primaryMissionList(campaignMissions: Mission[], weekMissions: Mission[]): Mission[] {
-  return campaignMissions.length > 0 ? campaignMissions : weekMissions;
-}
 
 function shortenTitle(title: string, max = 32): string {
   const t = stripEmojis(title).trim();
@@ -119,10 +115,12 @@ function XpRewardBlock({
   isFreeRun,
   xpEarned,
   goalMet,
+  partialTime,
 }: {
   isFreeRun: boolean;
   xpEarned: number;
   goalMet: boolean;
+  partialTime: boolean;
 }) {
   const scale = useSharedValue(isFreeRun || !goalMet ? 1 : 0.88);
   useEffect(() => {
@@ -156,14 +154,33 @@ function XpRewardBlock({
     return (
       <Card style={styles.xpCard}>
         <View style={styles.xpRow}>
-          <MaterialIcons name="block" size={28} color={colors.red} />
+          <MaterialIcons name="block" size={28} color={colors.textTertiary} />
           <View style={styles.xpLeft}>
             <Text style={styles.xpLabel}>XP</Text>
-            <Text style={[styles.xpValue, { color: colors.red }]}>+0</Text>
+            <Text style={[styles.xpValue, { color: colors.textSecondary }]}>+0</Text>
           </View>
         </View>
         <Text style={styles.xpMissionMessage}>
-          Clear the objective next time to earn XP for this mission.
+          Hit the distance target to earn XP — under target time for full credit.
+        </Text>
+      </Card>
+    );
+  }
+
+  if (partialTime) {
+    return (
+      <Card style={styles.xpCard} elevated accentTop={colors.orange}>
+        <Animated.View style={[styles.xpRow, popStyle]}>
+          <View style={styles.xpLeft}>
+            <Text style={styles.xpLabel}>Partial XP</Text>
+            <Text style={[styles.xpValue, { color: colors.orange }]}>+{xpEarned}</Text>
+          </View>
+          <View style={[styles.xpCircle, { borderColor: colors.orange }]}>
+            <Text style={[styles.xpCircleText, { color: colors.orange }]}>+{xpEarned}</Text>
+          </View>
+        </Animated.View>
+        <Text style={styles.xpMissionMessage}>
+          Distance met after the time window — half XP. Next time, beat the clock for the full bonus.
         </Text>
       </Card>
     );
@@ -199,6 +216,7 @@ export default function RunCompleteScreen() {
       elapsedSec?: string;
       pathJson?: string;
       goalMet?: string;
+      onTime?: string;
       activityMode?: string;
     }>();
   const id = normalizeRouteParam(rawParams.id);
@@ -207,12 +225,15 @@ export default function RunCompleteScreen() {
   const elapsedSecParam = normalizeRouteParam(rawParams.elapsedSec as string | string[] | undefined);
   const pathJson = normalizeRouteParam(rawParams.pathJson as string | string[] | undefined);
   const goalMetParam = normalizeRouteParam(rawParams.goalMet as string | string[] | undefined);
+  const onTimeParam = normalizeRouteParam(rawParams.onTime as string | string[] | undefined);
   const activityModeParam = normalizeRouteParam(rawParams.activityMode as string | string[] | undefined);
 
   const actualDistanceKm = distKmParam ? parseFloat(distKmParam) : undefined;
   const actualDurationMin = durMinParam ? parseFloat(durMinParam) : undefined;
   const elapsedSec = elapsedSecParam ? parseFloat(elapsedSecParam) : undefined;
   const goalMet = goalMetParam === '1';
+  const onTime = onTimeParam !== '0';
+  const partialTime = goalMet && !onTime;
   const activityMode = activityModeParam === 'cycle' ? 'cycle' as const : 'run' as const;
   const gpsPath = useMemo<GpsPoint[]>(() => {
     if (!pathJson) return [];
@@ -223,14 +244,11 @@ export default function RunCompleteScreen() {
   const [isSharing, setIsSharing] = useState(false);
 
   const weekMissions = useMissionsStore((s) => s.weekMissions);
-  const campaignMissions = useMissionsStore((s) => s.campaignMissions);
   const completeMission = useMissionsStore((s) => s.completeMission);
-  const failMission = useMissionsStore((s) => s.failMission);
+  const regenerateMissionsIfPromoted = useMissionsStore((s) => s.regenerateMissionsIfPromoted);
 
   const completeRun = useUserStore((s) => s.completeRun);
   const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
-  const markWeeklyBonus = useUserStore((s) => s.markWeeklyBonusAwarded);
-  const weeklyProgress = useUserStore((s) => s.weeklyProgress);
   const streak = useUserStore((s) => s.streak);
   const runHistory = useUserStore((s) => s.runHistory);
 
@@ -241,13 +259,10 @@ export default function RunCompleteScreen() {
   }, [runHistory, streak]);
 
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(campaignMissions, weekMissions, id);
+  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
   const alreadyCompleted = useRef(false);
 
-  const missionList = useMemo(
-    () => primaryMissionList(campaignMissions, weekMissions),
-    [campaignMissions, weekMissions],
-  );
+  const missionList = weekMissions;
 
   const xpEarned = useMemo(() => {
     if (!mission || isFreeRun) return 0;
@@ -255,8 +270,12 @@ export default function RunCompleteScreen() {
       mission.targetDistanceKm > 0 && actualDistanceKm !== undefined
         ? actualDistanceKm / mission.targetDistanceKm
         : 1;
-    return calculateXpEarned(mission.type, streak, completionRatio);
-  }, [mission, isFreeRun, actualDistanceKm, streak]);
+    if (!goalMet) {
+      return calculateTimedMissionXp(mission.type, streak, 'incomplete', completionRatio);
+    }
+    const kind = onTime ? 'on_time' : 'late';
+    return calculateTimedMissionXp(mission.type, streak, kind, completionRatio);
+  }, [mission, isFreeRun, actualDistanceKm, streak, goalMet, onTime]);
 
   const nextMissionForCta = useMemo(() => {
     if (!mission) return null;
@@ -281,9 +300,9 @@ export default function RunCompleteScreen() {
     return adjusted.length > 0 && adjusted.every((m) => m.status === 'completed');
   }, [missionList, mission, goalMet, isFreeRun]);
 
-  /** Missions completed / total in the active campaign list (or weekly set when no campaign missions). */
+  /** Missions completed / total in the current mission queue. */
   const yourProgress = useMemo(() => {
-    const list = campaignMissions.length > 0 ? campaignMissions : weekMissions;
+    const list = weekMissions;
     const totalMissions = list.length;
     if (totalMissions === 0) return null;
     const adjusted =
@@ -294,12 +313,11 @@ export default function RunCompleteScreen() {
         : list;
     const completedMissions = adjusted.filter((m) => m.status === 'completed').length;
     return {
-      isCampaignTrack: campaignMissions.length > 0,
       completed: completedMissions,
       total: totalMissions,
       ratio: Math.min(completedMissions / totalMissions, 1),
     };
-  }, [campaignMissions, weekMissions, mission, goalMet, isFreeRun]);
+  }, [weekMissions, mission, goalMet, isFreeRun]);
 
   const primaryCta = useMemo(() => {
     if (!mission) {
@@ -345,11 +363,13 @@ export default function RunCompleteScreen() {
       return;
     }
 
+    const xpBefore = useUserStore.getState().xp;
+    const profile = useUserStore.getState().profile;
+
     if (goalMet) {
       completeMission(mission.id, xpEarned);
-    } else {
-      failMission(mission.id);
     }
+
     completeRun(
       mission.id,
       mission.type,
@@ -359,12 +379,12 @@ export default function RunCompleteScreen() {
       goalMet,
       activityMode,
       elapsedSec,
+      goalMet ? { onTime } : undefined,
     );
 
-    const allMissions = campaignMissions.length > 0 ? campaignMissions : weekMissions;
-    const updated = allMissions.filter((m) => m.status === 'completed').length + (goalMet ? 1 : 0);
-    if (updated === allMissions.length && !(weeklyProgress?.bonusXpAwarded)) {
-      markWeeklyBonus();
+    const xpAfter = useUserStore.getState().xp;
+    if (profile) {
+      regenerateMissionsIfPromoted(profile, xpBefore, xpAfter);
     }
   }, []);
 
@@ -396,12 +416,16 @@ export default function RunCompleteScreen() {
   const outcomeLabel = isFreeRun
     ? 'Free run complete'
     : goalMet
-      ? 'Mission cleared'
-      : 'Mission failed';
+      ? partialTime
+        ? 'Mission partially completed'
+        : 'Mission cleared'
+      : 'Objective incomplete';
 
   const heroGradientColors = !isFreeRun && !goalMet
-    ? ([colors.red + '55', colors.background] as const)
-    : ([colors.primary + '44', colors.orange + '22'] as const);
+    ? ([colors.textTertiary + '55', colors.background] as const)
+    : !isFreeRun && partialTime
+      ? ([colors.orange + '55', colors.background] as const)
+      : ([colors.primary + '44', colors.orange + '22'] as const);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -458,7 +482,12 @@ export default function RunCompleteScreen() {
 
         {/* Reward ladder: XP */}
         <Animated.View entering={FadeInDown.delay(140).duration(450)}>
-          <XpRewardBlock isFreeRun={isFreeRun} xpEarned={xpEarned} goalMet={goalMet} />
+          <XpRewardBlock
+            isFreeRun={isFreeRun}
+            xpEarned={xpEarned}
+            goalMet={goalMet}
+            partialTime={partialTime}
+          />
         </Animated.View>
 
         {/* Streak — success */}
@@ -509,9 +538,7 @@ export default function RunCompleteScreen() {
               <View style={styles.progressHeaderRow}>
                 <View style={styles.progressTitleRow}>
                   <MaterialIcons name="flag" size={18} color={colors.primary} />
-                  <Text style={styles.progressTitle}>
-                    {yourProgress.isCampaignTrack ? 'This campaign' : 'This week'}
-                  </Text>
+                  <Text style={styles.progressTitle}>Mission queue</Text>
                 </View>
                 <Text style={styles.progressFraction}>
                   {yourProgress.completed}/{yourProgress.total}
@@ -524,9 +551,7 @@ export default function RunCompleteScreen() {
                 height={8}
               />
               <Text style={styles.progressCaption}>
-                {yourProgress.isCampaignTrack
-                  ? 'Missions completed out of the missions in this campaign.'
-                  : 'Missions completed out of this week’s set.'}
+                Missions completed in your current set. New missions appear when you promote to the next class.
               </Text>
             </Card>
           </Animated.View>

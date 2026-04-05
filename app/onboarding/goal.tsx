@@ -11,6 +11,8 @@ import {
   computePersonaId,
   experienceAnswerToLevel,
   preferredDaysFromScheduleDays,
+  inferExperienceFromVolumeAndGoal,
+  goalAnswerToRunningGoal,
   type PersonaSurveyAnswers,
 } from '../../src/utils/personaScoring';
 
@@ -31,53 +33,61 @@ export default function OnboardingGoalScreen() {
   const draft = useOnboardingDraft();
   const [selected, setSelected] = useState<GoalAnswer | null>(draft.current.goal ?? null);
   const completeOnboarding = useUserStore((s) => s.completeOnboarding);
-  const initCampaign = useMissionsStore((s) => s.initCampaign);
+  const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
 
   const handleDeploy = () => {
     if (!selected) return;
     const d = draft.current;
     const mode = d.defaultActivityMode ?? 'cycle';
     const days = Math.max(1, Math.min(7, Math.round(d.trainingDaysPerWeek ?? 3)));
-    const exp = d.experience;
-    if (exp === undefined) return;
     if (mode === 'run' && !d.runDistance) return;
     if (mode === 'cycle' && !d.cycleDistance) return;
 
     draft.current.goal = selected;
+
+    const experience = inferExperienceFromVolumeAndGoal(
+      selected,
+      days,
+      mode,
+      mode === 'run' ? d.runDistance ?? null : null,
+      mode === 'cycle' ? d.cycleDistance ?? null : null,
+    );
 
     const survey: PersonaSurveyAnswers = {
       defaultActivityMode: mode,
       trainingDaysPerWeek: days,
       runDistance: mode === 'run' ? d.runDistance ?? null : null,
       cycleDistance: mode === 'cycle' ? d.cycleDistance ?? null : null,
-      experience: exp,
+      experience,
       goal: selected,
     };
 
     const personaId = computePersonaId(survey);
     const preferredDays = preferredDaysFromScheduleDays(days);
+    const runningGoal = goalAnswerToRunningGoal(selected);
 
     const profile: UserProfile = {
       personaId,
       defaultActivityMode: mode,
       preferredDays,
       weeklyTargetRuns: preferredDays.length,
-      experienceLevel: experienceAnswerToLevel(exp),
+      experienceLevel: experienceAnswerToLevel(experience),
+      runningGoal,
     };
 
     completeOnboarding(profile);
-    initCampaign(profile);
+    generateMissionsFromProfile(profile, useUserStore.getState().xp);
     router.replace('/onboarding/tailoring');
   };
 
   return (
     <OnboardingLayout
-      step={5}
-      totalSteps={5}
+      step={3}
+      totalSteps={3}
       title="What's your main goal?"
       subtitle="Objective"
       onNext={handleDeploy}
-      nextLabel="Deploy operative"
+      nextLabel="Continue"
       nextDisabled={!selected}
     >
       <View style={styles.options}>

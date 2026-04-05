@@ -40,9 +40,7 @@ export default function OnboardingLayout() {
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
       >
         <Stack.Screen name="index" />
-        <Stack.Screen name="frequency" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="distance" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="experience" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="volume" options={{ gestureEnabled: false }} />
         <Stack.Screen name="goal" options={{ gestureEnabled: false }} />
         <Stack.Screen name="tailoring" options={{ gestureEnabled: false }} />
       </Stack>

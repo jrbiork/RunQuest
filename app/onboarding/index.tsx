@@ -30,13 +30,13 @@ export default function OnboardingFocusScreen() {
 
   const handleNext = () => {
     draft.current.defaultActivityMode = selected;
-    router.push('/onboarding/frequency' as any);
+    router.push('/onboarding/volume' as any);
   };
 
   return (
     <OnboardingLayout
       step={1}
-      totalSteps={5}
+      totalSteps={3}
       title="What do you want to focus on?"
       subtitle="Training focus"
       onNext={handleNext}

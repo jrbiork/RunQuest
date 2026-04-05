@@ -11,25 +11,25 @@ interface LevelProgressCardProps {
 }
 
 export function LevelProgressCard({ levelInfo }: LevelProgressCardProps) {
-  const { level, title, xpInLevel, xpToNextLevel, progress } = levelInfo;
+  const { level, title, accentColor, xpInLevel, xpToNextLevel, progress } = levelInfo;
 
   return (
     <Card style={styles.card}>
       <View style={styles.row}>
-        <LevelBadge level={level} size="lg" />
+        <LevelBadge level={level} size="lg" accentColor={accentColor} />
         <View style={styles.info}>
           <Text style={styles.levelTitle}>{title}</Text>
           <Text style={styles.xpText}>
-            <Text style={styles.xpBold}>{xpInLevel}</Text>
-            <Text style={styles.xpDim}> / {xpToNextLevel} XP to level {level + 1}</Text>
+            <Text style={[styles.xpBold, { color: accentColor }]}>{xpInLevel}</Text>
+            <Text style={styles.xpDim}> / {xpToNextLevel} XP to next rank</Text>
           </Text>
         </View>
       </View>
 
       <ProgressBar
         progress={progress}
-        color={colors.primary}
-        backgroundColor={colors.primaryLight}
+        color={accentColor}
+        backgroundColor={`${accentColor}33`}
         height={8}
         style={styles.bar}
       />
@@ -60,7 +60,6 @@ const styles = StyleSheet.create({
   } as TextStyle,
   xpBold: {
     fontWeight: fontWeights.bold,
-    color: colors.primary,
   } as TextStyle,
   xpDim: {
     color: colors.textSecondary,
