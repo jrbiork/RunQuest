@@ -166,6 +166,8 @@ export interface UserState {
   profile: UserProfile | null;
   hasCompletedOnboarding: boolean;
   hasSeenIntro: boolean;
+  /** iOS: one-time “Always” location explainer after onboarding; skip if true. */
+  iosAlwaysLocationPromptCompleted: boolean;
   audioMuted: boolean;
   xp: number;
   streak: number;

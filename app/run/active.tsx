@@ -8,6 +8,8 @@ import {
   BackHandler,
   ViewStyle,
   TextStyle,
+  Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -31,7 +33,7 @@ import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig } from '../../src/constants/theme';
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
-import { formatElapsed, formatPace } from '../../src/utils/haversine';
+import { calcDistanceKm, formatElapsed, formatPaceLiveDisplay } from '../../src/utils/haversine';
 import { useGpsTracking, initBackgroundCueTracking, stopBackgroundCueTracking } from '../../src/hooks/useGpsTracking';
 import {
   playGoalReachedSound,
@@ -51,6 +53,12 @@ import {
 import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
 import { snapPathForMapDisplay } from '../../src/services/routeSnapService';
 import type { ActivityMode } from '../../src/types';
+import * as Location from 'expo-location';
+
+/** Min time between map recenter animations (GPS updates faster; stacking causes flicker). */
+const MAP_FOLLOW_MIN_INTERVAL_MS = 1600;
+/** Min movement (km) to recenter before interval elapses (~4 m). */
+const MAP_FOLLOW_MIN_MOVE_KM = 0.004;
 
 export default function ActiveRunScreen() {
   const insets = useSafeAreaInsets();
@@ -73,8 +81,24 @@ export default function ActiveRunScreen() {
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
-  const { path, distanceKm, elapsedSec, isTracking, isPaused, hasPermission, start, stop, pause, resume } =
-    useGpsTracking();
+  const {
+    path,
+    distanceKm,
+    elapsedSec,
+    speedMps,
+    isTracking,
+    isPaused,
+    hasPermission,
+    start,
+    stop,
+    pause,
+    resume,
+  } = useGpsTracking();
+
+  const paceDisplay = useMemo(
+    () => formatPaceLiveDisplay(distanceKm, elapsedSec, speedMps),
+    [distanceKm, elapsedSec, speedMps],
+  );
 
   // Determine targets based on activity mode
   const targetDistanceKm = isFreeRun
@@ -98,6 +122,14 @@ export default function ActiveRunScreen() {
   const streakRecordedForSessionRef = useRef(false);
   const startCueFired = useRef(false);
   const mapRef = useRef<MapView>(null);
+  /** Throttle map recenter: GPS fires often; animating every fix causes flicker. */
+  const mapFollowStateRef = useRef<{
+    lastAtMs: number;
+    lat: number;
+    lng: number;
+  } | null>(null);
+  /** Avoid alternating animateCamera vs animateToRegion when altitude validity flickers. */
+  const mapFollowModeRef = useRef<'unknown' | 'camera' | 'region'>('unknown');
   const [snappedPolyline, setSnappedPolyline] = useState<
     { latitude: number; longitude: number }[] | null
   >(null);
@@ -113,6 +145,34 @@ export default function ActiveRunScreen() {
   const googleRoadsApiKey = (
     Constants.expoConfig?.extra?.googleRoadsApiKey as string | undefined
   )?.trim();
+
+  /** Last known fix so the map can center before Start / before the first watch callback. */
+  const [mapBootstrapCoords, setMapBootstrapCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelled) return;
+        const pos = await Location.getLastKnownPositionAsync({});
+        if (pos && !cancelled) {
+          setMapBootstrapCoords({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reanimated values for goal-reached banner
   const bannerScale = useSharedValue(0);
@@ -215,21 +275,139 @@ export default function ActiveRunScreen() {
     triggerGoalReached(stripEmojis(mission.title));
   }, [distanceGoalReached, mission, isFreeRun, triggerGoalReached]);
 
-  // Pan map to follow latest GPS point
+  // Follow latest GPS point while preserving user-chosen map rotation (heading/pitch).
+  // Throttle: animating on every GPS tick stacks animations and flickers. Reset when path clears.
   useEffect(() => {
-    const latest = path[path.length - 1];
-    if (latest && mapRef.current) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: latest.latitude,
-          longitude: latest.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        },
-        300,
-      );
+    if (path.length === 0) {
+      mapFollowStateRef.current = null;
+      mapFollowModeRef.current = 'unknown';
+      return;
     }
-  }, [path]);
+
+    const latest = path[path.length - 1];
+    const map = mapRef.current;
+    if (!latest || !map || !mapReady) return;
+
+    const lat = latest.latitude;
+    const lng = latest.longitude;
+    const t0 = latest.timestamp;
+    const prev = mapFollowStateRef.current;
+    const now = Date.now();
+    if (prev) {
+      const dt = now - prev.lastAtMs;
+      const moveKm = calcDistanceKm([
+        { latitude: prev.lat, longitude: prev.lng, timestamp: t0 - 1 },
+        { latitude: lat, longitude: lng, timestamp: t0 },
+      ]);
+      if (dt < MAP_FOLLOW_MIN_INTERVAL_MS && moveKm < MAP_FOLLOW_MIN_MOVE_KM) {
+        return;
+      }
+    }
+
+    // Reserve follow immediately so rapid path updates don't double-pass throttle.
+    mapFollowStateRef.current = { lastAtMs: now, lat, lng };
+
+    const run = async () => {
+      const cur = pathSnapRef.current[pathSnapRef.current.length - 1];
+      if (!cur) return;
+
+      const regionFallback = {
+        latitude: cur.latitude,
+        longitude: cur.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+
+      const commitFollow = () => {
+        mapFollowStateRef.current = {
+          lastAtMs: Date.now(),
+          lat: cur.latitude,
+          lng: cur.longitude,
+        };
+      };
+
+      const snapLen = pathSnapRef.current.length;
+      const panMs = snapLen <= 1 ? 0 : 400;
+
+      const mode = mapFollowModeRef.current;
+
+      if (mode === 'region') {
+        map.animateToRegion(regionFallback, panMs);
+        commitFollow();
+        return;
+      }
+
+      try {
+        const cam = await map.getCamera();
+        const fresh = pathSnapRef.current[pathSnapRef.current.length - 1];
+        if (!fresh) return;
+        const center = { latitude: fresh.latitude, longitude: fresh.longitude };
+        const heading = Number.isFinite(cam.heading) ? cam.heading : 0;
+        const pitch = Number.isFinite(cam.pitch) ? cam.pitch : 0;
+
+        if (Platform.OS === 'android') {
+          const z = cam.zoom;
+          if (z != null && z > 0) {
+            map.animateCamera(
+              {
+                center,
+                heading,
+                pitch,
+                zoom: z,
+              },
+              { duration: panMs },
+            );
+            mapFollowModeRef.current = 'camera';
+            commitFollow();
+            return;
+          }
+        } else {
+          const alt = cam.altitude;
+          if (alt != null && alt > 0 && Number.isFinite(alt)) {
+            map.animateCamera(
+              {
+                center,
+                heading,
+                pitch,
+                altitude: alt,
+              },
+              { duration: panMs },
+            );
+            mapFollowModeRef.current = 'camera';
+            commitFollow();
+            return;
+          }
+        }
+
+        mapFollowModeRef.current = 'region';
+        map.animateToRegion(
+          {
+            latitude: fresh.latitude,
+            longitude: fresh.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          },
+          panMs,
+        );
+        commitFollow();
+      } catch {
+        mapFollowModeRef.current = 'region';
+        const fresh = pathSnapRef.current[pathSnapRef.current.length - 1];
+        if (!fresh) return;
+        map.animateToRegion(
+          {
+            latitude: fresh.latitude,
+            longitude: fresh.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          },
+          panMs,
+        );
+        commitFollow();
+      }
+    };
+    void run();
+  }, [path, mapReady]);
 
   const handleFinish = () => {
     setRunActive(false);
@@ -392,6 +570,48 @@ export default function ActiveRunScreen() {
     return tail.length > 0 ? [...snappedPolyline, ...tail] : snappedPolyline;
   }, [path, snappedPolyline]);
 
+  const initialRegion = useMemo(() => {
+    if (path.length > 0) {
+      const p = path[0]!;
+      return {
+        latitude: p.latitude,
+        longitude: p.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+    }
+    if (mapBootstrapCoords) {
+      return {
+        latitude: mapBootstrapCoords.latitude,
+        longitude: mapBootstrapCoords.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+    }
+    return {
+      latitude: 48.8566,
+      longitude: 2.3522,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
+  }, [path, mapBootstrapCoords]);
+
+  // Snap map to last known user location as soon as the map is ready (initialRegion often only applies on first mount).
+  useEffect(() => {
+    if (!mapBootstrapCoords || !mapReady || path.length > 0) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.animateToRegion(
+      {
+        latitude: mapBootstrapCoords.latitude,
+        longitude: mapBootstrapCoords.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      },
+      0,
+    );
+  }, [mapBootstrapCoords, mapReady, path.length]);
+
   // ─── Error states ─────────────────────────────────────────────────────────
 
   if (!mission) {
@@ -414,10 +634,14 @@ export default function ActiveRunScreen() {
           <MaterialIcons name="location-off" size={48} color={colors.textTertiary} />
           <Text style={styles.permTitle}>Location Access Required</Text>
           <Text style={styles.permSub}>
-            RunQuest needs location access to track your mission. Enable it in Settings.
+            RunQuest needs location access to track your mission. You can enable it in Settings.
           </Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>Return to base</Text>
+          <TouchableOpacity onPress={() => Linking.openSettings()} style={styles.backBtn}>
+            <MaterialIcons name="settings" size={18} color={colors.primary} />
+            <Text style={styles.backBtnText}>Open Settings</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtnSecondary}>
+            <Text style={styles.backBtnSecondaryText}>Return to base</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -430,14 +654,6 @@ export default function ActiveRunScreen() {
   const goalHit = distanceGoalReached;
 
   const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
-  const initialRegion = path.length > 0
-    ? { latitude: path[0]!.latitude, longitude: path[0]!.longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }
-    : {
-        latitude: 48.8566,
-        longitude: 2.3522,
-        latitudeDelta: 0.08,
-        longitudeDelta: 0.08,
-      };
 
   const remainingWholeMin =
     !isFreeRun && targetDurationMin > 0
@@ -654,7 +870,7 @@ export default function ActiveRunScreen() {
             <View style={styles.statDivider} />
             <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon={activityIcon} accent={colors.primary} large />
             <View style={styles.statDivider} />
-            <StatTile label="PACE" value={formatPace(distanceKm, elapsedSec)} icon="speed" accent={colors.textSecondary} />
+            <StatTile label="PACE" value={paceDisplay} icon="speed" accent={colors.textSecondary} />
           </View>
 
           {/* Target + progress — hidden for free run */}
@@ -788,6 +1004,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   } as TextStyle,
   backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.primaryLight,
     borderRadius: radii.md,
     paddingHorizontal: spacing.xl,
@@ -801,6 +1021,15 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  } as TextStyle,
+  backBtnSecondary: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  } as ViewStyle,
+  backBtnSecondaryText: {
+    fontSize: fontSizes.md,
+    color: colors.textSecondary,
+    textAlign: 'center',
   } as TextStyle,
 
   // ─── Mission header bar — above the map (paddingTop set via useSafeAreaInsets) ─
@@ -1139,7 +1368,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingTop: spacing.lg,
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.md + spacing.sm,
     gap: spacing.md,
   } as ViewStyle,
 

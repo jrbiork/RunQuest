@@ -6,9 +6,14 @@ import {
   ScrollView,
   ViewStyle,
   TextStyle,
+  Modal,
+  Platform,
+  Linking,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
@@ -37,8 +42,12 @@ export default function OnboardingTailoringScreen() {
   const xp = useUserStore((s) => s.xp);
   const runHistory = useUserStore((s) => s.runHistory);
   const missionCount = useMissionsStore((s) => s.weekMissions.length);
+  const iosLocationPromptDone = useUserStore((s) => s.iosAlwaysLocationPromptCompleted);
+  const markIosLocationPromptDone = useUserStore((s) => s.markIosAlwaysLocationPromptCompleted);
   const [progress, setProgress] = useState(0);
   const [phaseDone, setPhaseDone] = useState(false);
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [locationRequesting, setLocationRequesting] = useState(false);
 
   useEffect(() => {
     const started = Date.now();
@@ -74,6 +83,37 @@ export default function OnboardingTailoringScreen() {
     if (levelInfo.level >= SCAVENGER_LEVEL_COUNT) return null;
     return LEVEL_CLASS_TITLES[levelInfo.level] ?? null;
   }, [levelInfo.level]);
+
+  const goToTabs = () => router.replace('/(tabs)');
+
+  const handleEnterBase = () => {
+    if (Platform.OS === 'ios' && !iosLocationPromptDone) {
+      setLocationModalVisible(true);
+      return;
+    }
+    goToTabs();
+  };
+
+  const handleLocationContinue = async () => {
+    setLocationRequesting(true);
+    try {
+      await Location.requestForegroundPermissionsAsync();
+      await Location.requestBackgroundPermissionsAsync();
+    } catch {
+      // expo-location may throw if already determined
+    } finally {
+      setLocationRequesting(false);
+    }
+    markIosLocationPromptDone();
+    setLocationModalVisible(false);
+    goToTabs();
+  };
+
+  const handleLocationNotNow = () => {
+    markIosLocationPromptDone();
+    setLocationModalVisible(false);
+    goToTabs();
+  };
 
   if (!profile?.personaId) {
     return null;
@@ -158,11 +198,52 @@ export default function OnboardingTailoringScreen() {
       <View style={styles.footer}>
         <Button
           label="Enter base"
-          onPress={() => router.replace('/(tabs)')}
+          onPress={handleEnterBase}
           fullWidth
           disabled={!phaseDone}
         />
       </View>
+
+      <Modal
+        visible={locationModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={handleLocationNotNow}
+      >
+        <View style={styles.locModalBackdrop}>
+          <View style={styles.locModalCard}>
+            <MaterialIcons name="my-location" size={24} color={colors.primary} style={styles.locModalIcon} />
+            <Text style={styles.locModalTitle}>Always-on location</Text>
+            <Text style={styles.locModalBody}>
+              For accurate distance and route when RunQuest is in the background or your screen is
+              locked, choose <Text style={styles.locModalEm}>Always</Text> when prompted. You can
+              change this anytime in Settings.
+            </Text>
+            <TouchableOpacity
+              style={[styles.locOpenSettings, { borderColor: colors.primary }]}
+              onPress={() => Linking.openSettings()}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="settings" size={18} color={colors.primary} />
+              <Text style={styles.locOpenSettingsText}>Open Settings</Text>
+            </TouchableOpacity>
+            <Button
+              label="Continue"
+              onPress={handleLocationContinue}
+              fullWidth
+              disabled={locationRequesting}
+              loading={locationRequesting}
+            />
+            <Button
+              label="Not now"
+              onPress={handleLocationNotNow}
+              variant="ghost"
+              fullWidth
+              disabled={locationRequesting}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -312,4 +393,57 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   } as ViewStyle,
+
+  locModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  } as ViewStyle,
+  locModalCard: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.md,
+  } as ViewStyle,
+  locModalIcon: {
+    alignSelf: 'center',
+  } as TextStyle,
+  locModalTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
+  locModalBody: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    textAlign: 'center',
+  } as TextStyle,
+  locModalEm: {
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
+  locOpenSettings: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    backgroundColor: colors.primaryLight,
+  } as ViewStyle,
+  locOpenSettingsText: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
 });

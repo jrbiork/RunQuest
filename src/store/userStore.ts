@@ -30,6 +30,7 @@ export type CompleteRunOptions = {
 interface UserActions {
   completeOnboarding: (profile: UserProfile) => void;
   markIntroSeen: () => void;
+  markIosAlwaysLocationPromptCompleted: () => void;
   setAudioMuted: (muted: boolean) => void;
   completeRun: (
     missionId: string,
@@ -58,6 +59,7 @@ export const useUserStore = create<UserStore>()(
       profile: null,
       hasCompletedOnboarding: false,
       hasSeenIntro: false,
+      iosAlwaysLocationPromptCompleted: false,
       audioMuted: false,
       xp: 0,
       streak: 0,
@@ -69,6 +71,8 @@ export const useUserStore = create<UserStore>()(
       personaId: null,
 
       markIntroSeen: () => set({ hasSeenIntro: true }),
+      markIosAlwaysLocationPromptCompleted: () =>
+        set({ iosAlwaysLocationPromptCompleted: true }),
       setAudioMuted: (muted) => {
         setAudioMutedFlag(muted);
         set({ audioMuted: muted });
@@ -214,6 +218,7 @@ export const useUserStore = create<UserStore>()(
           profile: null,
           hasCompletedOnboarding: false,
           hasSeenIntro: false,
+          iosAlwaysLocationPromptCompleted: false,
           audioMuted: false,
           xp: 0,
           streak: 0,
@@ -229,13 +234,16 @@ export const useUserStore = create<UserStore>()(
     {
       name: 'runquest-user',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 3,
-      migrate: (persisted: unknown) => {
+      version: 4,
+      migrate: (persisted: unknown, version: number) => {
         const s = persisted as Record<string, unknown> & {
           totalCampaignsCompleted?: number;
           weeklyProgress?: unknown;
         };
         const { totalCampaignsCompleted: _c, weeklyProgress: _w, ...rest } = s;
+        if (version < 4 && rest.iosAlwaysLocationPromptCompleted === undefined) {
+          rest.iosAlwaysLocationPromptCompleted = true;
+        }
         return rest;
       },
       onRehydrateStorage: () => (state) => {

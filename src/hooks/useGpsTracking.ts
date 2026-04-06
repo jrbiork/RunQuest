@@ -10,6 +10,14 @@ import { pickCue } from '../constants/missions';
 
 export const BACKGROUND_LOCATION_TASK = 'runquest-background-location';
 
+/** Foreground GPS: tighter intervals so distance/pace appear sooner (battery vs responsiveness). */
+const FG_DISTANCE_INTERVAL_M = 2;
+const FG_TIME_INTERVAL_MS = 1000;
+
+/** Background updates: slightly conservative vs foreground. */
+const BG_DISTANCE_INTERVAL_M = 5;
+const BG_TIME_INTERVAL_MS = 3000;
+
 // ─── Shared buffer ────────────────────────────────────────────────────────────
 // Points captured while the app is backgrounded are pushed here.
 // The hook drains this buffer every second.
@@ -133,11 +141,13 @@ export interface GpsTrackingState {
   path: GpsPoint[];
   distanceKm: number;
   elapsedSec: number;
+  /** Latest reported speed in m/s, or null if unknown (foreground updates only). */
+  speedMps: number | null;
   isTracking: boolean;
   isPaused: boolean;
   hasPermission: boolean | null;
   start: () => Promise<void>;
-  stop: () => void;
+  stop: () => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
 }
@@ -146,6 +156,7 @@ export function useGpsTracking(): GpsTrackingState {
   const [path, setPath] = useState<GpsPoint[]>([]);
   const [distanceKm, setDistanceKm] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [speedMps, setSpeedMps] = useState<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -159,16 +170,22 @@ export function useGpsTracking(): GpsTrackingState {
   const pathRef = useRef<GpsPoint[]>([]);
   // Whether background permission was granted (needed for resume)
   const hasBgRef = useRef(false);
+  /** False after stop — avoids applying cold-start getCurrentPositionAsync after session ends. */
+  const trackingActiveRef = useRef(false);
 
   const _startForegroundWatcher = useCallback(async () => {
     fgSubscriptionRef.current?.remove();
     fgSubscriptionRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
-        distanceInterval: 5,
-        timeInterval: 2000,
+        distanceInterval: FG_DISTANCE_INTERVAL_M,
+        timeInterval: FG_TIME_INTERVAL_MS,
       },
       async (loc) => {
+        const sp = loc.coords.speed;
+        setSpeedMps(
+          sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
+        );
         const point: GpsPoint = {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -197,8 +214,8 @@ export function useGpsTracking(): GpsTrackingState {
       if (!isRegistered) {
         await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
           accuracy: Location.Accuracy.BestForNavigation,
-          distanceInterval: 5,
-          timeInterval: 3000,
+          distanceInterval: BG_DISTANCE_INTERVAL_M,
+          timeInterval: BG_TIME_INTERVAL_MS,
           showsBackgroundLocationIndicator: true,
           foregroundService: {
             notificationTitle: 'RunQuest is tracking your run',
@@ -234,8 +251,10 @@ export function useGpsTracking(): GpsTrackingState {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    trackingActiveRef.current = false;
     setIsTracking(false);
     setIsPaused(false);
+    setSpeedMps(null);
   }, [_stopLocationTracking]);
 
   const pause = useCallback(async () => {
@@ -246,6 +265,7 @@ export function useGpsTracking(): GpsTrackingState {
       segmentStartMsRef.current = null;
     }
     await _stopLocationTracking();
+    setSpeedMps(null);
     setIsPaused(true);
   }, [isTracking, isPaused, _stopLocationTracking]);
 
@@ -291,13 +311,68 @@ export function useGpsTracking(): GpsTrackingState {
     setPath([]);
     setDistanceKm(0);
     setElapsedSec(0);
+    setSpeedMps(null);
     setIsTracking(true);
     setIsPaused(false);
+    trackingActiveRef.current = true;
+
+    // Last-known + optional one-shot fix: watchPosition may wait for movement / interval.
+    try {
+      const last = await Location.getLastKnownPositionAsync();
+      if (last?.coords) {
+        const point: GpsPoint = {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+          timestamp: last.timestamp,
+          ...(last.coords.accuracy != null && last.coords.accuracy > 0
+            ? { accuracy: last.coords.accuracy }
+            : {}),
+        };
+        pathRef.current = [point];
+        setPath([point]);
+        _addBgPoint(point);
+        const sp = last.coords.speed;
+        setSpeedMps(
+          sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
+        );
+      }
+    } catch {
+      // ignore
+    }
 
     await _startForegroundWatcher();
     await _startBackgroundTask();
 
+    if (pathRef.current.length === 0) {
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      })
+        .then((loc) => {
+          if (!trackingActiveRef.current) return;
+          if (pathRef.current.length > 0) return;
+          const point: GpsPoint = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            timestamp: loc.timestamp,
+            ...(loc.coords.accuracy != null && loc.coords.accuracy > 0
+              ? { accuracy: loc.coords.accuracy }
+              : {}),
+          };
+          if (_bgSeenTimestamps.has(point.timestamp)) return;
+          _addBgPoint(point);
+          pathRef.current = [point];
+          setPath([point]);
+          const sp = loc.coords.speed;
+          setSpeedMps(
+            sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
+          );
+        })
+        .catch(() => {});
+    }
+
     // ── Timer: elapsed time + drain background buffer ─────────────────────
+    // Native expo-location + TaskManager receive fixes while backgrounded; JS merges
+    // buffered points here when the app runs again (not React-only tracking).
     timerRef.current = setInterval(() => {
       // Only advance the clock while not paused
       if (segmentStartMsRef.current !== null) {
@@ -347,6 +422,7 @@ export function useGpsTracking(): GpsTrackingState {
     path,
     distanceKm,
     elapsedSec,
+    speedMps,
     isTracking,
     isPaused,
     hasPermission,
