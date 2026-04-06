@@ -11,11 +11,18 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import Constants from 'expo-constants';
 import { MaterialIcons } from '@expo/vector-icons';
-import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, {
+  Polyline,
+  PROVIDER_DEFAULT,
+  type Region,
+} from 'react-native-maps';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,11 +37,27 @@ import { useRunSessionStore } from '../../src/store/runSessionStore';
 import { useUserStore, MIN_EFFORT_SECONDS } from '../../src/store/userStore';
 import { getNowISOString } from '../../src/utils/dateUtils';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
-import { colors, spacing, radii, fontSizes, fontWeights, shadows, missionConfig } from '../../src/constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+  shadows,
+  missionConfig,
+} from '../../src/constants/theme';
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
-import { calcDistanceKm, formatElapsed, formatPaceLiveDisplay } from '../../src/utils/haversine';
-import { useGpsTracking, initBackgroundCueTracking, stopBackgroundCueTracking } from '../../src/hooks/useGpsTracking';
+import {
+  calcDistanceKm,
+  formatElapsed,
+  formatPaceLiveDisplay,
+} from '../../src/utils/haversine';
+import {
+  useGpsTracking,
+  initBackgroundCueTracking,
+  stopBackgroundCueTracking,
+} from '../../src/hooks/useGpsTracking';
 import {
   playGoalReachedSound,
   speakRunCue,
@@ -50,7 +73,10 @@ import {
   buildMissionStartLiveCue,
   pickMissionCompleteLiveCue,
 } from '../../src/constants/missions';
-import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
+import {
+  findMissionById,
+  normalizeRouteParam,
+} from '../../src/utils/missionLookup';
 import { snapPathForMapDisplay } from '../../src/services/routeSnapService';
 import type { ActivityMode } from '../../src/types';
 import * as Location from 'expo-location';
@@ -59,13 +85,19 @@ import * as Location from 'expo-location';
 const MAP_FOLLOW_MIN_INTERVAL_MS = 1600;
 /** Min movement (km) to recenter before interval elapses (~4 m). */
 const MAP_FOLLOW_MIN_MOVE_KM = 0.004;
+/** Resume GPS centering after user stops manipulating the map. */
+const MAP_FOLLOW_RESUME_AFTER_MS = 5000;
+/** Ignore region-complete right after our programmatic moves (Apple Maps can emit extras). */
+const MAP_FOLLOW_IGNORE_AFTER_PROGRAMMATIC_MS = 200;
 
 export default function ActiveRunScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string; activityMode?: string }>();
   const id = normalizeRouteParam(params.id);
   const activityModeParam = normalizeRouteParam(params.activityMode);
-  const profileDefaultMode = useUserStore((s) => s.profile?.defaultActivityMode ?? 'cycle');
+  const profileDefaultMode = useUserStore(
+    (s) => s.profile?.defaultActivityMode ?? 'cycle',
+  );
   const activityMode: ActivityMode =
     activityModeParam === 'cycle'
       ? 'cycle'
@@ -76,10 +108,16 @@ export default function ActiveRunScreen() {
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const abortMission = useMissionsStore((s) => s.abortMission);
   const appendRunHistoryEntry = useUserStore((s) => s.appendRunHistoryEntry);
-  const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
-  const recordStreakOnMissionStart = useUserStore((s) => s.recordStreakOnMissionStart);
+  const recordEffortFromElapsedSec = useUserStore(
+    (s) => s.recordEffortFromElapsedSec,
+  );
+  const recordStreakOnMissionStart = useUserStore(
+    (s) => s.recordStreakOnMissionStart,
+  );
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
+  const mission = isFreeRun
+    ? FUN_RUN_MISSION
+    : findMissionById(weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
   const {
     path,
@@ -104,13 +142,13 @@ export default function ActiveRunScreen() {
   const targetDistanceKm = isFreeRun
     ? 0
     : activityMode === 'cycle'
-    ? (mission?.targetCyclingDistanceKm ?? 0)
-    : (mission?.targetDistanceKm ?? 0);
+      ? (mission?.targetCyclingDistanceKm ?? 0)
+      : (mission?.targetDistanceKm ?? 0);
   const targetDurationMin = isFreeRun
     ? 0
     : activityMode === 'cycle'
-    ? (mission?.targetCyclingDurationMin ?? 0)
-    : (mission?.targetDurationMin ?? 0);
+      ? (mission?.targetCyclingDurationMin ?? 0)
+      : (mission?.targetDurationMin ?? 0);
 
   const [distanceGoalReached, setDistanceGoalReached] = useState(false);
   const [distanceMetOnTime, setDistanceMetOnTime] = useState(true);
@@ -130,6 +168,16 @@ export default function ActiveRunScreen() {
   } | null>(null);
   /** Avoid alternating animateCamera vs animateToRegion when altitude validity flickers. */
   const mapFollowModeRef = useRef<'unknown' | 'camera' | 'region'>('unknown');
+  /** True just before animateCamera / animateToRegion from our follow logic (Apple has no isGesture). */
+  const programmaticMapMoveRef = useRef(false);
+  /** User panned/pinched; skip auto-follow until resume timer. */
+  const userPausedMapFollowRef = useRef(false);
+  const resumeFollowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const ignoreUserGestureUntilMsRef = useRef(0);
+  const [resumeFollowNonce, setResumeFollowNonce] = useState(0);
+
   const [snappedPolyline, setSnappedPolyline] = useState<
     { latitude: number; longitude: number }[] | null
   >(null);
@@ -174,6 +222,52 @@ export default function ActiveRunScreen() {
     };
   }, []);
 
+  const clearMapFollowResumeTimer = useCallback(() => {
+    if (resumeFollowTimeoutRef.current !== null) {
+      clearTimeout(resumeFollowTimeoutRef.current);
+      resumeFollowTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleMapFollowResume = useCallback(() => {
+    clearMapFollowResumeTimer();
+    resumeFollowTimeoutRef.current = setTimeout(() => {
+      resumeFollowTimeoutRef.current = null;
+      userPausedMapFollowRef.current = false;
+      setResumeFollowNonce((n) => n + 1);
+    }, MAP_FOLLOW_RESUME_AFTER_MS);
+  }, [clearMapFollowResumeTimer]);
+
+  const onUserMapGesture = useCallback(() => {
+    userPausedMapFollowRef.current = true;
+    scheduleMapFollowResume();
+  }, [scheduleMapFollowResume]);
+
+  const handleMapRegionChangeComplete = useCallback(
+    (_region: Region, details?: { isGesture?: boolean }) => {
+      if (programmaticMapMoveRef.current) {
+        programmaticMapMoveRef.current = false;
+        ignoreUserGestureUntilMsRef.current =
+          Date.now() + MAP_FOLLOW_IGNORE_AFTER_PROGRAMMATIC_MS;
+        return;
+      }
+      if (Date.now() < ignoreUserGestureUntilMsRef.current) return;
+      if (details?.isGesture === false) return;
+      onUserMapGesture();
+    },
+    [onUserMapGesture],
+  );
+
+  const handleMapPanDrag = useCallback(() => {
+    onUserMapGesture();
+  }, [onUserMapGesture]);
+
+  useEffect(() => {
+    return () => {
+      clearMapFollowResumeTimer();
+    };
+  }, [clearMapFollowResumeTimer]);
+
   // Reanimated values for goal-reached banner
   const bannerScale = useSharedValue(0);
   const pulseOpacity = useSharedValue(1);
@@ -186,21 +280,24 @@ export default function ActiveRunScreen() {
     opacity: pulseOpacity.value,
   }));
 
-  const triggerGoalReached = useCallback(async (missionTitle: string) => {
-    bannerScale.value = withSpring(1, { damping: 12, stiffness: 180 });
-    pulseOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.5, { duration: 700 }),
-        withTiming(1, { duration: 700 }),
-      ),
-      -1,
-      false,
-    );
-    await Promise.all([
-      playGoalReachedSound(),
-      scheduleGoalReachedNotification(missionTitle),
-    ]);
-  }, [bannerScale, pulseOpacity]);
+  const triggerGoalReached = useCallback(
+    async (missionTitle: string) => {
+      bannerScale.value = withSpring(1, { damping: 12, stiffness: 180 });
+      pulseOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.5, { duration: 700 }),
+          withTiming(1, { duration: 700 }),
+        ),
+        -1,
+        false,
+      );
+      await Promise.all([
+        playGoalReachedSound(),
+        scheduleGoalReachedNotification(missionTitle),
+      ]);
+    },
+    [bannerScale, pulseOpacity],
+  );
 
   useEffect(() => {
     setRunActive(true);
@@ -214,7 +311,13 @@ export default function ActiveRunScreen() {
 
   // Profile day streak: once per calendar day when a campaign mission’s GPS session starts (outcome does not matter).
   useEffect(() => {
-    if (!isTracking || !mission || isFreeRun || streakRecordedForSessionRef.current) return;
+    if (
+      !isTracking ||
+      !mission ||
+      isFreeRun ||
+      streakRecordedForSessionRef.current
+    )
+      return;
     streakRecordedForSessionRef.current = true;
     recordStreakOnMissionStart();
   }, [isTracking, mission, isFreeRun, recordStreakOnMissionStart]);
@@ -269,7 +372,13 @@ export default function ActiveRunScreen() {
 
   // Announce goal + banner once when distance target is met
   useEffect(() => {
-    if (!distanceGoalReached || !mission || isFreeRun || goalAnnouncedRef.current) return;
+    if (
+      !distanceGoalReached ||
+      !mission ||
+      isFreeRun ||
+      goalAnnouncedRef.current
+    )
+      return;
     goalAnnouncedRef.current = true;
     speakRunCue(pickMissionCompleteLiveCue());
     triggerGoalReached(stripEmojis(mission.title));
@@ -281,8 +390,12 @@ export default function ActiveRunScreen() {
     if (path.length === 0) {
       mapFollowStateRef.current = null;
       mapFollowModeRef.current = 'unknown';
+      userPausedMapFollowRef.current = false;
+      clearMapFollowResumeTimer();
       return;
     }
+
+    if (userPausedMapFollowRef.current) return;
 
     const latest = path[path.length - 1];
     const map = mapRef.current;
@@ -332,6 +445,7 @@ export default function ActiveRunScreen() {
       const mode = mapFollowModeRef.current;
 
       if (mode === 'region') {
+        programmaticMapMoveRef.current = true;
         map.animateToRegion(regionFallback, panMs);
         commitFollow();
         return;
@@ -348,6 +462,7 @@ export default function ActiveRunScreen() {
         if (Platform.OS === 'android') {
           const z = cam.zoom;
           if (z != null && z > 0) {
+            programmaticMapMoveRef.current = true;
             map.animateCamera(
               {
                 center,
@@ -364,6 +479,7 @@ export default function ActiveRunScreen() {
         } else {
           const alt = cam.altitude;
           if (alt != null && alt > 0 && Number.isFinite(alt)) {
+            programmaticMapMoveRef.current = true;
             map.animateCamera(
               {
                 center,
@@ -380,6 +496,7 @@ export default function ActiveRunScreen() {
         }
 
         mapFollowModeRef.current = 'region';
+        programmaticMapMoveRef.current = true;
         map.animateToRegion(
           {
             latitude: fresh.latitude,
@@ -394,6 +511,7 @@ export default function ActiveRunScreen() {
         mapFollowModeRef.current = 'region';
         const fresh = pathSnapRef.current[pathSnapRef.current.length - 1];
         if (!fresh) return;
+        programmaticMapMoveRef.current = true;
         map.animateToRegion(
           {
             latitude: fresh.latitude,
@@ -407,7 +525,7 @@ export default function ActiveRunScreen() {
       }
     };
     void run();
-  }, [path, mapReady]);
+  }, [path, mapReady, resumeFollowNonce, clearMapFollowResumeTimer]);
 
   const handleFinish = () => {
     setRunActive(false);
@@ -440,25 +558,21 @@ export default function ActiveRunScreen() {
 
   const confirmAbort = useCallback(() => {
     if (isFreeRun) {
-      Alert.alert(
-        'End free run?',
-        'Your route will not be saved.',
-        [
-          { text: 'Keep going', style: 'cancel' },
-          {
-            text: 'End',
-            style: 'destructive',
-            onPress: () => {
-              setRunActive(false);
-              stop();
-              if (elapsedSec >= MIN_EFFORT_SECONDS) {
-                recordEffortFromElapsedSec(elapsedSec);
-              }
-              router.replace('/(tabs)/journey');
-            },
+      Alert.alert('End free run?', 'Your route will not be saved.', [
+        { text: 'Keep going', style: 'cancel' },
+        {
+          text: 'End',
+          style: 'destructive',
+          onPress: () => {
+            setRunActive(false);
+            stop();
+            if (elapsedSec >= MIN_EFFORT_SECONDS) {
+              recordEffortFromElapsedSec(elapsedSec);
+            }
+            router.replace('/(tabs)/journey');
           },
-        ],
-      );
+        },
+      ]);
       return;
     }
     Alert.alert(
@@ -543,7 +657,13 @@ export default function ActiveRunScreen() {
       const gen = ++snapGenRef.current;
       const ac = new AbortController();
       const snapPathCount = p.length;
-      snapPathForMapDisplay(p, activityMode, orsApiKey ?? '', ac.signal, googleRoadsApiKey)
+      snapPathForMapDisplay(
+        p,
+        activityMode,
+        orsApiKey ?? '',
+        ac.signal,
+        googleRoadsApiKey,
+      )
         .then((coords) => {
           if (cancelled || gen !== snapGenRef.current) return;
           snappedPathCountRef.current = snapPathCount;
@@ -560,7 +680,10 @@ export default function ActiveRunScreen() {
   }, [path.length >= 2, activityMode, orsApiKey, googleRoadsApiKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only (re)start when path becomes snap-ready
 
   const polylineCoords = useMemo(() => {
-    const raw = path.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
+    const raw = path.map((p) => ({
+      latitude: p.latitude,
+      longitude: p.longitude,
+    }));
     if (!snappedPolyline || snappedPolyline.length < 2) return raw;
     // Append raw GPS points recorded after the last snap so the drawn path
     // stays flush with the current position (blue dot) between snap intervals.
@@ -601,6 +724,7 @@ export default function ActiveRunScreen() {
     if (!mapBootstrapCoords || !mapReady || path.length > 0) return;
     const map = mapRef.current;
     if (!map) return;
+    programmaticMapMoveRef.current = true;
     map.animateToRegion(
       {
         latitude: mapBootstrapCoords.latitude,
@@ -619,7 +743,10 @@ export default function ActiveRunScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <Text style={styles.errorText}>Mission data not found.</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+          >
             <Text style={styles.backBtnText}>Return to base</Text>
           </TouchableOpacity>
         </View>
@@ -631,16 +758,27 @@ export default function ActiveRunScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <MaterialIcons name="location-off" size={48} color={colors.textTertiary} />
+          <MaterialIcons
+            name="location-off"
+            size={48}
+            color={colors.textTertiary}
+          />
           <Text style={styles.permTitle}>Location Access Required</Text>
           <Text style={styles.permSub}>
-            RunQuest needs location access to track your mission. You can enable it in Settings.
+            RunQuest needs location access to track your mission. You can enable
+            it in Settings.
           </Text>
-          <TouchableOpacity onPress={() => Linking.openSettings()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => Linking.openSettings()}
+            style={styles.backBtn}
+          >
             <MaterialIcons name="settings" size={18} color={colors.primary} />
             <Text style={styles.backBtnText}>Open Settings</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtnSecondary}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtnSecondary}
+          >
             <Text style={styles.backBtnSecondaryText}>Return to base</Text>
           </TouchableOpacity>
         </View>
@@ -649,11 +787,13 @@ export default function ActiveRunScreen() {
   }
 
   const config = missionConfig[mission.type];
-  const distanceProgress = targetDistanceKm > 0 ? Math.min(distanceKm / targetDistanceKm, 1) : 0;
+  const distanceProgress =
+    targetDistanceKm > 0 ? Math.min(distanceKm / targetDistanceKm, 1) : 0;
   const overallProgress = distanceProgress;
   const goalHit = distanceGoalReached;
 
-  const activityIcon = activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
+  const activityIcon =
+    activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
 
   const remainingWholeMin =
     !isFreeRun && targetDurationMin > 0
@@ -681,7 +821,11 @@ export default function ActiveRunScreen() {
             accessibilityRole="button"
             accessibilityLabel="Back to mission briefing"
           >
-            <MaterialIcons name="arrow-back" size={22} color={colors.textSecondary} />
+            <MaterialIcons
+              name="arrow-back"
+              size={22}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         ) : (
           <View style={[styles.typePill, { borderColor: config.color }]}>
@@ -693,7 +837,9 @@ export default function ActiveRunScreen() {
         )}
 
         {/* Center: mission title */}
-        <Text style={styles.missionTitle} numberOfLines={1}>{stripEmojis(mission.title)}</Text>
+        <Text style={styles.missionTitle} numberOfLines={1}>
+          {stripEmojis(mission.title)}
+        </Text>
 
         {/* Right: elapsed time badge */}
         <View
@@ -742,6 +888,8 @@ export default function ActiveRunScreen() {
           provider={PROVIDER_DEFAULT}
           initialRegion={initialRegion}
           onMapReady={() => setMapReady(true)}
+          onRegionChangeComplete={handleMapRegionChangeComplete}
+          onPanDrag={handleMapPanDrag}
           showsUserLocation
           showsMyLocationButton={false}
           mapType="standard"
@@ -765,18 +913,24 @@ export default function ActiveRunScreen() {
                 <View style={styles.mapTargetStripInner}>
                   <View style={styles.mapTargetCol}>
                     <Text style={styles.mapTargetLabel}>TARGET DISTANCE</Text>
-                    <Text style={[styles.mapTargetValue, { color: colors.primary }]}>
+                    <Text
+                      style={[styles.mapTargetValue, { color: colors.primary }]}
+                    >
                       {formatDistance(targetDistanceKm)}
                     </Text>
                   </View>
                   <View style={styles.mapTargetStripDivider} />
                   <View style={styles.mapTargetCol}>
                     <Text style={styles.mapTargetLabel}>TIME LIMIT</Text>
-                    <Text style={[styles.mapTargetValue, { color: colors.orange }]}>
+                    <Text
+                      style={[styles.mapTargetValue, { color: colors.orange }]}
+                    >
                       ~{formatDuration(targetDurationMin)}
                     </Text>
                     {remainingWholeMin != null && isTracking && !goalHit && (
-                      <Text style={styles.mapTargetSub}>{remainingWholeMin} min remaining</Text>
+                      <Text style={styles.mapTargetSub}>
+                        {remainingWholeMin} min remaining
+                      </Text>
                     )}
                   </View>
                 </View>
@@ -784,7 +938,9 @@ export default function ActiveRunScreen() {
             )}
             {isFreeRun && (
               <View style={styles.mapFreeRunHint} pointerEvents="none">
-                <Text style={styles.mapFreeRunHintText}>FREE RUN · NO TARGETS</Text>
+                <Text style={styles.mapFreeRunHintText}>
+                  FREE RUN · NO TARGETS
+                </Text>
               </View>
             )}
           </>
@@ -801,11 +957,15 @@ export default function ActiveRunScreen() {
                     <View style={styles.preStartTargets}>
                       <View style={styles.preStartTargetBlock}>
                         <Text style={styles.preStartTargetLabel}>DISTANCE</Text>
-                        <Text style={styles.preStartTargetBig}>{formatDistance(targetDistanceKm)}</Text>
+                        <Text style={styles.preStartTargetBig}>
+                          {formatDistance(targetDistanceKm)}
+                        </Text>
                       </View>
                       <View style={styles.preStartTargetBlock}>
                         <Text style={styles.preStartTargetLabel}>TIME</Text>
-                        <Text style={styles.preStartTargetBig}>~{formatDuration(targetDurationMin)}</Text>
+                        <Text style={styles.preStartTargetBig}>
+                          ~{formatDuration(targetDurationMin)}
+                        </Text>
                       </View>
                     </View>
                   )}
@@ -813,13 +973,18 @@ export default function ActiveRunScreen() {
                     <Text style={styles.preStartFreeTitle}>Free run</Text>
                   )}
                   {mapReady ? (
-                    <Text style={styles.preStartHint}>GPS tracking starts when you tap Start.</Text>
+                    <Text style={styles.preStartHint}>
+                      GPS tracking starts when you tap Start.
+                    </Text>
                   ) : null}
                 </>
               )}
             </View>
             <TouchableOpacity
-              style={[styles.startMissionBtn, !mapReady && styles.startMissionBtnDisabled]}
+              style={[
+                styles.startMissionBtn,
+                !mapReady && styles.startMissionBtnDisabled,
+              ]}
               onPress={handleStartSession}
               disabled={!mapReady}
               activeOpacity={0.85}
@@ -838,9 +1003,22 @@ export default function ActiveRunScreen() {
 
         {/* Goal reached banner — floats over the map */}
         {goalHit && (
-          <Animated.View style={[styles.goalBanner, bannerStyle]} pointerEvents="none">
-            <Animated.View style={[styles.goalBannerInner, pulseStyle, { borderColor: colors.primary }]}>
-              <MaterialIcons name="emoji-events" size={18} color={colors.primary} />
+          <Animated.View
+            style={[styles.goalBanner, bannerStyle]}
+            pointerEvents="none"
+          >
+            <Animated.View
+              style={[
+                styles.goalBannerInner,
+                pulseStyle,
+                { borderColor: colors.primary },
+              ]}
+            >
+              <MaterialIcons
+                name="emoji-events"
+                size={18}
+                color={colors.primary}
+              />
               <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
               <Text style={styles.goalBannerSub}>
                 {distanceMetOnTime
@@ -854,7 +1032,12 @@ export default function ActiveRunScreen() {
         {/* Paused overlay */}
         {isPaused && (
           <View style={styles.pauseOverlay} pointerEvents="none">
-            <MaterialIcons name="pause-circle-filled" size={56} color={colors.orange} style={{ opacity: 0.85 }} />
+            <MaterialIcons
+              name="pause-circle-filled"
+              size={56}
+              color={colors.orange}
+              style={{ opacity: 0.85 }}
+            />
             <Text style={styles.pauseOverlayText}>MISSION PAUSED</Text>
           </View>
         )}
@@ -862,104 +1045,161 @@ export default function ActiveRunScreen() {
 
       {/* ─── Bottom HUD ───────────────────────────────────────────── */}
       {sessionStarted && (
-      <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
-        <View style={styles.hud}>
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            <StatTile label="TIME" value={formatElapsed(elapsedSec)} icon="timer" accent={colors.textSecondary} />
-            <View style={styles.statDivider} />
-            <StatTile label="DISTANCE" value={formatDistance(distanceKm)} icon={activityIcon} accent={colors.primary} large />
-            <View style={styles.statDivider} />
-            <StatTile label="PACE" value={paceDisplay} icon="speed" accent={colors.textSecondary} />
-          </View>
-
-          {/* Target + progress — hidden for free run */}
-          {!isFreeRun && (
-            <View style={styles.progressSection}>
-              <View style={styles.targetRow}>
-                <Text style={styles.targetLabel}>TARGET</Text>
-                <Text style={styles.targetValue}>
-                  {formatDistance(targetDistanceKm)} · ~{targetDurationMin} min
-                </Text>
-                <Text style={[styles.progressPercent, goalHit && styles.progressPercentDone]}>
-                  {goalHit ? '✓ COMPLETE' : `${Math.round(overallProgress * 100)}%`}
-                </Text>
-              </View>
-              <ProgressBar
-                progress={overallProgress}
-                color={goalHit ? colors.primary : config.color}
-                backgroundColor={colors.border}
-                height={6}
+        <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
+          <View style={styles.hud}>
+            {/* Stats row */}
+            <View style={styles.statsRow}>
+              <StatTile
+                label="TIME"
+                value={formatElapsed(elapsedSec)}
+                icon="timer"
+                accent={colors.textSecondary}
+              />
+              <View style={styles.statDivider} />
+              <StatTile
+                label="DISTANCE"
+                value={formatDistance(distanceKm)}
+                icon={activityIcon}
+                accent={colors.primary}
+                large
+              />
+              <View style={styles.statDivider} />
+              <StatTile
+                label="PACE"
+                value={paceDisplay}
+                icon="speed"
+                accent={colors.textSecondary}
               />
             </View>
-          )}
 
-          {/* Controls: Finish when goal reached; Pause + Abort only while goal is pending */}
-          <View style={styles.controls}>
-            {/* Finish button — goal reached or free run */}
-            {(goalHit || isFreeRun) && (
-              <TouchableOpacity
-                style={[styles.finishBtn, styles.finishBtnGoal]}
-                onPress={handleFinish}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons
-                  name={isFreeRun ? 'stop' : 'emoji-events'}
-                  size={20}
-                  color={colors.textInverse}
+            {/* Target + progress — hidden for free run */}
+            {!isFreeRun && (
+              <View style={styles.progressSection}>
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>TARGET</Text>
+                  <Text style={styles.targetValue}>
+                    {formatDistance(targetDistanceKm)} · ~{targetDurationMin}{' '}
+                    min
+                  </Text>
+                  <Text
+                    style={[
+                      styles.progressPercent,
+                      goalHit && styles.progressPercentDone,
+                    ]}
+                  >
+                    {goalHit
+                      ? '✓ COMPLETE'
+                      : `${Math.round(overallProgress * 100)}%`}
+                  </Text>
+                </View>
+                <ProgressBar
+                  progress={overallProgress}
+                  color={goalHit ? colors.primary : config.color}
+                  backgroundColor={colors.border}
+                  height={6}
                 />
-                <Text style={[styles.finishBtnText, styles.finishBtnTextGoal]}>
-                  {isFreeRun ? 'FINISH FREE RUN' : 'COMPLETE MISSION'}
-                </Text>
-              </TouchableOpacity>
+              </View>
             )}
 
-            {/* Pause + Abort — hidden once the goal is reached for non-free-run missions */}
-            {(isFreeRun || !goalHit) && (
-              <View style={styles.pauseAbortRow}>
+            {/* Controls: Finish when goal reached; Pause + Abort only while goal is pending */}
+            <View style={styles.controls}>
+              {/* Finish button — goal reached or free run */}
+              {(goalHit || isFreeRun) && (
                 <TouchableOpacity
-                  style={[
-                    styles.pauseResumeBtn,
-                    styles.pauseAbortHalf,
-                    isPaused && styles.pauseResumeBtnResume,
-                  ]}
-                  onPress={handlePauseResume}
+                  style={[styles.finishBtn, styles.finishBtnGoal]}
+                  onPress={handleFinish}
                   activeOpacity={0.85}
                 >
                   <MaterialIcons
-                    name={isPaused ? 'play-arrow' : 'pause'}
+                    name={isFreeRun ? 'stop' : 'emoji-events'}
                     size={20}
-                    color={isPaused ? colors.textInverse : colors.textSecondary}
+                    color={colors.textInverse}
                   />
-                  <Text style={[styles.pauseResumeBtnText, isPaused && styles.pauseResumeBtnTextResume]}>
-                    {isPaused ? 'RESUME' : 'PAUSE'}
+                  <Text
+                    style={[styles.finishBtnText, styles.finishBtnTextGoal]}
+                  >
+                    {isFreeRun ? 'FINISH FREE RUN' : 'COMPLETE MISSION'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.pauseResumeBtn, styles.pauseAbortHalf]}
-                  onPress={confirmAbort}
-                  activeOpacity={0.85}
-                >
-                  <MaterialIcons name="close" size={20} color={colors.textSecondary} />
-                  <Text style={styles.pauseResumeBtnText}>{isFreeRun ? 'END' : 'ABORT'}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              )}
+
+              {/* Pause + Abort — hidden once the goal is reached for non-free-run missions */}
+              {(isFreeRun || !goalHit) && (
+                <View style={styles.pauseAbortRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.pauseResumeBtn,
+                      styles.pauseAbortHalf,
+                      isPaused && styles.pauseResumeBtnResume,
+                    ]}
+                    onPress={handlePauseResume}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialIcons
+                      name={isPaused ? 'play-arrow' : 'pause'}
+                      size={20}
+                      color={
+                        isPaused ? colors.textInverse : colors.textSecondary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.pauseResumeBtnText,
+                        isPaused && styles.pauseResumeBtnTextResume,
+                      ]}
+                    >
+                      {isPaused ? 'RESUME' : 'PAUSE'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.pauseResumeBtn, styles.pauseAbortHalf]}
+                    onPress={confirmAbort}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialIcons
+                      name="close"
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.pauseResumeBtnText}>
+                      {isFreeRun ? 'END' : 'ABORT'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
       )}
     </View>
   );
 }
 
-function StatTile({ label, value, icon, accent, large }: {
-  label: string; value: string; icon: string; accent: string; large?: boolean;
+function StatTile({
+  label,
+  value,
+  icon,
+  accent,
+  large,
+}: {
+  label: string;
+  value: string;
+  icon: string;
+  accent: string;
+  large?: boolean;
 }) {
   return (
     <View style={styles.statTile}>
       <MaterialIcons name={icon as any} size={13} color={accent} />
-      <Text style={[styles.statValue, large && styles.statValueLarge, { color: accent }]}>{value}</Text>
+      <Text
+        style={[
+          styles.statValue,
+          large && styles.statValueLarge,
+          { color: accent },
+        ]}
+      >
+        {value}
+      </Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
