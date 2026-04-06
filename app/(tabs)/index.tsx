@@ -17,8 +17,7 @@ import { useUserStore } from '../../src/store/userStore';
 import {
   getLevelInfo,
   getOverallLevelRingProgress,
-  getScavengerLevelRows,
-  getXpRemainingToNextClass,
+  getXpRemainingToNextLevel,
   formatDistance,
   formatDuration,
   LEVEL_CLASS_TITLES,
@@ -41,8 +40,12 @@ import {
 } from '../../src/constants/theme';
 import { REST_DAY_MESSAGES } from '../../src/constants/missions';
 import type { CompletedRun } from '../../src/types';
-import { resolveOutcome } from '../../src/utils/runOutcome';
+import {
+  isMissionCompletedOrPartial,
+  resolveOutcome,
+} from '../../src/utils/runOutcome';
 import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
+import { LevelModal } from '../../src/components/level/LevelModal';
 
 function getRestMessage(): string {
   return REST_DAY_MESSAGES[
@@ -98,7 +101,7 @@ function buildStreakDayGroups(
     }));
 }
 
-function formatSortiePace(dKm: number, durMin: number): string {
+function formatMissionPace(dKm: number, durMin: number): string {
   if (dKm < 0.01 || durMin <= 0) return '—';
   const minPerKm = durMin / dKm;
   const m = Math.floor(minPerKm);
@@ -106,13 +109,12 @@ function formatSortiePace(dKm: number, durMin: number): string {
   return `${m}:${String(s).padStart(2, '0')} /km`;
 }
 
-type HomeStatModal = null | 'streak' | 'level' | 'sorties';
+type HomeStatModal = null | 'streak' | 'level' | 'missions';
 
 export default function HomeScreen() {
   const profile = useUserStore((s) => s.profile);
   const xp = useUserStore((s) => s.xp);
   const runHistory = useUserStore((s) => s.runHistory);
-  const totalRuns = useUserStore((s) => s.totalRuns);
   const hasSeenIntro = useUserStore((s) => s.hasSeenIntro);
   const displayXpTotal = useMemo(
     () => getDisplayXpTotal({ xp, runHistory }),
@@ -125,10 +127,10 @@ export default function HomeScreen() {
   const levelProgressLabel = useMemo(() => {
     const li = levelInfo;
     if (li.level >= SCAVENGER_LEVEL_COUNT) {
-      return 'Max class';
+      return 'Max level';
     }
-    const xpRemaining = getXpRemainingToNextClass(displayXpTotal);
-    const nextName = LEVEL_CLASS_TITLES[li.level] ?? `Rank ${li.level + 1}`;
+    const xpRemaining = getXpRemainingToNextLevel(displayXpTotal);
+    const nextName = LEVEL_CLASS_TITLES[li.level] ?? `Level ${li.level + 1}`;
     return `+${xpRemaining} XP to ${nextName}`;
   }, [levelInfo, displayXpTotal]);
 
@@ -144,8 +146,12 @@ export default function HomeScreen() {
     () => buildStreakDayGroups(runHistory),
     [runHistory],
   );
-  const scavengerLevels = useMemo(() => getScavengerLevelRows(), []);
-  const sortiesChronological = useMemo(
+  const missionCount = useMemo(
+    () => runHistory.filter(isMissionCompletedOrPartial).length,
+    [runHistory],
+  );
+
+  const missionsChronological = useMemo(
     () =>
       [...runHistory].sort(
         (a, b) =>
@@ -219,7 +225,13 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.wordmark}>RUNQUEST</Text>
-            <View style={styles.levelBadge}>
+            <TouchableOpacity
+              style={styles.levelBadge}
+              onPress={() => setStatModal('level')}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open levels"
+            >
               <MaterialIcons
                 name="military-tech"
                 size={12}
@@ -231,7 +243,7 @@ export default function HomeScreen() {
                 </Text>
                 <Text style={styles.levelBadgeMeta}> {levelProgressLabel}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={handleSettings} style={styles.settingsBtn}>
             <MaterialIcons
@@ -261,8 +273,14 @@ export default function HomeScreen() {
         {/* Pushes stats row to bottom when scroll content is shorter than screen */}
         <View style={styles.statsSpacer} />
 
+        <LevelModal
+          visible={statModal === 'level'}
+          onClose={() => setStatModal(null)}
+          levelInfo={levelInfo}
+        />
+
         <Modal
-          visible={statModal !== null}
+          visible={statModal !== null && statModal !== 'level'}
           animationType="fade"
           transparent
           onRequestClose={() => setStatModal(null)}
@@ -277,8 +295,7 @@ export default function HomeScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {statModal === 'streak' && 'Streak days'}
-                  {statModal === 'level' && 'Classes'}
-                  {statModal === 'sorties' && 'Sortie log'}
+                  {statModal === 'missions' && 'Mission log'}
                 </Text>
                 <TouchableOpacity
                   onPress={() => setStatModal(null)}
@@ -322,61 +339,12 @@ export default function HomeScreen() {
                     )}
                   </>
                 )}
-                {statModal === 'level' && (
+                {statModal === 'missions' && (
                   <>
-                    <Text style={styles.modalSub}>
-                      Class ranks — earn XP from missions to promote.
-                    </Text>
-                    {scavengerLevels.map((row) => {
-                      const current = row.level === levelInfo.level;
-                      return (
-                        <View
-                          key={row.level}
-                          style={[
-                            styles.levelRow,
-                            current && styles.levelRowCurrent,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.levelRowNum,
-                              current && styles.levelRowNumCurrent,
-                              { color: row.accentColor },
-                            ]}
-                          >
-                            {row.level}
-                          </Text>
-                          <View style={styles.levelRowText}>
-                            <Text
-                              style={[
-                                styles.levelRowTitle,
-                                current && styles.levelRowTitleCurrent,
-                              ]}
-                            >
-                              {row.title}
-                            </Text>
-                            <Text style={styles.levelRowXp}>
-                              {row.minXp.toLocaleString()} XP to reach
-                            </Text>
-                          </View>
-                          {current && (
-                            <MaterialIcons
-                              name="check-circle"
-                              size={20}
-                              color={colors.ochre}
-                            />
-                          )}
-                        </View>
-                      );
-                    })}
-                  </>
-                )}
-                {statModal === 'sorties' && (
-                  <>
-                    {sortiesChronological.length === 0 ? (
-                      <Text style={styles.modalEmpty}>No sorties yet.</Text>
+                    {missionsChronological.length === 0 ? (
+                      <Text style={styles.modalEmpty}>No missions yet.</Text>
                     ) : (
-                      sortiesChronological.map((run) => {
+                      missionsChronological.map((run) => {
                         const dt = new Date(run.completedAt);
                         const dateStr = dt.toLocaleDateString('en-US', {
                           weekday: 'short',
@@ -391,11 +359,11 @@ export default function HomeScreen() {
                         return (
                           <View
                             key={`${run.missionId}-${run.completedAt}`}
-                            style={styles.sortieRow}
+                            style={styles.missionRow}
                           >
-                            <View style={styles.sortieTopRow}>
+                            <View style={styles.missionTopRow}>
                               <Text
-                                style={styles.sortieDate}
+                                style={styles.missionDate}
                                 numberOfLines={1}
                               >
                                 {dateStr} · {timeStr}
@@ -404,10 +372,10 @@ export default function HomeScreen() {
                                 outcome={resolveOutcome(run)}
                               />
                             </View>
-                            <Text style={styles.sortieMeta}>
+                            <Text style={styles.missionMeta}>
                               {formatDistance(run.distanceKm)} ·{' '}
                               {formatDuration(run.durationMin)} ·{' '}
-                              {formatSortiePace(
+                              {formatMissionPace(
                                 run.distanceKm,
                                 run.durationMin,
                               )}{' '}
@@ -426,6 +394,20 @@ export default function HomeScreen() {
 
         {/* ─── Circular Stat Badges (bottom of home) ────────────────────── */}
         <View style={styles.statsBadgeRow}>
+          <TouchableOpacity
+            style={styles.statBadgeTouchable}
+            onPress={() => setStatModal('missions')}
+            activeOpacity={0.85}
+          >
+            <CircularStatBadge
+              value={missionCount}
+              label="Missions"
+              icon="directions-run"
+              ringColor={colors.primary}
+              progress={Math.min(missionCount / 50, 1)}
+              size={84}
+            />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.statBadgeTouchable}
             onPress={() => setStatModal('streak')}
@@ -451,20 +433,6 @@ export default function HomeScreen() {
               icon="military-tech"
               ringColor={colors.ochre}
               progress={getOverallLevelRingProgress(levelInfo)}
-              size={84}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.statBadgeTouchable}
-            onPress={() => setStatModal('sorties')}
-            activeOpacity={0.85}
-          >
-            <CircularStatBadge
-              value={totalRuns}
-              label="Sorties"
-              icon="directions-run"
-              ringColor={colors.primary}
-              progress={Math.min(totalRuns / 50, 1)}
               size={84}
             />
           </TouchableOpacity>
@@ -638,12 +606,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingVertical: spacing.md,
   } as TextStyle,
-  modalSub: {
-    fontSize: fontSizes.xs,
-    color: colors.textTertiary,
-    marginBottom: spacing.md,
-    lineHeight: 18,
-  } as TextStyle,
   modalSection: {
     marginBottom: spacing.lg,
   } as ViewStyle,
@@ -659,65 +621,25 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.sm,
     marginBottom: 2,
   } as TextStyle,
-  levelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    marginBottom: spacing.xs,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  } as ViewStyle,
-  levelRowCurrent: {
-    borderColor: colors.ochre,
-    backgroundColor: 'rgba(212, 168, 83, 0.12)',
-  } as ViewStyle,
-  levelRowNum: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textTertiary,
-    width: 28,
-  } as TextStyle,
-  levelRowNumCurrent: {
-    color: colors.ochre,
-  } as TextStyle,
-  levelRowText: {
-    flex: 1,
-    gap: 2,
-  } as ViewStyle,
-  levelRowTitle: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
-  } as TextStyle,
-  levelRowTitleCurrent: {
-    color: colors.ochre,
-  } as TextStyle,
-  levelRowXp: {
-    fontSize: fontSizes.xs,
-    color: colors.textTertiary,
-  } as TextStyle,
-  sortieRow: {
+  missionRow: {
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   } as ViewStyle,
-  sortieTopRow: {
+  missionTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
     marginBottom: 4,
   } as ViewStyle,
-  sortieDate: {
+  missionDate: {
     flex: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
   } as TextStyle,
-  sortieMeta: {
+  missionMeta: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
   } as TextStyle,

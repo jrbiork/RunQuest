@@ -23,6 +23,8 @@ export const MIN_EFFORT_SECONDS = 5 * 60;
 export type CompleteRunOptions = {
   /** When distance target was met, whether it was at or under target time. False = partial completion (half XP). */
   onTime?: boolean;
+  /** Mission target distance for run vs cycle; used for overdistance XP bonus. */
+  targetDistanceKm?: number;
 };
 
 interface UserActions {
@@ -98,12 +100,7 @@ export const useUserStore = create<UserStore>()(
         const distanceMet = distanceGoalMet ?? false;
         const onTime = runOptions?.onTime !== false;
 
-        const effortQualifies =
-          elapsedSec != null
-            ? elapsedSec >= MIN_EFFORT_SECONDS
-            : (actualDurationMin ?? 0) * 60 >= MIN_EFFORT_SECONDS;
-
-        const countsAsSortie = effortQualifies || distanceMet;
+        const countsAsMission = distanceMet;
 
         const streakForXp = state.streak;
 
@@ -120,7 +117,19 @@ export const useUserStore = create<UserStore>()(
           outcome = 'partial_time';
         }
 
-        const xpEarned = calculateTimedMissionXp(missionType, streakForXp, timedKind);
+        const distRatio =
+          actualDistanceKm != null &&
+          runOptions?.targetDistanceKm != null &&
+          runOptions.targetDistanceKm > 0
+            ? actualDistanceKm / runOptions.targetDistanceKm
+            : undefined;
+        const xpEarned = calculateTimedMissionXp(
+          missionType,
+          streakForXp,
+          timedKind,
+          1,
+          distRatio,
+        );
         const newXp = state.xp + xpEarned;
 
         const distKm = actualDistanceKm ?? getMissionTargetDistance(missionType, level);
@@ -141,7 +150,7 @@ export const useUserStore = create<UserStore>()(
 
         set({
           xp: newXp,
-          totalRuns: state.totalRuns + (countsAsSortie ? 1 : 0),
+          totalRuns: state.totalRuns + (countsAsMission ? 1 : 0),
           totalDistanceKm: state.totalDistanceKm + distKm,
           runHistory: [...state.runHistory, completedRun],
         });
@@ -181,7 +190,6 @@ export const useUserStore = create<UserStore>()(
             newStreak = alive ? state.streak + 1 : 1;
           }
           return {
-            totalRuns: state.totalRuns + 1,
             streak: newStreak,
             lastRunDate: today,
             longestStreak: Math.max(state.longestStreak, newStreak),

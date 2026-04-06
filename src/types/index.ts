@@ -152,7 +152,7 @@ export interface CompletedRun {
 export interface LevelInfo {
   level: number;
   title: string;
-  /** Primary UI accent for this class rank (hex). */
+  /** Primary UI accent for this level (hex). */
   accentColor: string;
   xpInLevel: number;
   xpToNextLevel: number;
@@ -170,6 +170,7 @@ export interface UserState {
   xp: number;
   streak: number;
   lastRunDate: string | null;   // ISO date YYYY-MM-DD
+  /** Completed or partially completed missions (distance goal met); mirrors run history. */
   totalRuns: number;
   totalDistanceKm: number;
   longestStreak: number;
@@ -180,7 +181,7 @@ export interface UserState {
 export interface MissionsState {
   /** Ordered mission queue (not week-based). */
   weekMissions: Mission[];
-  /** Class rank (1-based) this mission set was generated for. */
+  /** Level (1-based) this mission set was generated for. */
   missionSetClassLevel: number | null;
 }
 

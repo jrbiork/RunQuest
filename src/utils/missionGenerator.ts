@@ -168,9 +168,9 @@ function buildMission(
   };
 }
 
-// ─── Class rank → mission difficulty tier ────────────────────────────────────
+// ─── Level → mission difficulty tier ────────────────────────────────────
 
-/** Map game class rank (1…15) to mission generator experience band. */
+/** Map game level (1…15) to mission generator experience band. */
 export function experienceTierForClassLevel(classLevel: number): ExperienceLevel {
   if (classLevel <= 5) return 'beginner';
   if (classLevel <= 10) return 'intermediate';
@@ -180,7 +180,7 @@ export function experienceTierForClassLevel(classLevel: number): ExperienceLevel
 // ─── Main Generator ───────────────────────────────────────────────────────────
 
 /**
- * Build the ordered mission queue from onboarding profile and current class rank.
+ * Build the ordered mission queue from onboarding profile and current level.
  * `classLevel` is the user's game level (1-based) used for difficulty scaling.
  */
 export function generateMissionsFromProfile(profile: UserProfile, classLevel: number): Mission[] {

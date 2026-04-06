@@ -2266,24 +2266,24 @@ export function getXpForCompletedCampaigns(
 }
 
 /**
- * Expected sorties, goal-met count, and distance from mission templates for the first
+ * Expected missions, goal-met count, and distance from mission templates for the first
  * `campaignsCompletedCount` campaigns (used by profile stats when saves drift).
  */
 export function getStatsFromCompletedCampaignTemplates(
   personaId: PersonaId,
   campaignsCompletedCount: number,
   activityMode: ActivityMode,
-): { sorties: number; missionsCompleted: number; distanceKm: number } {
+): { missions: number; missionsCompleted: number; distanceKm: number } {
   const list = PERSONA_CAMPAIGNS[personaId];
   if (!list?.length || campaignsCompletedCount <= 0) {
-    return { sorties: 0, missionsCompleted: 0, distanceKm: 0 };
+    return { missions: 0, missionsCompleted: 0, distanceKm: 0 };
   }
   const n = Math.min(campaignsCompletedCount, list.length);
-  let sorties = 0;
+  let missions = 0;
   let distanceKm = 0;
   for (let i = 0; i < n; i++) {
     for (const t of list[i]!.missionTemplates) {
-      sorties += 1;
+      missions += 1;
       distanceKm +=
         activityMode === 'cycle'
           ? t.targetCyclingDistanceKm
@@ -2291,8 +2291,8 @@ export function getStatsFromCompletedCampaignTemplates(
     }
   }
   return {
-    sorties,
-    missionsCompleted: sorties,
+    missions,
+    missionsCompleted: missions,
     distanceKm,
   };
 }

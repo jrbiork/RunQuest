@@ -23,7 +23,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useUserStore, MIN_EFFORT_SECONDS } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
-import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import {
@@ -43,6 +42,7 @@ import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLoo
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { getStreakDayIndex0 } from '../../src/utils/streakDisplay';
 import { getNextIncompleteMission } from '../../src/utils/missionGenerator';
+import { ClassAndMissionProgress } from '../../src/components/progress/ClassAndMissionProgress';
 import ViewShot from 'react-native-view-shot';
 
 // ─── GPS stat tile ────────────────────────────────────────────────────────────
@@ -161,7 +161,8 @@ function XpRewardBlock({
           </View>
         </View>
         <Text style={styles.xpMissionMessage}>
-          Hit the distance target to earn XP — under target time for full credit.
+          Hit the distance target to earn XP — on time for full base XP; go 30%+ over distance on
+          time for +30% XP.
         </Text>
       </Card>
     );
@@ -180,7 +181,8 @@ function XpRewardBlock({
           </View>
         </Animated.View>
         <Text style={styles.xpMissionMessage}>
-          Distance met after the time window — half XP. Next time, beat the clock for the full bonus.
+          Distance met after the time window — half XP. Beat the clock next time for full base XP (and
+          30%+ over distance on time for +30% XP).
         </Text>
       </Card>
     );
@@ -199,7 +201,8 @@ function XpRewardBlock({
         </View>
       </Animated.View>
       <Text style={styles.xpMissionMessage}>
-        Added to your runner profile — keep the streak alive for more.
+        Added to your runner profile — keep the streak alive for more. On-time with ≥30% distance over
+        target earns +30% XP.
       </Text>
     </Card>
   );
@@ -266,16 +269,30 @@ export default function RunCompleteScreen() {
 
   const xpEarned = useMemo(() => {
     if (!mission || isFreeRun) return 0;
+    const targetKm =
+      activityMode === 'cycle'
+        ? mission.targetCyclingDistanceKm
+        : mission.targetDistanceKm;
     const completionRatio =
-      mission.targetDistanceKm > 0 && actualDistanceKm !== undefined
-        ? actualDistanceKm / mission.targetDistanceKm
+      targetKm > 0 && actualDistanceKm !== undefined
+        ? Math.min(actualDistanceKm / targetKm, 1)
         : 1;
+    const distanceRatioVsTarget =
+      targetKm > 0 && actualDistanceKm !== undefined
+        ? actualDistanceKm / targetKm
+        : undefined;
     if (!goalMet) {
       return calculateTimedMissionXp(mission.type, streak, 'incomplete', completionRatio);
     }
     const kind = onTime ? 'on_time' : 'late';
-    return calculateTimedMissionXp(mission.type, streak, kind, completionRatio);
-  }, [mission, isFreeRun, actualDistanceKm, streak, goalMet, onTime]);
+    return calculateTimedMissionXp(
+      mission.type,
+      streak,
+      kind,
+      completionRatio,
+      distanceRatioVsTarget,
+    );
+  }, [mission, isFreeRun, actualDistanceKm, streak, goalMet, onTime, activityMode]);
 
   const nextMissionForCta = useMemo(() => {
     if (!mission) return null;
@@ -299,25 +316,6 @@ export default function RunCompleteScreen() {
         : missionList;
     return adjusted.length > 0 && adjusted.every((m) => m.status === 'completed');
   }, [missionList, mission, goalMet, isFreeRun]);
-
-  /** Missions completed / total in the current mission queue. */
-  const yourProgress = useMemo(() => {
-    const list = weekMissions;
-    const totalMissions = list.length;
-    if (totalMissions === 0) return null;
-    const adjusted =
-      goalMet && !isFreeRun && mission
-        ? list.map((m) =>
-            m.id === mission.id ? { ...m, status: 'completed' as const } : m,
-          )
-        : list;
-    const completedMissions = adjusted.filter((m) => m.status === 'completed').length;
-    return {
-      completed: completedMissions,
-      total: totalMissions,
-      ratio: Math.min(completedMissions / totalMissions, 1),
-    };
-  }, [weekMissions, mission, goalMet, isFreeRun]);
 
   const primaryCta = useMemo(() => {
     if (!mission) {
@@ -370,6 +368,11 @@ export default function RunCompleteScreen() {
       completeMission(mission.id, xpEarned);
     }
 
+    const targetKm =
+      activityMode === 'cycle'
+        ? mission.targetCyclingDistanceKm
+        : mission.targetDistanceKm;
+
     completeRun(
       mission.id,
       mission.type,
@@ -379,7 +382,7 @@ export default function RunCompleteScreen() {
       goalMet,
       activityMode,
       elapsedSec,
-      goalMet ? { onTime } : undefined,
+      goalMet ? { onTime, targetDistanceKm: targetKm } : undefined,
     );
 
     const xpAfter = useUserStore.getState().xp;
@@ -530,32 +533,9 @@ export default function RunCompleteScreen() {
           </Animated.View>
         )}
 
-        {/* Your progress: missions completed / total in this campaign */}
-        {yourProgress && (
-          <Animated.View entering={FadeInDown.delay(280).duration(400)}>
-            <Card style={styles.progressCard}>
-              <Text style={styles.progressSectionLabel}>Your progress</Text>
-              <View style={styles.progressHeaderRow}>
-                <View style={styles.progressTitleRow}>
-                  <MaterialIcons name="flag" size={18} color={colors.primary} />
-                  <Text style={styles.progressTitle}>Mission queue</Text>
-                </View>
-                <Text style={styles.progressFraction}>
-                  {yourProgress.completed}/{yourProgress.total}
-                </Text>
-              </View>
-              <ProgressBar
-                progress={yourProgress.ratio}
-                color={colors.primary}
-                backgroundColor={colors.primaryLight}
-                height={8}
-              />
-              <Text style={styles.progressCaption}>
-                Missions completed in your current set. New missions appear when you promote to the next class.
-              </Text>
-            </Card>
-          </Animated.View>
-        )}
+        <Animated.View entering={FadeInDown.delay(260).duration(400)}>
+          <ClassAndMissionProgress />
+        </Animated.View>
 
         {/* What’s next */}
         <Animated.View entering={FadeInDown.delay(360).duration(400)} style={styles.nextSection}>
@@ -689,40 +669,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   } as TextStyle,
 
-  progressCard: { gap: spacing.md } as ViewStyle,
   progressSectionLabel: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
     color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
-  } as TextStyle,
-  progressHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  } as ViewStyle,
-  progressTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flex: 1,
-  } as ViewStyle,
-  progressTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.textPrimary,
-  } as TextStyle,
-  progressFraction: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.extrabold,
-    color: colors.orange,
-  } as TextStyle,
-  progressCaption: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    lineHeight: 20,
   } as TextStyle,
 
   gpsCard: { gap: spacing.md } as ViewStyle,

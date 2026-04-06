@@ -9,7 +9,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import Constants from 'expo-constants';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -53,6 +53,7 @@ import { snapPathForMapDisplay } from '../../src/services/routeSnapService';
 import type { ActivityMode } from '../../src/types';
 
 export default function ActiveRunScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string; activityMode?: string }>();
   const id = normalizeRouteParam(params.id);
   const activityModeParam = normalizeRouteParam(params.activityMode);
@@ -413,7 +414,7 @@ export default function ActiveRunScreen() {
           <MaterialIcons name="location-off" size={48} color={colors.textTertiary} />
           <Text style={styles.permTitle}>Location Access Required</Text>
           <Text style={styles.permSub}>
-            RunQuest needs location access to track your sortie. Enable it in Settings.
+            RunQuest needs location access to track your mission. Enable it in Settings.
           </Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Text style={styles.backBtnText}>Return to base</Text>
@@ -444,9 +445,18 @@ export default function ActiveRunScreen() {
       : null;
 
   return (
-    <SafeAreaView style={styles.safeOuter} edges={['top']}>
-      {/* ─── Mission header — pinned above the map ────────────────── */}
-      <Animated.View entering={FadeIn.duration(400)} style={[styles.header, { borderBottomColor: config.color }]}>
+    <View style={styles.safeOuter}>
+      {/* ─── Mission header — explicit top inset (modal + notch safe) ─ */}
+      <Animated.View
+        entering={FadeIn.duration(400)}
+        style={[
+          styles.header,
+          {
+            borderBottomColor: config.color,
+            paddingTop: insets.top + spacing.md,
+          },
+        ]}
+      >
         {!sessionStarted ? (
           <TouchableOpacity
             style={styles.headerBack}
@@ -723,7 +733,7 @@ export default function ActiveRunScreen() {
         </View>
       </SafeAreaView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -793,12 +803,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   } as TextStyle,
 
-  // ─── Mission header bar — above the map ──────────────────────────────────
+  // ─── Mission header bar — above the map (paddingTop set via useSafeAreaInsets) ─
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingBottom: spacing.md,
     backgroundColor: colors.background,
     borderBottomWidth: 2,
     gap: spacing.md,

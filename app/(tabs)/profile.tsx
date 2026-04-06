@@ -39,16 +39,12 @@ import {
   devCompleteSuccessfulMissions,
 } from '../../src/store/devStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
-import { OperativeFileCard } from '../../src/components/home/ProfileSummaryCards';
-import { personaLabelTitleCase } from '../../src/utils/personaDisplay';
-import { PERSONA_LABELS } from '../../src/constants/campaigns';
+import { ClassAndMissionProgress } from '../../src/components/progress/ClassAndMissionProgress';
+import { LevelModal } from '../../src/components/level/LevelModal';
 import { FUN_RUN_ID } from '../../src/constants/missions';
 export default function ProfileScreen() {
   const profile = useUserStore((s) => s.profile);
-  const rootPersonaId = useUserStore((s) => s.personaId);
-  const personaIdForStats = profile?.personaId ?? rootPersonaId ?? undefined;
   const xp = useUserStore((s) => s.xp);
-  const totalRuns = useUserStore((s) => s.totalRuns);
   const totalDistanceKm = useUserStore((s) => s.totalDistanceKm);
   const runHistory = useUserStore((s) => s.runHistory);
   const resetOnboarding = useUserStore((s) => s.resetOnboarding);
@@ -76,16 +72,16 @@ export default function ProfileScreen() {
   const displayOverallStats = useMemo(
     () =>
       getDisplayOverallStats({
-        totalRuns,
         totalDistanceKm,
         runHistory,
         activityMode: profile?.defaultActivityMode ?? 'cycle',
       }),
-    [totalRuns, totalDistanceKm, runHistory, profile?.defaultActivityMode],
+    [totalDistanceKm, runHistory, profile?.defaultActivityMode],
   );
 
   const [showGoalEditor, setShowGoalEditor] = useState(false);
   void showGoalEditor;
+  const [levelModalVisible, setLevelModalVisible] = useState(false);
   const [devTestMissionCountInput, setDevTestMissionCountInput] =
     useState('1');
 
@@ -131,7 +127,13 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.identity}>
             {/* Level badge */}
-            <View style={styles.levelBadge}>
+            <TouchableOpacity
+              style={styles.levelBadge}
+              onPress={() => setLevelModalVisible(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open levels"
+            >
               <MaterialIcons
                 name="military-tech"
                 size={13}
@@ -141,12 +143,7 @@ export default function ProfileScreen() {
                 {levelInfo.title} · LVL {levelInfo.level} /{' '}
                 {SCAVENGER_LEVEL_COUNT}
               </Text>
-            </View>
-            <Text style={styles.classTitle}>
-              {personaIdForStats && PERSONA_LABELS[personaIdForStats]
-                ? `${personaLabelTitleCase(PERSONA_LABELS[personaIdForStats].label)} · operative style`
-                : 'Runner'}
-            </Text>
+            </TouchableOpacity>
             <Text style={styles.xpTotal}>
               {displayXpTotal.toLocaleString()} XP
             </Text>
@@ -161,8 +158,8 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.statsGrid}>
             <StatBlock
-              label="Sorties"
-              value={displayOverallStats.sorties.toString()}
+              label="Missions"
+              value={displayOverallStats.missions.toString()}
               icon="directions-run"
               iconColor={colors.primary}
             />
@@ -173,13 +170,13 @@ export default function ProfileScreen() {
               iconColor={colors.primary}
             />
             <StatBlock
-              label="Mission"
-              value={displayOverallStats.missionsCompleted.toString()}
+              label="Attempts"
+              value={displayOverallStats.attempts.toString()}
               icon="task-alt"
               iconColor={colors.orange}
             />
             <StatBlock
-              label="Class rank"
+              label="Level"
               value={`${levelInfo.level} / ${SCAVENGER_LEVEL_COUNT}`}
               icon="military-tech"
               iconColor={levelInfo.accentColor}
@@ -187,12 +184,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ─── Operative file ─────────────────────────────────────────── */}
-        {profile && (
-          <View style={styles.campaignBlock}>
-            <OperativeFileCard profile={profile} />
-          </View>
-        )}
+        {/* ─── Class & mission progress ──────────────────────────────── */}
+        <ClassAndMissionProgress />
 
         {/* ─── Settings ────────────────────────────────────────────── */}
         <Card style={styles.settingsCard}>
@@ -390,7 +383,7 @@ export default function ProfileScreen() {
             onPress={() => {
               Alert.alert(
                 'Reset Missions?',
-                'This clears your current mission list and builds a new queue for your class rank. Mission completion progress in this set will be lost.',
+                'This clears your current mission list and builds a new queue for your level. Mission completion progress in this set will be lost.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
@@ -422,6 +415,12 @@ export default function ProfileScreen() {
           style={styles.resetBtn}
         />
       </ScrollView>
+
+      <LevelModal
+        visible={levelModalVisible}
+        onClose={() => setLevelModalVisible(false)}
+        levelInfo={levelInfo}
+      />
     </SafeAreaView>
   );
 }
@@ -510,13 +509,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,
-  classTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
   xpTotal: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
@@ -573,10 +565,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   } as TextStyle,
 
-  campaignBlock: {
-    gap: spacing.md,
-    paddingVertical: spacing.xs,
-  } as ViewStyle,
   campaignTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -33,10 +33,16 @@ function CompletedResultCard({
   mission,
   run,
   onShare,
+  onCollapse,
+  onPress,
 }: {
   mission: Mission;
   run: CompletedRun;
   onShare: () => void;
+  /** When set, shows a collapse strip at the top of the card (expanded completed mission). */
+  onCollapse?: () => void;
+  /** Open mission briefing / detail. */
+  onPress: () => void;
 }) {
   const runHistory = useUserStore((s) => s.runHistory);
   const streakDayIndex = getStreakDayIndex0(run, runHistory);
@@ -46,29 +52,50 @@ function CompletedResultCard({
   const isPartial = outcome === 'partial_time';
 
   return (
-    <View style={[rc.card, isSuccess ? rc.cardGoal : rc.cardFail]}>
-      {/* Status banner + share button */}
+    <View style={[rc.card, rc.cardNeutral]}>
+      {onCollapse != null && (
+        <TouchableOpacity
+          style={rc.collapseArrowBtn}
+          onPress={onCollapse}
+          activeOpacity={0.7}
+          accessibilityLabel="Collapse"
+          accessibilityRole="button"
+          hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+        >
+          <MaterialIcons name="keyboard-arrow-up" size={22} color={colors.textTertiary} />
+        </TouchableOpacity>
+      )}
+      {/* Status row + share — neutral surface, no solid status fill */}
       <View style={rc.bannerRow}>
-        <View style={[rc.banner, isSuccess ? rc.bannerGoal : rc.bannerFail]}>
+        <TouchableOpacity
+          style={rc.banner}
+          onPress={onPress}
+          activeOpacity={0.9}
+        >
           <MaterialIcons
             name={isSuccess ? 'emoji-events' : isPartial ? 'schedule' : 'close'}
             size={14}
-            color={colors.textInverse}
+            color={isSuccess ? colors.primary : colors.textTertiary}
           />
-          <Text style={[rc.bannerText, rc.bannerTextGoal]}>
+          <Text
+            style={[
+              rc.bannerText,
+              isSuccess && rc.bannerTextEmphasis,
+            ]}
+          >
             {isSuccess ? 'MISSION COMPLETE' : isPartial ? 'PARTIAL CREDIT' : 'INCOMPLETE'}
           </Text>
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity onPress={onShare} style={rc.shareBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <MaterialIcons
             name="ios-share"
             size={16}
-            color={isSuccess ? colors.orange : isPartial ? colors.orange : colors.red}
+            color={colors.textSecondary}
           />
         </TouchableOpacity>
       </View>
 
-      <View style={rc.body}>
+      <TouchableOpacity style={rc.body} onPress={onPress} activeOpacity={0.9}>
         {/* Mission type + date */}
         <View style={rc.headerRow}>
           <View style={[rc.typePill, { borderColor: config.color }]}>
@@ -90,14 +117,14 @@ function CompletedResultCard({
 
         {/* XP footer */}
         <View style={rc.xpRow}>
-          <MaterialIcons name="star" size={13} color={colors.yellow} />
+          <MaterialIcons name="star" size={13} color={colors.textTertiary} />
           <Text style={rc.xpText}>+{run.xpEarned} XP</Text>
           <View style={rc.streakPill}>
-            <MaterialIcons name="local-fire-department" size={11} color={colors.orange} />
+            <MaterialIcons name="local-fire-department" size={11} color={colors.textTertiary} />
             <Text style={rc.streakText}>DAY {streakDayIndex}</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -209,7 +236,7 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     {completedOutcomeWord} · {formatDistance(completedRun.distanceKm)}
                   </Text>
                 </View>
-                <MaterialIcons name="expand-more" size={22} color={colors.textTertiary} />
+                <MaterialIcons name="keyboard-arrow-down" size={22} color={colors.textTertiary} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => onShare?.()}
@@ -220,30 +247,18 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                 <MaterialIcons
                   name="ios-share"
                   size={18}
-                  color={
-                    completedOutcome === 'success'
-                      ? colors.primary
-                      : completedOutcome === 'partial_time'
-                        ? colors.orange
-                        : colors.red
-                  }
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
           ) : (
-            <View>
-              <TouchableOpacity
-                style={styles.expandCollapseBar}
-                onPress={() => setCompletedExpanded(false)}
-                activeOpacity={0.75}
-              >
-                <MaterialIcons name="expand-less" size={22} color={colors.textSecondary} />
-                <Text style={styles.expandCollapseLabel}>Collapse</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
-                <CompletedResultCard mission={mission} run={completedRun} onShare={onShare ?? (() => {})} />
-              </TouchableOpacity>
-            </View>
+            <CompletedResultCard
+              mission={mission}
+              run={completedRun}
+              onShare={onShare ?? (() => {})}
+              onCollapse={() => setCompletedExpanded(false)}
+              onPress={onPress}
+            />
           )}
         </View>
       ) : isAborted ? (
@@ -308,7 +323,7 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
               activeOpacity={0.85}
               style={styles.retryBtnAbortedLight}
             >
-              <MaterialIcons name="replay" size={18} color={colors.red} />
+              <MaterialIcons name="replay" size={18} color={colors.textSecondary} />
               <Text style={styles.retryBtnAbortedLightText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -427,15 +442,17 @@ const rc = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     overflow: 'hidden',
-    ...shadows.md,
+    ...shadows.sm,
   } as ViewStyle,
-  cardGoal: {
-    backgroundColor: 'rgba(103,144,88,0.08)',
-    borderColor: colors.primary,
+  collapseArrowBtn: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   } as ViewStyle,
-  cardFail: {
-    backgroundColor: 'rgba(217,69,60,0.08)',
-    borderColor: colors.red,
+  cardNeutral: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
   } as ViewStyle,
   bannerRow: {
     flexDirection: 'row',
@@ -449,20 +466,27 @@ const rc = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   } as ViewStyle,
   shareBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   } as ViewStyle,
-  bannerGoal: { backgroundColor: colors.primary } as ViewStyle,
-  bannerFail: { backgroundColor: colors.red } as ViewStyle,
   bannerText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
     letterSpacing: 1,
     textTransform: 'uppercase',
+    color: colors.textSecondary,
   } as TextStyle,
-  bannerTextGoal: { color: colors.textInverse } as TextStyle,
+  bannerTextEmphasis: {
+    color: colors.textPrimary,
+  } as TextStyle,
   body: {
     padding: spacing.md,
     gap: spacing.sm,
@@ -532,7 +556,7 @@ const rc = StyleSheet.create({
     flex: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
-    color: colors.yellow,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   } as TextStyle,
@@ -540,17 +564,17 @@ const rc = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: colors.orangeLight,
+    backgroundColor: 'transparent',
     borderRadius: radii.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: colors.orange,
+    borderColor: colors.border,
   } as ViewStyle,
   streakText: {
     fontSize: 9,
     fontWeight: fontWeights.bold,
-    color: colors.orange,
+    color: colors.textTertiary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -573,7 +597,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   } as ViewStyle,
   connectorDone: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(103,144,88,0.35)',
   } as ViewStyle,
   touchable: {
     zIndex: 1,
@@ -602,8 +626,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(217,69,60,0.04)',
   } as ViewStyle,
   nodeAborted: {
-    borderWidth: 2,
-    borderColor: colors.red,
+    borderWidth: 1,
+    borderColor: colors.border,
   } as ViewStyle,
 
   // Top row: status badges
@@ -694,13 +718,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: colors.red,
-    backgroundColor: 'rgba(217,69,60,0.08)',
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   abortedTagText: {
     fontSize: 9,
     fontWeight: fontWeights.extrabold,
-    color: colors.red,
+    color: colors.textSecondary,
     letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -782,7 +806,7 @@ const styles = StyleSheet.create({
 
   // Connector
   connectorFailed: {
-    backgroundColor: colors.red,
+    backgroundColor: colors.textTertiary,
   } as ViewStyle,
 
   // RETRY button
@@ -812,7 +836,7 @@ const styles = StyleSheet.create({
   retryBtnAbortedLightText: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
-    color: colors.red,
+    color: colors.textSecondary,
     letterSpacing: 0.5,
   } as TextStyle,
   retryBtnText: {
@@ -877,19 +901,4 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
   } as ViewStyle,
-  expandCollapseBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    marginBottom: spacing.xs,
-  } as ViewStyle,
-  expandCollapseLabel: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
 });

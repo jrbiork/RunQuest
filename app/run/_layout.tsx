@@ -12,6 +12,7 @@ export default function RunLayout() {
         name="complete"
         options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
       />
+      <Stack.Screen name="history" />
     </Stack>
   );
 }

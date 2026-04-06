@@ -1,4 +1,5 @@
 import type { CompletedRun } from '../types';
+import { isMissionCompletedOrPartial } from './runOutcome';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,14 +11,14 @@ export interface WeekStats {
   endIso: string;         // YYYY-MM-DD of the last day of this row
   runs: CompletedRun[];
   totalXp: number;
-  totalRuns: number;
+  totalMissions: number;
   totalDistanceKm: number;
   xpFraction: number;     // 0–1 relative to the max week in the month (for bar width)
 }
 
 export interface MonthStats {
   totalXp: number;
-  totalRuns: number;
+  totalMissions: number;
   totalDistanceKm: number;
   weeks: WeekStats[];
 }
@@ -121,6 +122,7 @@ export function getWeeklyBreakdown(
       ? `${mName} ${startDay}`
       : `${mName} ${startDay}–${endDay}`;
 
+    const missionRuns = weekRuns.filter(isMissionCompletedOrPartial);
     weeks.push({
       weekIndex,
       weekLabel: `Week ${weekIndex}`,
@@ -129,7 +131,7 @@ export function getWeeklyBreakdown(
       endIso: toLocalDateStr(weekEnd),        // actual Sunday (may be next month)
       runs: weekRuns,
       totalXp: weekRuns.reduce((s, r) => s + r.xpEarned, 0),
-      totalRuns: weekRuns.length,
+      totalMissions: missionRuns.length,
       totalDistanceKm: weekRuns.reduce((s, r) => s + r.distanceKm, 0),
       xpFraction: 0,
     });
@@ -159,7 +161,7 @@ export function getMonthStats(
   const weeks = getWeeklyBreakdown(runs, year, month);
   return {
     totalXp: runs.reduce((s, r) => s + r.xpEarned, 0),
-    totalRuns: runs.length,
+    totalMissions: runs.filter(isMissionCompletedOrPartial).length,
     totalDistanceKm: runs.reduce((s, r) => s + r.distanceKm, 0),
     weeks,
   };

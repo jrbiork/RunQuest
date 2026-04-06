@@ -105,7 +105,7 @@ const MonthShareCard = forwardRef<ViewShot, MonthShareCardProps>(
           <View style={sc.totalsRow}>
             <TotalStat value={`${stats.totalXp}`} label="XP" color="#7C4DFF" />
             <View style={sc.totalsDivider} />
-            <TotalStat value={`${stats.totalRuns}`} label="runs" color="#4ECCA3" />
+            <TotalStat value={`${stats.totalMissions}`} label="missions" color="#4ECCA3" />
             <View style={sc.totalsDivider} />
             <TotalStat
               value={stats.totalDistanceKm > 0 ? formatDist(stats.totalDistanceKm) : '–'}

@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -47,6 +48,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
@@ -63,6 +65,7 @@ export default function RootLayout() {
           }}
         />
       </Stack>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

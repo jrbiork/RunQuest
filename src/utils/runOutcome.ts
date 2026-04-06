@@ -9,3 +9,13 @@ export function resolveOutcome(run: CompletedRun): MissionOutcome {
   if (raw) return raw;
   return run.goalMet ? 'success' : 'incomplete';
 }
+
+/** Counts toward "missions" totals: finished on time or over time with distance goal met. */
+export function isMissionCompletedOrPartial(run: CompletedRun): boolean {
+  const o = resolveOutcome(run);
+  return o === 'success' || o === 'partial_time';
+}
+
+export function isAbortedRun(run: CompletedRun): boolean {
+  return resolveOutcome(run) === 'aborted';
+}

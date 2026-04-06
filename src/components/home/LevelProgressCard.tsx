@@ -21,7 +21,7 @@ export function LevelProgressCard({ levelInfo }: LevelProgressCardProps) {
           <Text style={styles.levelTitle}>{title}</Text>
           <Text style={styles.xpText}>
             <Text style={[styles.xpBold, { color: accentColor }]}>{xpInLevel}</Text>
-            <Text style={styles.xpDim}> / {xpToNextLevel} XP to next rank</Text>
+            <Text style={styles.xpDim}> / {xpToNextLevel} XP to next level</Text>
           </Text>
         </View>
       </View>

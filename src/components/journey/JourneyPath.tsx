@@ -67,12 +67,9 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
     <View style={styles.container}>
       {allComplete && (
         <View style={styles.completeBanner}>
-          <MaterialIcons name="celebration" size={32} color={colors.primary} />
+          <MaterialIcons name="celebration" size={24} color={colors.textSecondary} />
           <View>
             <Text style={styles.completeBannerTitle}>Set complete</Text>
-            <Text style={styles.completeBannerSub}>
-              You finished every mission in this batch. Earn XP to promote — your next set unlocks at the next class.
-            </Text>
           </View>
         </View>
       )}
@@ -154,20 +151,18 @@ const styles = StyleSheet.create({
   completeBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
   } as ViewStyle,
   completeBannerTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.extrabold,
-    color: colors.primary,
-  } as TextStyle,
-  completeBannerSub: {
-    fontSize: fontSizes.sm,
-    color: colors.primaryDark,
-    maxWidth: 240,
-    lineHeight: 18,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
 });

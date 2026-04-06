@@ -18,7 +18,7 @@ type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
 const TAB_SLOTS: Array<{ route: string; label: string; icon: MaterialIconName } | 'run'> = [
   { route: 'index', label: 'HOME', icon: 'home' },
-  { route: 'journey', label: 'JOURNEY', icon: 'map' },
+  { route: 'journey', label: 'MISSIONS', icon: 'map' },
   'run',
   { route: 'stats', label: 'STATS', icon: 'bar-chart' },
   { route: 'profile', label: 'PROFILE', icon: 'person' },

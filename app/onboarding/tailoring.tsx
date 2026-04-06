@@ -23,7 +23,7 @@ import {
 } from '../../src/constants/theme';
 import {
   getLevelInfo,
-  getXpRemainingToNextClass,
+  getXpRemainingToNextLevel,
   LEVEL_CLASS_TITLES,
   SCAVENGER_LEVEL_COUNT,
 } from '../../src/utils/xpCalculator';
@@ -66,7 +66,7 @@ export default function OnboardingTailoringScreen() {
 
   const levelInfo = useMemo(() => getLevelInfo(displayXp), [displayXp]);
   const xpToNext = useMemo(
-    () => getXpRemainingToNextClass(displayXp),
+    () => getXpRemainingToNextLevel(displayXp),
     [displayXp],
   );
 
@@ -104,7 +104,7 @@ export default function OnboardingTailoringScreen() {
           <Text style={styles.title}>You&apos;re cleared to start</Text>
           <Text style={styles.sub}>
             You begin as <Text style={styles.subEm}>{levelInfo.title}</Text>. Your mission queue matches
-            how often you train. Complete missions for XP — reach the next class to get a fresh set. Hit
+            how often you train. Complete missions for XP — reach the next level to get a fresh set. Hit
             distance under target time for full credit.
           </Text>
         </View>
@@ -119,12 +119,12 @@ export default function OnboardingTailoringScreen() {
               style={[styles.rankSwatch, { backgroundColor: levelInfo.accentColor }]}
             />
             <View style={styles.rankBody}>
-              <Text style={styles.summaryLabel}>Starting class</Text>
+              <Text style={styles.summaryLabel}>Starting level</Text>
               <Text style={[styles.rankName, { color: levelInfo.accentColor }]}>
                 {levelInfo.title}
               </Text>
               <Text style={styles.summaryDesc}>
-                Rank {levelInfo.level} of {SCAVENGER_LEVEL_COUNT}. Earn XP from missions to cross the
+                Level {levelInfo.level} of {SCAVENGER_LEVEL_COUNT}. Earn XP from missions to cross the
                 next threshold.
               </Text>
               {nextRankTitle && xpToNext > 0 ? (
@@ -147,7 +147,7 @@ export default function OnboardingTailoringScreen() {
                   {missionCount > 0 ? `${missionCount} in queue` : 'Open journey to sync'}
                 </Text>
                 <Text style={styles.summaryDesc}>
-                  Finish them in order. When you promote to a new class, you get a fresh set.
+                  Finish them in order. When you promote to a new level, you get a fresh set.
                 </Text>
               </View>
             </View>

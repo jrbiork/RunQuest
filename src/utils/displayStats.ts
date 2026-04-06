@@ -1,25 +1,24 @@
 import type { ActivityMode, CompletedRun } from '../types';
+import { isMissionCompletedOrPartial } from './runOutcome';
 
 /** Reconciles persisted totals with run history for profile / stats UI. */
 export function getDisplayOverallStats(params: {
-  totalRuns: number;
   totalDistanceKm: number;
   runHistory: CompletedRun[];
   activityMode: ActivityMode;
 }): {
-  sorties: number;
+  missions: number;
+  attempts: number;
   distanceKm: number;
-  missionsCompleted: number;
 } {
-  const { totalRuns, totalDistanceKm, runHistory } = params;
+  const { totalDistanceKm, runHistory } = params;
 
-  const fromHistoryRuns = runHistory.length;
   const fromHistoryDistance = runHistory.reduce((sum, r) => sum + r.distanceKm, 0);
-  const fromHistoryGoalMet = runHistory.filter((r) => r.goalMet).length;
+  const missions = runHistory.filter(isMissionCompletedOrPartial).length;
 
   return {
-    sorties: Math.max(totalRuns, fromHistoryRuns),
+    missions,
+    attempts: runHistory.length,
     distanceKm: Math.max(totalDistanceKm, fromHistoryDistance),
-    missionsCompleted: fromHistoryGoalMet,
   };
 }

@@ -9,9 +9,9 @@ import {
 import { getLevelInfo } from '../utils/xpCalculator';
 
 interface MissionsActions {
-  /** Replace mission queue from profile and current total XP (derives class rank). */
+  /** Replace mission queue from profile and current total XP (derives level). */
   generateMissionsFromProfile: (profile: UserProfile, totalXp: number) => void;
-  /** After a run, refill missions when the user crossed into a higher class rank. */
+  /** After a run, refill missions when the user crossed into a higher level. */
   regenerateMissionsIfPromoted: (
     profile: UserProfile,
     xpBefore: number,
@@ -46,7 +46,7 @@ export const useMissionsStore = create<MissionsStore>()(
         });
       },
 
-      /** If XP crosses at least one class threshold, rebuild the queue for the new rank. Multi-rank jumps in one run use the final rank (one new batch). */
+      /** If XP crosses at least one level threshold, rebuild the queue for the new level. Multi-level jumps in one run use the final level (one new batch). */
       regenerateMissionsIfPromoted: (profile, xpBefore, xpAfter) => {
         const beforeLv = getLevelInfo(xpBefore).level;
         const afterLv = getLevelInfo(xpAfter).level;

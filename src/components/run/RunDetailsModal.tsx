@@ -1,7 +1,7 @@
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, ViewStyle, TextStyle } from 'react-native';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CompletedRun, Mission } from '../../types';
 import { colors, spacing, radii, fontSizes, fontWeights } from '../../constants/theme';
 import { formatDistance } from '../../utils/xpCalculator';
@@ -18,6 +18,7 @@ type Props = {
 };
 
 export function RunDetailsModal({ visible, onClose, run, mission, personaId }: Props) {
+  const insets = useSafeAreaInsets();
   if (!run) return null;
 
   const title = resolveMissionDisplayTitle(run.missionId, mission, personaId);
@@ -47,8 +48,8 @@ export function RunDetailsModal({ visible, onClose, run, mission, personaId }: P
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}>
+      <View style={styles.safe}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {title}
           </Text>
@@ -59,7 +60,10 @@ export function RunDetailsModal({ visible, onClose, run, mission, personaId }: P
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + spacing.xxl },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.metaRow}>
@@ -115,7 +119,7 @@ export function RunDetailsModal({ visible, onClose, run, mission, personaId }: P
             <Text style={styles.noMap}>No GPS path saved for this run.</Text>
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     gap: spacing.md,
@@ -141,7 +145,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 } as ViewStyle,
   scrollContent: {
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
     gap: spacing.lg,
   } as ViewStyle,
   metaRow: {

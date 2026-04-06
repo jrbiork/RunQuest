@@ -10,7 +10,7 @@ export const BASE_XP: Record<MissionType, number> = {
   long: 100,
 };
 
-// ─── Level Thresholds (cumulative XP to reach each class rank) ───────────────
+// ─── Level Thresholds (cumulative XP to reach each level) ───────────────
 
 const LEVEL_THRESHOLDS = [
   0,
@@ -30,10 +30,10 @@ const LEVEL_THRESHOLDS = [
   15400,
 ];
 
-/** Number of class ranks (1 … MAX inclusive). */
+/** Number of levels (1 … MAX inclusive). */
 export const SCAVENGER_LEVEL_COUNT = LEVEL_THRESHOLDS.length;
 
-/** Display names — class ladder (15 ranks). */
+/** Display names — level ladder (15 titles). */
 export const LEVEL_CLASS_TITLES = [
   'Recruit',
   'Runner',
@@ -52,7 +52,7 @@ export const LEVEL_CLASS_TITLES = [
   'Sovereign',
 ] as const;
 
-/** Primary accent per class rank (hex), aligned with LEVEL_THRESHOLDS indices. */
+/** Primary accent per level (hex), aligned with LEVEL_THRESHOLDS indices. */
 export const LEVEL_CLASS_ACCENTS = [
   '#6B7280',
   '#22C55E',
@@ -109,8 +109,8 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 }
 
 /**
- * Progress ring 0–1 across the full class ladder (ranks 1..SCAVENGER_LEVEL_COUNT),
- * not just XP within the current rank.
+ * Progress ring 0–1 across the full level ladder (levels 1..SCAVENGER_LEVEL_COUNT),
+ * not just XP within the current level band.
  */
 export function getOverallLevelRingProgress(info: LevelInfo): number {
   const max = SCAVENGER_LEVEL_COUNT;
@@ -123,7 +123,7 @@ export function getOverallLevelRingProgress(info: LevelInfo): number {
 export function getScavengerLevelRows(): { level: number; title: string; minXp: number; accentColor: string }[] {
   return LEVEL_THRESHOLDS.map((minXp, i) => ({
     level: i + 1,
-    title: LEVEL_CLASS_TITLES[i] ?? `Rank ${i + 1}`,
+    title: LEVEL_CLASS_TITLES[i] ?? `Level ${i + 1}`,
     minXp,
     accentColor: getLevelAccentForIndex(i),
   }));
@@ -131,8 +131,11 @@ export function getScavengerLevelRows(): { level: number; title: string; minXp: 
 
 // ─── XP Calculation ───────────────────────────────────────────────────────────
 
-/** Multiplier applied to base mission XP when distance is met at or under target time. */
-export const ON_TIME_XP_MULTIPLIER = 1.25;
+/** Extra multiplier on base XP when on-time and actual distance ≥ 130% of target. */
+export const OVERDISTANCE_XP_BONUS_MULTIPLIER = 1.3;
+
+/** Actual/target distance must be ≥ this to earn {@link OVERDISTANCE_XP_BONUS_MULTIPLIER}. */
+export const OVERDISTANCE_RATIO_THRESHOLD = 1.3;
 
 /** Fraction of base mission XP when distance is met after target time (partial completion). */
 export const LATE_COMPLETION_XP_FRACTION = 0.5;
@@ -150,20 +153,28 @@ export function calculateXpEarned(
 export type TimedMissionXpKind = 'on_time' | 'late' | 'incomplete';
 
 /**
- * XP for a mission attempt: on-time bonus, half for late distance completion, none for incomplete.
+ * XP for a mission attempt: on-time base XP, +30% only if actual distance ≥ 130% of target;
+ * half for late distance completion; none for incomplete.
+ *
+ * @param distanceRatioVsTarget actualKm / targetKm (uncapped); used only for on-time overdistance bonus.
  */
 export function calculateTimedMissionXp(
   missionType: MissionType,
   streak: number,
   kind: TimedMissionXpKind,
   completionRatio: number = 1,
+  distanceRatioVsTarget?: number,
 ): number {
   if (kind === 'incomplete') return 0;
   const base = calculateXpEarned(missionType, streak, completionRatio);
   if (kind === 'late') {
     return Math.max(1, Math.floor(base * LATE_COMPLETION_XP_FRACTION));
   }
-  return Math.max(1, Math.ceil(base * ON_TIME_XP_MULTIPLIER));
+  const over =
+    distanceRatioVsTarget != null &&
+    distanceRatioVsTarget >= OVERDISTANCE_RATIO_THRESHOLD;
+  const mult = over ? OVERDISTANCE_XP_BONUS_MULTIPLIER : 1;
+  return Math.max(1, Math.ceil(base * mult));
 }
 
 // ─── Level-up check ──────────────────────────────────────────────────────────
@@ -176,8 +187,8 @@ export function getNewLevel(xpAfter: number): number {
   return getLevelInfo(xpAfter).level;
 }
 
-/** XP still needed to enter the next class rank (0 if max rank). */
-export function getXpRemainingToNextClass(totalXp: number): number {
+/** XP still needed to enter the next level (0 if max level). */
+export function getXpRemainingToNextLevel(totalXp: number): number {
   const info = getLevelInfo(totalXp);
   if (info.level >= SCAVENGER_LEVEL_COUNT) return 0;
   const nextMin = LEVEL_THRESHOLDS[info.level];

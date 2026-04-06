@@ -100,7 +100,7 @@ export function devCompleteSuccessfulMissions(
       true,
       activityMode,
       MIN_EFFORT_SECONDS,
-      { onTime: true },
+      { onTime: true, targetDistanceKm: distKm },
     );
 
     const xpAfter = useUserStore.getState().xp;
