@@ -53,20 +53,19 @@ function CompletedResultCard({
 
   return (
     <View style={[rc.card, rc.cardNeutral]}>
-      {onCollapse != null && (
-        <TouchableOpacity
-          style={rc.collapseArrowBtn}
-          onPress={onCollapse}
-          activeOpacity={0.7}
-          accessibilityLabel="Collapse"
-          accessibilityRole="button"
-          hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
-        >
-          <MaterialIcons name="keyboard-arrow-up" size={22} color={colors.textTertiary} />
-        </TouchableOpacity>
-      )}
-      {/* Status row + share — neutral surface, no solid status fill */}
+      {/* Status row: collapse arrow + label + share — single bar inside the card */}
       <View style={rc.bannerRow}>
+        {onCollapse != null && (
+          <TouchableOpacity
+            style={rc.bannerCollapseBtn}
+            onPress={onCollapse}
+            activeOpacity={0.7}
+            accessibilityLabel="Collapse"
+            accessibilityRole="button"
+          >
+            <MaterialIcons name="keyboard-arrow-up" size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={rc.banner}
           onPress={onPress}
@@ -98,9 +97,9 @@ function CompletedResultCard({
       <TouchableOpacity style={rc.body} onPress={onPress} activeOpacity={0.9}>
         {/* Mission type + date */}
         <View style={rc.headerRow}>
-          <View style={[rc.typePill, { borderColor: config.color }]}>
-            <MaterialIcons name={config.icon as any} size={11} color={config.color} />
-            <Text style={[rc.typeText, { color: config.color }]}>{config.label}</Text>
+          <View style={rc.typePill}>
+            <MaterialIcons name={config.icon as any} size={11} color={colors.textSecondary} />
+            <Text style={rc.typeText}>{config.label}</Text>
           </View>
         </View>
 
@@ -220,13 +219,8 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                 onPress={() => setCompletedExpanded(true)}
                 activeOpacity={0.85}
               >
-                <View
-                  style={[
-                    styles.collapsedTypeIcon,
-                    { backgroundColor: config.bgColor, borderColor: config.color },
-                  ]}
-                >
-                  <MaterialIcons name={config.icon as any} size={16} color={config.color} />
+                <View style={styles.collapsedTypeIcon}>
+                  <MaterialIcons name={config.icon as any} size={16} color={colors.textSecondary} />
                 </View>
                 <View style={styles.collapsedCompletedText}>
                   <Text style={styles.collapsedCompletedTitle} numberOfLines={1}>
@@ -236,6 +230,14 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     {completedOutcomeWord} · {formatDistance(completedRun.distanceKm)}
                   </Text>
                 </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.collapsedExpandArrow}
+                onPress={() => setCompletedExpanded(true)}
+                activeOpacity={0.75}
+                accessibilityLabel="Expand mission details"
+                accessibilityRole="button"
+              >
                 <MaterialIcons name="keyboard-arrow-down" size={22} color={colors.textTertiary} />
               </TouchableOpacity>
               <TouchableOpacity
@@ -444,11 +446,15 @@ const rc = StyleSheet.create({
     overflow: 'hidden',
     ...shadows.sm,
   } as ViewStyle,
-  collapseArrowBtn: {
-    alignSelf: 'flex-end',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
+  bannerCollapseBtn: {
+    width: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
   } as ViewStyle,
   cardNeutral: {
     backgroundColor: colors.surface,
@@ -456,8 +462,7 @@ const rc = StyleSheet.create({
   } as ViewStyle,
   bannerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
   } as ViewStyle,
   banner: {
     flex: 1,
@@ -466,16 +471,19 @@ const rc = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    minWidth: 0,
     backgroundColor: colors.surfaceElevated,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   } as ViewStyle,
   shareBtn: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    justifyContent: 'center',
     backgroundColor: colors.surfaceElevated,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
   } as ViewStyle,
   bannerText: {
     fontSize: fontSizes.xs,
@@ -504,12 +512,14 @@ const rc = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderWidth: 1,
+    borderColor: colors.border,
   } as ViewStyle,
   typeText: {
     fontSize: 10,
     fontWeight: fontWeights.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    color: colors.textSecondary,
   } as TextStyle,
   missionTitle: {
     fontSize: fontSizes.md,
@@ -872,9 +882,18 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: radii.md,
     borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  } as ViewStyle,
+  collapsedExpandArrow: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
   } as ViewStyle,
   collapsedCompletedText: {
     flex: 1,

@@ -67,12 +67,12 @@ export default function RunDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* ─── Dark industrial header ────────────────────────────────── */}
-      <View style={[styles.hero, { borderBottomColor: accent }]}>
+      <View style={styles.hero}>
         {/* Close + type pill row */}
         <View style={styles.heroTopRow}>
-          <View style={[styles.typePill, { borderColor: accent }]}>
-            <MaterialIcons name={config.icon as any} size={12} color={accent} />
-            <Text style={[styles.typeLabel, { color: accent }]}>{config.label}</Text>
+          <View style={styles.typePill}>
+            <MaterialIcons name={config.icon as any} size={12} color={colors.textSecondary} />
+            <Text style={styles.typeLabel}>{config.label}</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
             <MaterialIcons name="close" size={20} color={colors.textSecondary} />
@@ -91,30 +91,30 @@ export default function RunDetailScreen() {
 
         {/* Activity mode selector — hidden for free run */}
         {!isFreeRun && (
-          <View style={[styles.modeSelector, { borderColor: `${accent}55`, backgroundColor: config.bgColor }]}>
+          <View style={styles.modeSelector}>
             <TouchableOpacity
-              style={[styles.modeTab, activityMode === 'run' && { backgroundColor: accent }]}
+              style={[styles.modeTab, activityMode === 'run' && styles.modeTabActive]}
               onPress={() => setActivityMode('run')}
               activeOpacity={0.8}
             >
               <MaterialIcons
                 name="directions-run"
                 size={18}
-                color={activityMode === 'run' ? colors.textInverse : colors.textSecondary}
+                color={activityMode === 'run' ? colors.textPrimary : colors.textTertiary}
               />
               <Text style={[styles.modeTabLabel, activityMode === 'run' && styles.modeTabLabelActive]}>
                 RUN
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modeTab, activityMode === 'cycle' && { backgroundColor: accent }]}
+              style={[styles.modeTab, activityMode === 'cycle' && styles.modeTabActive]}
               onPress={() => setActivityMode('cycle')}
               activeOpacity={0.8}
             >
               <MaterialIcons
                 name="directions-bike"
                 size={18}
-                color={activityMode === 'cycle' ? colors.textInverse : colors.textSecondary}
+                color={activityMode === 'cycle' ? colors.textPrimary : colors.textTertiary}
               />
               <Text style={[styles.modeTabLabel, activityMode === 'cycle' && styles.modeTabLabelActive]}>
                 CYCLE
@@ -130,30 +130,28 @@ export default function RunDetailScreen() {
               icon={activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
               label="Distance"
               value={formatDistance(targetDistance)}
-              color={accent}
             />
             <StatCard
               icon="timer"
               label="Duration"
               value={`~${formatDuration(targetDuration)}`}
-              color={accent}
             />
           </View>
         )}
 
         {/* Mission reward — hidden for free run */}
         {!isFreeRun ? (
-          <Card accentTop={accent} style={styles.xpCard}>
+          <Card accentTop={colors.border} style={styles.xpCard}>
             <View style={styles.xpRow}>
               <View style={styles.xpLeft}>
                 <Text style={styles.xpTitle}>Mission Reward</Text>
                 <Text style={styles.xpSub}>Streak bonus may increase XP</Text>
               </View>
-              <XPBadge xp={mission.xpReward} size="lg" accentColor={accent} />
+              <XPBadge xp={mission.xpReward} size="lg" />
             </View>
           </Card>
         ) : (
-          <Card accentTop={accent} style={styles.xpCard}>
+          <Card accentTop={colors.border} style={styles.xpCard}>
             <View style={styles.xpRow}>
               <MaterialIcons name="self-improvement" size={24} color={colors.textSecondary} />
               <View style={styles.xpLeft}>
@@ -165,21 +163,16 @@ export default function RunDetailScreen() {
         )}
 
         {/* Briefing */}
-        <Card accentTop={accent} style={styles.descCard}>
+        <Card accentTop={colors.border} style={styles.descCard}>
           <Text style={styles.descTitle}>{isFreeRun ? 'Field Note' : 'Mission Briefing'}</Text>
           <Text style={styles.descText}>{mission.description}</Text>
         </Card>
 
         {/* CTA */}
         {isCompleted ? (
-          <View
-            style={[
-              styles.completedState,
-              { backgroundColor: `${accent}18`, borderColor: accent },
-            ]}
-          >
-            <MaterialIcons name="check-circle" size={26} color={accent} />
-            <Text style={[styles.completedText, { color: accent }]}>Mission Completed</Text>
+          <View style={styles.completedState}>
+            <MaterialIcons name="check-circle" size={24} color={colors.textSecondary} />
+            <Text style={styles.completedText}>Mission Completed</Text>
           </View>
         ) : (
           <Button
@@ -195,11 +188,11 @@ export default function RunDetailScreen() {
   );
 }
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+function StatCard({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <View style={[styles.statCard, { borderColor: color }]}>
-      <View style={[styles.statIconBlock, { backgroundColor: color + '22' }]}>
-        <MaterialIcons name={icon as any} size={20} color={color} />
+    <View style={styles.statCard}>
+      <View style={styles.statIconBlock}>
+        <MaterialIcons name={icon as any} size={20} color={colors.textSecondary} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
@@ -218,7 +211,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
-    borderBottomWidth: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     gap: spacing.md,
   } as ViewStyle,
   heroTopRow: {
@@ -231,6 +225,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radii.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
@@ -240,6 +235,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    color: colors.textSecondary,
   } as TextStyle,
   closeBtn: {
     width: 32,
@@ -301,8 +297,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   } as TextStyle,
+  modeTabActive: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  } as ViewStyle,
   modeTabLabelActive: {
-    color: colors.textInverse,
+    color: colors.textPrimary,
   } as TextStyle,
 
   // Stats row
@@ -315,6 +316,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     paddingVertical: spacing.lg,
     gap: spacing.sm,
@@ -326,6 +328,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   statValue: {
     fontSize: fontSizes.xl,
@@ -386,12 +389,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     borderRadius: radii.lg,
     borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   } as ViewStyle,
   completedText: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    color: colors.textSecondary,
   } as TextStyle,
 
   // Not found
