@@ -92,6 +92,10 @@ const MAP_FOLLOW_MIN_MOVE_KM = 0.004;
 const MAP_FOLLOW_RESUME_AFTER_MS = 5000;
 /** Ignore region-complete right after our programmatic moves (Apple Maps can emit extras). */
 const MAP_FOLLOW_IGNORE_AFTER_PROGRAMMATIC_MS = 200;
+/** Max raw GPS points appended after the last snap (live tail). */
+const RAW_TAIL_MAX = 3;
+/** Minimum path points before drawing raw polyline when no snap API keys. */
+const MIN_PATH_POINTS_POLYLINE = 3;
 
 export default function ActiveRunScreen() {
   const insets = useSafeAreaInsets();
@@ -188,8 +192,8 @@ export default function ActiveRunScreen() {
   const pathSnapRef = useRef(path);
   pathSnapRef.current = path;
   const snapGenRef = useRef(0);
-  // Tracks how many path points were used in the last successful snap so the raw GPS
-  // tail (points added since) can be appended to polylineCoords for zero-lag live tracking.
+  // Tracks how many path points were used in the last successful snap so a short raw GPS
+  // tail (last few points since last snap) can be appended to polylineCoords for live tracking.
   const snappedPathCountRef = useRef(0);
   const orsApiKey = (
     Constants.expoConfig?.extra?.openRouteServiceApiKey as string | undefined
@@ -649,10 +653,12 @@ export default function ActiveRunScreen() {
   // interval + ref so updates are not reset by every GPS tick.
   useEffect(() => {
     if (path.length < 2) {
+      snappedPathCountRef.current = 0;
       setSnappedPolyline(null);
       return;
     }
     if (!googleRoadsApiKey && !orsApiKey) {
+      snappedPathCountRef.current = 0;
       setSnappedPolyline(null);
       return;
     }
@@ -691,14 +697,18 @@ export default function ActiveRunScreen() {
       latitude: p.latitude,
       longitude: p.longitude,
     }));
-    if (!snappedPolyline || snappedPolyline.length < 2) return raw;
-    // Append raw GPS points recorded after the last snap so the drawn path
-    // stays flush with the current position (blue dot) between snap intervals.
+    const hasSnapKeys = !!(googleRoadsApiKey || orsApiKey);
+    if (!hasSnapKeys) {
+      if (path.length < MIN_PATH_POINTS_POLYLINE) return [];
+      return raw;
+    }
+    if (!snappedPolyline || snappedPolyline.length < 2) return [];
     const tail = path
       .slice(snappedPathCountRef.current)
+      .slice(-RAW_TAIL_MAX)
       .map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
     return tail.length > 0 ? [...snappedPolyline, ...tail] : snappedPolyline;
-  }, [path, snappedPolyline]);
+  }, [path, snappedPolyline, googleRoadsApiKey, orsApiKey]);
 
   const initialRegion = useMemo(() => {
     if (path.length > 0) {
@@ -801,6 +811,11 @@ export default function ActiveRunScreen() {
 
   const activityIcon =
     activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
+
+  const showStatTargetsRow =
+    !isFreeRun && targetDurationMin > 0 && targetDistanceKm > 0;
+  /** Single rule below stats+targets; no rule between the two rows. */
+  const statsTargetsClusterBordered = !isFreeRun && showStatTargetsRow;
 
   return (
     <View style={styles.safeOuter}>
@@ -1044,34 +1059,43 @@ export default function ActiveRunScreen() {
       {sessionStarted && (
         <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
           <View style={styles.hud}>
-            {/* Stats row */}
-            <View style={styles.statsRow}>
-              <StatTile
-                label="TIME"
-                value={formatElapsed(elapsedSec)}
-                icon="timer"
-                accent={colors.textSecondary}
-              />
-              <View style={styles.statDivider} />
-              <StatTile
-                label="DISTANCE"
-                value={formatDistance(distanceKm)}
-                icon={activityIcon}
-                accent={colors.primary}
-                large
-              />
-              <View style={styles.statDivider} />
-              <StatTile
-                label="PACE"
-                value={paceDisplay}
-                icon="speed"
-                accent={colors.textSecondary}
-              />
-            </View>
+            <View
+              style={[
+                styles.statsTargetsCluster,
+                statsTargetsClusterBordered &&
+                  styles.statsTargetsClusterBordered,
+              ]}
+            >
+              <View
+                style={[
+                  styles.statsRow,
+                  !showStatTargetsRow && styles.statsRowWithBorderBelow,
+                ]}
+              >
+                <StatTile
+                  label="TIME"
+                  value={formatElapsed(elapsedSec)}
+                  icon="timer"
+                  accent={colors.textSecondary}
+                />
+                <View style={styles.statDivider} />
+                <StatTile
+                  label="DISTANCE"
+                  value={formatDistance(distanceKm)}
+                  icon={activityIcon}
+                  accent={colors.primary}
+                  large
+                />
+                <View style={styles.statDivider} />
+                <StatTile
+                  label="PACE"
+                  value={paceDisplay}
+                  icon="speed"
+                  accent={colors.textSecondary}
+                />
+              </View>
 
-            {!isFreeRun &&
-              targetDurationMin > 0 &&
-              targetDistanceKm > 0 && (
+              {showStatTargetsRow && (
                 <View style={styles.statTargetsRow}>
                   <Text
                     style={styles.statTargetsRowHint}
@@ -1084,6 +1108,7 @@ export default function ActiveRunScreen() {
                   <View style={styles.statTargetsRowSpacer} />
                 </View>
               )}
+            </View>
 
             {/* Progress — hidden for free run */}
             {!isFreeRun && (
@@ -1360,8 +1385,8 @@ const styles = StyleSheet.create({
   mapTargetStrip: {
     position: 'absolute',
     top: spacing.xs,
-    left: spacing.lg,
-    right: spacing.lg,
+    left: '10%',
+    width: '80%',
     zIndex: 15,
   } as ViewStyle,
   mapTargetStripInner: {
@@ -1616,11 +1641,21 @@ const styles = StyleSheet.create({
   } as ViewStyle,
 
   // Stats
+  statsTargetsCluster: {
+    gap: 0,
+  } as ViewStyle,
+  statsTargetsClusterBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: spacing.sm,
+  } as ViewStyle,
   statsRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-around',
     paddingBottom: spacing.xs,
+  } as ViewStyle,
+  statsRowWithBorderBelow: {
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   } as ViewStyle,
@@ -1657,14 +1692,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 2,
-    paddingBottom: spacing.sm,
-    marginTop: -1,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingBottom: 0,
   } as ViewStyle,
   statTargetsRowHint: {
     flex: 1,
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.lg,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
     textAlign: 'center',
