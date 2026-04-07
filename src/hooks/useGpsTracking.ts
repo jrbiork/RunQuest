@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import type { GpsPoint, MissionAudioCueSet } from '../types';
-import { calcDistanceKmGps } from '../utils/haversine';
+import {
+  advanceGpsDistanceAnchor,
+  GPS_MAX_ACCURACY_M,
+} from '../utils/haversine';
 import { speakRunCue } from '../services/audioService';
 import { pickCue } from '../constants/missions';
 
@@ -10,8 +13,8 @@ import { pickCue } from '../constants/missions';
 
 export const BACKGROUND_LOCATION_TASK = 'runquest-background-location';
 
-/** Foreground GPS: tighter intervals so distance/pace appear sooner (battery vs responsiveness). */
-const FG_DISTANCE_INTERVAL_M = 2;
+/** Foreground GPS: 5 m OS pre-filter reduces jitter callbacks before we even see them. */
+const FG_DISTANCE_INTERVAL_M = 5;
 const FG_TIME_INTERVAL_MS = 1000;
 
 /** Background updates: slightly conservative vs foreground. */
@@ -51,9 +54,9 @@ const _bgCueState: BgCueState = {
   runStartedAtMs: 0,
 };
 
-// Incremental distance tracker — avoids O(n) full-path recalculation on each update.
+// Incremental distance tracker — matches calcDistanceKmGps anchor logic (no O(n) each tick).
 let _bgDistanceKm = 0;
-let _bgLastPoint: GpsPoint | null = null;
+let _bgAnchorPoint: GpsPoint | null = null;
 // Timestamp set deduplicates points that arrive in both the foreground callback
 // and the background task (both fire while the app is foregrounded).
 const _bgSeenTimestamps = new Set<number>();
@@ -61,11 +64,13 @@ const _bgSeenTimestamps = new Set<number>();
 function _addBgPoint(point: GpsPoint): void {
   if (_bgSeenTimestamps.has(point.timestamp)) return;
   _bgSeenTimestamps.add(point.timestamp);
-  if (_bgLastPoint) {
-    // reuse noise-floor filtering from calcDistanceKmGps
-    _bgDistanceKm += calcDistanceKmGps([_bgLastPoint, point]);
+  if (_bgAnchorPoint === null) {
+    _bgAnchorPoint = point;
+    return;
   }
-  _bgLastPoint = point;
+  const { addedKm, anchor } = advanceGpsDistanceAnchor(_bgAnchorPoint, point);
+  _bgDistanceKm += addedKm;
+  _bgAnchorPoint = anchor;
 }
 
 async function _checkBgMilestoneCues(): Promise<void> {
@@ -172,6 +177,14 @@ export function useGpsTracking(): GpsTrackingState {
   const hasBgRef = useRef(false);
   /** False after stop — avoids applying cold-start getCurrentPositionAsync after session ends. */
   const trackingActiveRef = useRef(false);
+  /**
+   * Incremental distance accumulator — updated only when a fix passes both the
+   * accuracy gate and the anchor-distance gate. Never recalculated from the full
+   * path, so jittery points stored for map display cannot inflate the total.
+   */
+  const distanceKmRef = useRef<number>(0);
+  /** Last GPS fix that was accepted as real movement (the anchor for jitter gating). */
+  const anchorPointRef = useRef<GpsPoint | null>(null);
 
   const _startForegroundWatcher = useCallback(async () => {
     fgSubscriptionRef.current?.remove();
@@ -186,21 +199,47 @@ export function useGpsTracking(): GpsTrackingState {
         setSpeedMps(
           sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
         );
+
+        const acc = loc.coords.accuracy;
+        // Reject fixes with poor horizontal accuracy (indoor multipath, poor geometry).
+        if (acc != null && acc > GPS_MAX_ACCURACY_M) return;
+
         const point: GpsPoint = {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
           timestamp: loc.timestamp,
-          ...(loc.coords.accuracy != null && loc.coords.accuracy > 0
-            ? { accuracy: loc.coords.accuracy }
-            : {}),
+          ...(acc != null && acc > 0 ? { accuracy: acc } : {}),
         };
+
+        // Run the fix through the anchor gate (distance + speed checks).
+        // advanceGpsDistanceAnchor rejects: too close to anchor (jitter) OR
+        // implies unrealistically high speed (GPS jump / phone shaking).
+        let addedKm = 0;
+        if (anchorPointRef.current === null) {
+          anchorPointRef.current = point;
+        } else {
+          const result = advanceGpsDistanceAnchor(anchorPointRef.current, point);
+          addedKm = result.addedKm;
+          anchorPointRef.current = result.anchor;
+        }
+
+        // Only add accepted fixes to the path so map polyline and pace window
+        // never see raw jitter points.
+        const anchorAdvanced = addedKm > 0;
+        const isFirstPoint = pathRef.current.length === 0;
+        if (isFirstPoint || anchorAdvanced) {
+          const updated = [...pathRef.current, point];
+          pathRef.current = updated;
+          setPath(updated);
+        }
+        if (anchorAdvanced) {
+          distanceKmRef.current += addedKm;
+          setDistanceKm(distanceKmRef.current);
+        }
+
         // Update background-safe distance tracker and fire any due milestone cues.
         _addBgPoint(point);
         await _checkBgMilestoneCues();
-        const updated = [...pathRef.current, point];
-        pathRef.current = updated;
-        setPath(updated);
-        setDistanceKm(calcDistanceKmGps(updated));
       },
     );
   }, []);
@@ -271,6 +310,8 @@ export function useGpsTracking(): GpsTrackingState {
 
   const resume = useCallback(async () => {
     if (!isTracking || !isPaused) return;
+    // Reset anchor so the first fix after resuming doesn't bridge the pause gap.
+    anchorPointRef.current = null;
     segmentStartMsRef.current = Date.now();
     await _startForegroundWatcher();
     await _startBackgroundTask();
@@ -300,10 +341,12 @@ export function useGpsTracking(): GpsTrackingState {
     // Reset state for a fresh run
     pathRef.current = [];
     _backgroundBuffer.length = 0;
+    distanceKmRef.current = 0;
+    anchorPointRef.current = null;
 
     // Reset background-safe distance tracking for the new run.
     _bgDistanceKm = 0;
-    _bgLastPoint = null;
+    _bgAnchorPoint = null;
     _bgSeenTimestamps.clear();
 
     accumulatedMsRef.current = 0;
@@ -381,7 +424,9 @@ export function useGpsTracking(): GpsTrackingState {
         setElapsedSec(Math.floor(total / 1000));
       }
 
-      // Merge any background points that arrived while app was minimised
+      // Merge any background points that arrived while app was minimised.
+      // Distance was already accumulated by _addBgPoint (which mirrors the same
+      // anchor-gate logic), so we only need to sync paths and copy over the total.
       if (_backgroundBuffer.length > 0) {
         const newPoints = _backgroundBuffer.splice(0, _backgroundBuffer.length);
         const existingTimestamps = new Set(
@@ -396,7 +441,9 @@ export function useGpsTracking(): GpsTrackingState {
           );
           pathRef.current = merged;
           setPath(merged);
-          setDistanceKm(calcDistanceKmGps(merged));
+          // _bgDistanceKm is the authoritative total while backgrounded; sync it.
+          distanceKmRef.current = _bgDistanceKm;
+          setDistanceKm(_bgDistanceKm);
         }
       }
     }, 1000);

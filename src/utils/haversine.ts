@@ -2,32 +2,19 @@ import type { GpsPoint } from '../types';
 
 const EARTH_RADIUS_KM = 6371;
 
-/** Never count a segment shorter than this (m). */
-const GPS_MIN_SEGMENT_M = 1;
+/**
+ * Minimum displacement (m) from the last *accepted* GPS position before a new fix
+ * is counted as real movement. Stationary phone jitter (including iOS sensor-fusion
+ * dead-reckoning from the accelerometer) can wander 8–12 m; 10 m rejects that.
+ */
+export const GPS_ANCHOR_MIN_M = 10;
 
 /**
- * Accuracy-based noise (m) is capped so it never exceeds a typical foreground GPS
- * step (~2 m from `distanceInterval`). Uncapped, poor fixes (20–50 m accuracy)
- * produced floors of 10–25 m and rejected every segment — distance stayed at 0.
+ * Implied speed cap (m/s) between two accepted fixes. Faster movement between
+ * consecutive positions is almost certainly a GPS jump or sensor-fusion artifact
+ * (e.g. shaking the phone). 7 m/s ≈ 25 km/h, above any realistic running pace.
  */
-const GPS_NOISE_FLOOR_MAX_M = 2;
-
-function segmentNoiseFloorM(prev: GpsPoint, curr: GpsPoint): number {
-  const pa = prev.accuracy;
-  const ca = curr.accuracy;
-  let raw: number;
-  if (pa != null && ca != null && pa > 0 && ca > 0) {
-    raw = (pa + ca) * 0.25;
-  } else if (pa != null && pa > 0) {
-    raw = pa * 0.25;
-  } else if (ca != null && ca > 0) {
-    raw = ca * 0.25;
-  } else {
-    return GPS_MIN_SEGMENT_M;
-  }
-  const capped = Math.min(raw, GPS_NOISE_FLOOR_MAX_M);
-  return Math.max(GPS_MIN_SEGMENT_M, capped);
-}
+export const GPS_MAX_SPEED_MPS = 7;
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -61,36 +48,73 @@ export function calcDistanceKm(coords: GpsPoint[]): number {
   return total;
 }
 
+function haversineKm(a: GpsPoint, b: GpsPoint): number {
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) *
+      Math.cos(toRad(b.latitude)) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return EARTH_RADIUS_KM * c;
+}
+
+/** Distance in metres between two GPS points. */
+export function haversineM(a: GpsPoint, b: GpsPoint): number {
+  return haversineKm(a, b) * 1000;
+}
+
 /**
- * Distance along a GPS path with drift suppression: each segment counts only if its
- * length (m) meets at least a 1 m minimum and an accuracy-based floor (capped at 2 m).
- * Independent of `distanceInterval` (update frequency only).
+ * Reject a GPS fix that is too inaccurate to be trusted.
+ * Accuracy values > this are typical of indoor multipath / poor satellite geometry.
+ */
+export const GPS_MAX_ACCURACY_M = 15;
+
+/**
+ * One step of anchor-based GPS distance.
+ *
+ * A fix is accepted (anchor advances) only when ALL three gates pass:
+ *   1. Distance from anchor ≥ GPS_ANCHOR_MIN_M  — rejects stationary jitter
+ *   2. Implied speed ≤ GPS_MAX_SPEED_MPS        — rejects GPS jumps / phone shaking
+ *
+ * Returns `{ addedKm: 0, anchor }` (unchanged anchor) when a fix is rejected,
+ * so the next fix is still measured against the last genuine position.
+ */
+export function advanceGpsDistanceAnchor(
+  anchor: GpsPoint,
+  curr: GpsPoint,
+): { addedKm: number; anchor: GpsPoint } {
+  const distM = haversineM(anchor, curr);
+  if (distM < GPS_ANCHOR_MIN_M) {
+    return { addedKm: 0, anchor };
+  }
+  // Use a minimum dt of 0.5 s to avoid divide-by-zero on duplicate timestamps.
+  const dtSec = Math.max((curr.timestamp - anchor.timestamp) / 1000, 0.5);
+  const impliedSpeedMps = distM / dtSec;
+  if (impliedSpeedMps > GPS_MAX_SPEED_MPS) {
+    // Likely a sensor-fusion jump (e.g. rapid phone movement detected by IMU).
+    // Keep old anchor so the next fix is still evaluated from a stable position.
+    return { addedKm: 0, anchor };
+  }
+  return { addedKm: distM / 1000, anchor: curr };
+}
+
+/**
+ * Distance along a GPS path with anchor-based drift suppression: we only add
+ * distance when the path moves at least ~5 m from the last counted position.
+ * Rejects stationary zigzag jitter that passes short per-segment thresholds.
  */
 export function calcDistanceKmGps(coords: GpsPoint[]): number {
   if (coords.length < 2) return 0;
 
   let total = 0;
+  let anchor = coords[0]!;
   for (let i = 1; i < coords.length; i++) {
-    const prev = coords[i - 1]!;
     const curr = coords[i]!;
-
-    const dLat = toRad(curr.latitude - prev.latitude);
-    const dLon = toRad(curr.longitude - prev.longitude);
-
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(prev.latitude)) *
-        Math.cos(toRad(curr.latitude)) *
-        Math.sin(dLon / 2) ** 2;
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const segKm = EARTH_RADIUS_KM * c;
-    const segM = segKm * 1000;
-
-    const floorM = segmentNoiseFloorM(prev, curr);
-    if (segM < floorM) continue;
-
-    total += segKm;
+    const { addedKm, anchor: next } = advanceGpsDistanceAnchor(anchor, curr);
+    total += addedKm;
+    anchor = next;
   }
 
   return total;

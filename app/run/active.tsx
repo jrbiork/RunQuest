@@ -47,10 +47,7 @@ import {
   missionConfig,
 } from '../../src/constants/theme';
 import { stripEmojis } from '../../src/utils/stripEmojis';
-import {
-  formatDistance,
-  formatDuration,
-} from '../../src/utils/xpCalculator';
+import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
 import {
   calcDistanceKm,
   formatElapsed,
@@ -92,10 +89,6 @@ const MAP_FOLLOW_MIN_MOVE_KM = 0.004;
 const MAP_FOLLOW_RESUME_AFTER_MS = 5000;
 /** Ignore region-complete right after our programmatic moves (Apple Maps can emit extras). */
 const MAP_FOLLOW_IGNORE_AFTER_PROGRAMMATIC_MS = 200;
-/** Max raw GPS points appended after the last snap (live tail). */
-const RAW_TAIL_MAX = 3;
-/** Minimum path points before drawing raw polyline when no snap API keys. */
-const MIN_PATH_POINTS_POLYLINE = 3;
 
 export default function ActiveRunScreen() {
   const insets = useSafeAreaInsets();
@@ -192,8 +185,8 @@ export default function ActiveRunScreen() {
   const pathSnapRef = useRef(path);
   pathSnapRef.current = path;
   const snapGenRef = useRef(0);
-  // Tracks how many path points were used in the last successful snap so a short raw GPS
-  // tail (last few points since last snap) can be appended to polylineCoords for live tracking.
+  // Tracks how many path points were used in the last successful snap so the raw GPS
+  // tail (points added since) can be appended to polylineCoords for zero-lag live tracking.
   const snappedPathCountRef = useRef(0);
   const orsApiKey = (
     Constants.expoConfig?.extra?.openRouteServiceApiKey as string | undefined
@@ -653,12 +646,10 @@ export default function ActiveRunScreen() {
   // interval + ref so updates are not reset by every GPS tick.
   useEffect(() => {
     if (path.length < 2) {
-      snappedPathCountRef.current = 0;
       setSnappedPolyline(null);
       return;
     }
     if (!googleRoadsApiKey && !orsApiKey) {
-      snappedPathCountRef.current = 0;
       setSnappedPolyline(null);
       return;
     }
@@ -697,18 +688,14 @@ export default function ActiveRunScreen() {
       latitude: p.latitude,
       longitude: p.longitude,
     }));
-    const hasSnapKeys = !!(googleRoadsApiKey || orsApiKey);
-    if (!hasSnapKeys) {
-      if (path.length < MIN_PATH_POINTS_POLYLINE) return [];
-      return raw;
-    }
-    if (!snappedPolyline || snappedPolyline.length < 2) return [];
+    if (!snappedPolyline || snappedPolyline.length < 2) return raw;
+    // Append raw GPS points recorded after the last snap so the drawn path
+    // stays flush with the current position (blue dot) between snap intervals.
     const tail = path
       .slice(snappedPathCountRef.current)
-      .slice(-RAW_TAIL_MAX)
       .map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
     return tail.length > 0 ? [...snappedPolyline, ...tail] : snappedPolyline;
-  }, [path, snappedPolyline, googleRoadsApiKey, orsApiKey]);
+  }, [path, snappedPolyline]);
 
   const initialRegion = useMemo(() => {
     if (path.length > 0) {
