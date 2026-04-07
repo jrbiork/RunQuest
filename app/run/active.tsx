@@ -47,7 +47,10 @@ import {
   missionConfig,
 } from '../../src/constants/theme';
 import { stripEmojis } from '../../src/utils/stripEmojis';
-import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
+import {
+  formatDistance,
+  formatDuration,
+} from '../../src/utils/xpCalculator';
 import {
   calcDistanceKm,
   formatElapsed,
@@ -134,8 +137,9 @@ export default function ActiveRunScreen() {
   } = useGpsTracking();
 
   const paceDisplay = useMemo(
-    () => formatPaceLiveDisplay(distanceKm, elapsedSec, speedMps),
-    [distanceKm, elapsedSec, speedMps],
+    () =>
+      formatPaceLiveDisplay(path, distanceKm, elapsedSec, speedMps, Date.now()),
+    [path, distanceKm, elapsedSec, speedMps],
   );
 
   // Determine targets based on activity mode
@@ -798,11 +802,6 @@ export default function ActiveRunScreen() {
   const activityIcon =
     activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
 
-  const remainingWholeMin =
-    !isFreeRun && targetDurationMin > 0
-      ? Math.max(0, targetDurationMin - Math.floor(elapsedSec / 60))
-      : null;
-
   return (
     <View style={styles.safeOuter}>
       {/* ─── Mission header — explicit top inset (modal + notch safe) ─ */}
@@ -930,11 +929,6 @@ export default function ActiveRunScreen() {
                     >
                       ~{formatDuration(targetDurationMin)}
                     </Text>
-                    {remainingWholeMin != null && isTracking && !goalHit && (
-                      <Text style={styles.mapTargetSub}>
-                        {remainingWholeMin} min remaining
-                      </Text>
-                    )}
                   </View>
                 </View>
               </View>
@@ -1025,8 +1019,8 @@ export default function ActiveRunScreen() {
               <Text style={styles.goalBannerTitle}>ZONE RESTORED</Text>
               <Text style={styles.goalBannerSub}>
                 {distanceMetOnTime
-                  ? 'Goal reached — tap Finish when ready'
-                  : 'Distance met over time — partial XP. Tap Finish when ready.'}
+                  ? 'Goal reached — tap Complete when ready'
+                  : 'Distance met over time — partial XP. Tap Complete mission when ready.'}
               </Text>
             </Animated.View>
           </Animated.View>
@@ -1075,15 +1069,27 @@ export default function ActiveRunScreen() {
               />
             </View>
 
-            {/* Target + progress — hidden for free run */}
+            {!isFreeRun &&
+              targetDurationMin > 0 &&
+              targetDistanceKm > 0 && (
+                <View style={styles.statTargetsRow}>
+                  <Text
+                    style={styles.statTargetsRowHint}
+                    numberOfLines={1}
+                  >{`~${targetDurationMin} min target`}</Text>
+                  <Text
+                    style={styles.statTargetsRowHint}
+                    numberOfLines={1}
+                  >{`${formatDistance(targetDistanceKm)} target`}</Text>
+                  <View style={styles.statTargetsRowSpacer} />
+                </View>
+              )}
+
+            {/* Progress — hidden for free run */}
             {!isFreeRun && (
               <View style={styles.progressSection}>
-                <View style={styles.targetRow}>
-                  <Text style={styles.targetLabel}>TARGET</Text>
-                  <Text style={styles.targetValue}>
-                    {formatDistance(targetDistanceKm)} · ~{targetDurationMin}{' '}
-                    min
-                  </Text>
+                <View style={styles.progressHudRow}>
+                  <Text style={styles.progressHudTitle}>Progress</Text>
                   <Text
                     style={[
                       styles.progressPercent,
@@ -1099,7 +1105,7 @@ export default function ActiveRunScreen() {
                   progress={overallProgress}
                   color={goalHit ? colors.primary : config.color}
                   backgroundColor={colors.border}
-                  height={6}
+                  height={5}
                 />
               </View>
             )}
@@ -1193,7 +1199,8 @@ function StatTile({
 }) {
   return (
     <View style={styles.statTile}>
-      <MaterialIcons name={icon as any} size={13} color={accent} />
+      <MaterialIcons name={icon as any} size={15} color={accent} />
+      <Text style={styles.statLabel}>{label}</Text>
       <Text
         style={[
           styles.statValue,
@@ -1203,7 +1210,6 @@ function StatTile({
       >
         {value}
       </Text>
-      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -1353,7 +1359,7 @@ const styles = StyleSheet.create({
 
   mapTargetStrip: {
     position: 'absolute',
-    top: spacing.md,
+    top: spacing.xs,
     left: spacing.lg,
     right: spacing.lg,
     zIndex: 15,
@@ -1365,8 +1371,8 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     ...shadows.md,
   } as ViewStyle,
   mapTargetCol: {
@@ -1390,12 +1396,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
     fontVariant: ['tabular-nums'],
-  } as TextStyle,
-  mapTargetSub: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    fontWeight: fontWeights.semibold,
-    marginTop: 2,
   } as TextStyle,
   mapFreeRunHint: {
     position: 'absolute',
@@ -1609,70 +1609,85 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   hud: {
     backgroundColor: colors.background,
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md + spacing.sm,
-    gap: spacing.md,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
   } as ViewStyle,
 
   // Stats
   statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-around',
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   } as ViewStyle,
   statDivider: {
     width: 1,
-    height: 44,
+    height: 56,
+    alignSelf: 'stretch',
     backgroundColor: colors.border,
+    marginTop: spacing.xs,
   } as ViewStyle,
   statTile: {
     flex: 1,
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
+    minWidth: 0,
   } as ViewStyle,
   statValue: {
-    fontSize: fontSizes.xl,
+    fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
   } as TextStyle,
   statValueLarge: {
-    fontSize: fontSizes.xxl,
+    fontSize: fontSizes.xxxl,
   } as TextStyle,
   statLabel: {
     fontSize: 9,
     fontWeight: fontWeights.extrabold,
     color: colors.textTertiary,
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   } as TextStyle,
-
-  // Target + progress
-  progressSection: {
-    gap: spacing.sm,
-  } as ViewStyle,
-  targetRow: {
+  statTargetsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingTop: 2,
+    paddingBottom: spacing.sm,
+    marginTop: -1,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  } as ViewStyle,
+  statTargetsRowHint: {
+    flex: 1,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  } as TextStyle,
+  statTargetsRowSpacer: {
+    flex: 1,
+  } as ViewStyle,
+
+  // Progress
+  progressSection: {
+    gap: spacing.xs,
+  } as ViewStyle,
+  progressHudRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   } as ViewStyle,
-  targetLabel: {
-    fontSize: 9,
+  progressHudTitle: {
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
-    color: colors.textTertiary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  targetValue: {
-    flex: 1,
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    color: colors.textPrimary,
+    letterSpacing: 0.5,
   } as TextStyle,
   progressPercent: {
     fontSize: fontSizes.xs,
@@ -1700,7 +1715,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
   } as ViewStyle,
   finishBtnGoal: {
     backgroundColor: colors.primary,
@@ -1727,7 +1742,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
   } as ViewStyle,
   pauseResumeBtnResume: {
     backgroundColor: colors.orange,

@@ -38,10 +38,9 @@ import type {
   PersonaId,
 } from '../../src/types';
 import {
-  findMissionById,
   resolveMissionDisplayTitle,
+  resolveMissionForHistory,
 } from '../../src/utils/missionLookup';
-import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
 import {
   isAbortedRun,
   isMissionCompletedOrPartial,
@@ -75,14 +74,6 @@ function dayGroupLabel(iso: string): string {
     month: 'short',
     day: 'numeric',
   });
-}
-
-function missionForRun(
-  missionId: string,
-  weekMissions: Mission[],
-): Mission | undefined {
-  if (missionId === FUN_RUN_ID) return FUN_RUN_MISSION;
-  return findMissionById(weekMissions, missionId);
 }
 
 function targetsForMission(
@@ -536,7 +527,11 @@ export default function StatsScreen() {
                           <MonthRunRow
                             key={`${run.missionId}-${run.completedAt}`}
                             run={run}
-                            mission={missionForRun(run.missionId, weekMissions)}
+                            mission={resolveMissionForHistory(
+                              run.missionId,
+                              weekMissions,
+                              profilePersona,
+                            )}
                             personaId={profilePersona}
                             defaultActivityMode={defaultActivityMode}
                             onPress={() => openRunDetail(run)}
@@ -588,7 +583,11 @@ export default function StatsScreen() {
             xpEarned={sharingRun.xpEarned}
             streakDay={getStreakDayIndex0(sharingRun, runHistory)}
             missionType={
-              missionForRun(sharingRun.missionId, weekMissions)?.type ?? 'easy'
+              resolveMissionForHistory(
+                sharingRun.missionId,
+                weekMissions,
+                profilePersona,
+              )?.type ?? 'easy'
             }
             path={sharingRun.path}
           />

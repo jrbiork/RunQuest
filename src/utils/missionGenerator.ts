@@ -203,6 +203,15 @@ export function experienceTierForClassLevel(classLevel: number): ExperienceLevel
   return 'advanced';
 }
 
+/** Targets for a mission type at a class level (used when history no longer has live queue data). */
+export function getMissionTargetsForClassLevel(
+  type: MissionType,
+  classLevel: number,
+): MissionTargets {
+  const level = experienceTierForClassLevel(classLevel);
+  return getTargets(type, level, classLevel);
+}
+
 // ─── Main Generator ───────────────────────────────────────────────────────────
 
 /**

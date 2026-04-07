@@ -2,12 +2,32 @@ import type { GpsPoint } from '../types';
 
 const EARTH_RADIUS_KM = 6371;
 
+/** Never count a segment shorter than this (m). */
+const GPS_MIN_SEGMENT_M = 1;
+
 /**
- * Segments at or above this length (m) always count toward distance. Must stay in sync
- * with foreground `distanceInterval` in useGpsTracking (~2m) — a higher noise floor
- * would drop every segment and distance/pace stay at zero.
+ * Accuracy-based noise (m) is capped so it never exceeds a typical foreground GPS
+ * step (~2 m from `distanceInterval`). Uncapped, poor fixes (20–50 m accuracy)
+ * produced floors of 10–25 m and rejected every segment — distance stayed at 0.
  */
-const MIN_MOVEMENT_SEGMENT_M = 2;
+const GPS_NOISE_FLOOR_MAX_M = 2;
+
+function segmentNoiseFloorM(prev: GpsPoint, curr: GpsPoint): number {
+  const pa = prev.accuracy;
+  const ca = curr.accuracy;
+  let raw: number;
+  if (pa != null && ca != null && pa > 0 && ca > 0) {
+    raw = (pa + ca) * 0.25;
+  } else if (pa != null && pa > 0) {
+    raw = pa * 0.25;
+  } else if (ca != null && ca > 0) {
+    raw = ca * 0.25;
+  } else {
+    return GPS_MIN_SEGMENT_M;
+  }
+  const capped = Math.min(raw, GPS_NOISE_FLOOR_MAX_M);
+  return Math.max(GPS_MIN_SEGMENT_M, capped);
+}
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -42,8 +62,9 @@ export function calcDistanceKm(coords: GpsPoint[]): number {
 }
 
 /**
- * Distance along a GPS path with drift suppression: ignores segments shorter than
- * a noise floor derived from reported accuracy (or a small fallback when accuracy is missing).
+ * Distance along a GPS path with drift suppression: each segment counts only if its
+ * length (m) meets at least a 1 m minimum and an accuracy-based floor (capped at 2 m).
+ * Independent of `distanceInterval` (update frequency only).
  */
 export function calcDistanceKmGps(coords: GpsPoint[]): number {
   if (coords.length < 2) return 0;
@@ -66,19 +87,8 @@ export function calcDistanceKmGps(coords: GpsPoint[]): number {
     const segKm = EARTH_RADIUS_KM * c;
     const segM = segKm * 1000;
 
-    if (segM >= MIN_MOVEMENT_SEGMENT_M) {
-      total += segKm;
-      continue;
-    }
-
-    const pa = prev.accuracy;
-    const ca = curr.accuracy;
-    if (pa != null && ca != null && pa > 0 && ca > 0) {
-      const noiseFloorM = (pa + ca) * 0.25;
-      if (segM < noiseFloorM) continue;
-    } else if (segM < 1.2) {
-      continue;
-    }
+    const floorM = segmentNoiseFloorM(prev, curr);
+    if (segM < floorM) continue;
 
     total += segKm;
   }
@@ -93,8 +103,14 @@ export function formatElapsed(totalSeconds: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-/** Min distance (km) before average pace is meaningful — lowered for faster first readout. */
-const MIN_DISTANCE_KM_FOR_PACE = 0.005;
+/** Min distance (km) before pace readouts are meaningful (~3 m). */
+const MIN_DISTANCE_KM_FOR_PACE = 0.003;
+
+/** Rolling window for live “current” pace on the map HUD (~30–60 s). */
+export const LIVE_PACE_WINDOW_MS = 45_000;
+
+/** Min span inside the window (s) before pace is trusted. */
+const LIVE_PACE_MIN_WINDOW_SEC = 4;
 
 /** Below this ground speed (km/h), live HUD shows stationary pace (uses GPS speed when available). */
 export const PACE_STATIONARY_THRESHOLD_KMH = 1.5;
@@ -108,17 +124,61 @@ export function formatPace(distanceKm: number, elapsedSec: number): string {
   return `${paceMins}:${String(paceSecs).padStart(2, '0')} /km`;
 }
 
+function formatPaceFromSecPerKm(paceSecPerKm: number): string {
+  const paceMins = Math.floor(paceSecPerKm / 60);
+  const paceSecs = Math.floor(paceSecPerKm % 60);
+  return `${paceMins}:${String(paceSecs).padStart(2, '0')} /km`;
+}
+
 /**
- * Live run HUD: hide pace when nearly stationary (GPS speed); otherwise average pace.
+ * Pace (seconds per km) from GPS points in [nowMs - windowMs, nowMs], using the same
+ * distance rules as totals. Returns null if the window is too short or sparse.
+ */
+export function calcPaceSecPerKmWindow(
+  coords: GpsPoint[],
+  nowMs: number,
+  windowMs: number,
+): number | null {
+  if (coords.length < 2) return null;
+  const cutoff = nowMs - windowMs;
+  let start = 0;
+  while (start < coords.length && coords[start]!.timestamp < cutoff) {
+    start += 1;
+  }
+  const slice = coords.slice(start);
+  if (slice.length < 2) return null;
+  const t0 = slice[0]!.timestamp;
+  const t1 = slice[slice.length - 1]!.timestamp;
+  const dtSec = (t1 - t0) / 1000;
+  if (dtSec < LIVE_PACE_MIN_WINDOW_SEC) return null;
+  const distKm = calcDistanceKmGps(slice);
+  if (distKm < MIN_DISTANCE_KM_FOR_PACE) return null;
+  const impliedKmh = (distKm / dtSec) * 3600;
+  if (impliedKmh < PACE_STATIONARY_THRESHOLD_KMH) return null;
+  return dtSec / distKm;
+}
+
+/**
+ * Live run HUD: stationary → '--'; else recent-window pace when available; else session average.
  */
 export function formatPaceLiveDisplay(
+  path: GpsPoint[],
   distanceKm: number,
   elapsedSec: number,
   speedMps: number | null,
+  nowMs: number = Date.now(),
 ): string {
   if (speedMps != null) {
     const kmh = speedMps * 3.6;
     if (kmh < PACE_STATIONARY_THRESHOLD_KMH) return '--';
+  }
+  const windowSecPerKm = calcPaceSecPerKmWindow(
+    path,
+    nowMs,
+    LIVE_PACE_WINDOW_MS,
+  );
+  if (windowSecPerKm != null && Number.isFinite(windowSecPerKm)) {
+    return formatPaceFromSecPerKm(windowSecPerKm);
   }
   return formatPace(distanceKm, elapsedSec);
 }

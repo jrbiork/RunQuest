@@ -5,8 +5,7 @@ import { useMemo } from 'react';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { RunHistoryDetailView } from '../../src/components/run/RunHistoryDetailView';
-import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
-import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import { normalizeRouteParam, resolveMissionForHistory } from '../../src/utils/missionLookup';
 import { colors, fontSizes, spacing } from '../../src/constants/theme';
 import { Button } from '../../src/components/ui/Button';
 import type { ActivityMode, CompletedRun } from '../../src/types';
@@ -40,9 +39,8 @@ export default function RunHistoryScreen() {
 
   const mission = useMemo(() => {
     if (!missionId) return undefined;
-    if (missionId === FUN_RUN_ID) return FUN_RUN_MISSION;
-    return findMissionById(weekMissions, missionId);
-  }, [missionId, weekMissions]);
+    return resolveMissionForHistory(missionId, weekMissions, profilePersona);
+  }, [missionId, weekMissions, profilePersona]);
 
   const activityMode: ActivityMode =
     run?.activityMode ?? defaultActivity;
