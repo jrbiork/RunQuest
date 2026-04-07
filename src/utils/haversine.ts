@@ -134,7 +134,7 @@ const MIN_DISTANCE_KM_FOR_PACE = 0.003;
 export const LIVE_PACE_WINDOW_MS = 45_000;
 
 /** Min span inside the window (s) before pace is trusted. */
-const LIVE_PACE_MIN_WINDOW_SEC = 4;
+const LIVE_PACE_MIN_WINDOW_SEC = 30;
 
 /** Below this ground speed (km/h), live HUD shows stationary pace (uses GPS speed when available). */
 export const PACE_STATIONARY_THRESHOLD_KMH = 1.5;
@@ -204,5 +204,5 @@ export function formatPaceLiveDisplay(
   if (windowSecPerKm != null && Number.isFinite(windowSecPerKm)) {
     return formatPaceFromSecPerKm(windowSecPerKm);
   }
-  return formatPace(distanceKm, elapsedSec);
+  return '--';
 }

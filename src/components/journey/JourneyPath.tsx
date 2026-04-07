@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import ViewShot from 'react-native-view-shot';
@@ -7,6 +7,7 @@ import type { Mission, CompletedRun } from '../../types';
 import { MissionNode } from './MissionNode';
 import { useUserStore } from '../../store/userStore';
 import { useMissionsStore } from '../../store/missionsStore';
+import { getDisplayXpTotal } from '../../utils/displayXp';
 import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/theme';
 import RunShareCard from '../share/RunShareCard';
 import { shareCard } from '../../services/shareService';
@@ -21,9 +22,12 @@ interface JourneyPathProps {
 
 export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   const runHistory = useUserStore((s) => s.runHistory);
+  const profile = useUserStore((s) => s.profile);
+  const xp = useUserStore((s) => s.xp);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
 
   const retryMission = useMissionsStore((s) => s.retryMission);
+  const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
 
   const shareRef = useRef<ViewShot>(null);
   const [sharingMissionId, setSharingMissionId] = useState<string | null>(null);
@@ -68,9 +72,20 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
       {allComplete && (
         <View style={styles.completeBanner}>
           <MaterialIcons name="celebration" size={24} color={colors.textSecondary} />
-          <View>
+          <View style={styles.completeBannerContent}>
             <Text style={styles.completeBannerTitle}>Set complete</Text>
           </View>
+          <TouchableOpacity
+            style={styles.nextSetButton}
+            onPress={() => {
+              if (!profile) return;
+              const totalXp = getDisplayXpTotal({ xp, runHistory });
+              generateMissionsFromProfile(profile, totalXp);
+            }}
+          >
+            <Text style={styles.nextSetButtonText}>Next Set</Text>
+            <MaterialIcons name="arrow-forward" size={14} color={colors.background} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -158,10 +173,29 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   } as ViewStyle,
+  completeBannerContent: {
+    flex: 1,
+  } as ViewStyle,
   completeBannerTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  } as TextStyle,
+  nextSetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.textPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  } as ViewStyle,
+  nextSetButtonText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.background,
     textTransform: 'uppercase',
     letterSpacing: 1,
   } as TextStyle,
