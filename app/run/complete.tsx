@@ -404,7 +404,13 @@ export default function RunCompleteScreen() {
 
   const handleShare = async () => {
     setIsSharing(true);
-    try { await shareCard(viewShotRef); } finally { setIsSharing(false); }
+    try {
+      await shareCard(viewShotRef, {
+        delayMs: gpsPath.length >= 2 ? 550 : 0,
+      });
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const config = missionConfig[mission.type];

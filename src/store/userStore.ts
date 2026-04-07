@@ -13,6 +13,7 @@ import {
   getLevelInfo,
   type TimedMissionXpKind,
 } from '../utils/xpCalculator';
+import { RECRUIT_TARGET_DISTANCES_KM } from '../utils/missionGenerator';
 import { setAudioMutedFlag, syncOnboardingAmbientWithMute } from '../services/audioService';
 import { getTodayISO, getNowISOString, isStreakAlive } from '../utils/dateUtils';
 import type { MissionType } from '../types';
@@ -100,6 +101,7 @@ export const useUserStore = create<UserStore>()(
       ) => {
         const state = get();
         const level = ((state.profile?.experienceLevel) ?? 'beginner') as 'beginner' | 'intermediate' | 'advanced';
+        const classLevel = getLevelInfo(state.xp).level;
 
         const distanceMet = distanceGoalMet ?? false;
         const onTime = runOptions?.onTime !== false;
@@ -136,8 +138,10 @@ export const useUserStore = create<UserStore>()(
         );
         const newXp = state.xp + xpEarned;
 
-        const distKm = actualDistanceKm ?? getMissionTargetDistance(missionType, level);
-        const durMin = actualDurationMin ?? getMissionTargetDuration(missionType, level);
+        const distKm =
+          actualDistanceKm ?? getMissionTargetDistance(missionType, level, classLevel);
+        const durMin =
+          actualDurationMin ?? getMissionTargetDuration(missionType, level, classLevel);
 
         const completedRun: CompletedRun = {
           missionId,
@@ -259,7 +263,11 @@ export const selectLevelInfo = (state: UserStore) => getLevelInfo(state.xp);
 function getMissionTargetDistance(
   type: MissionType,
   level: 'beginner' | 'intermediate' | 'advanced',
+  classLevel: number,
 ): number {
+  if (classLevel === 1) {
+    return RECRUIT_TARGET_DISTANCES_KM[type] ?? 0.4;
+  }
   const targets = {
     beginner: { easy: 3, recovery: 2, tempo: 3, interval: 3, long: 5 },
     intermediate: { easy: 5, recovery: 4, tempo: 6, interval: 5, long: 10 },
@@ -271,7 +279,11 @@ function getMissionTargetDistance(
 function getMissionTargetDuration(
   type: MissionType,
   level: 'beginner' | 'intermediate' | 'advanced',
+  classLevel: number,
 ): number {
+  if (classLevel === 1) {
+    return 5;
+  }
   const durations = {
     beginner: { easy: 25, recovery: 20, tempo: 25, interval: 25, long: 40 },
     intermediate: { easy: 35, recovery: 30, tempo: 40, interval: 35, long: 65 },

@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#0E1210"
     },
     "ios": {
@@ -36,10 +36,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
-          "resizeMode": "contain",
+          "resizeMode": "cover",
           "backgroundColor": "#0E1210",
-          "enableFullScreenImage_legacy": false,
-          "imageWidth": 200
+          "enableFullScreenImage_legacy": true
         }
       ],
       "expo-router",

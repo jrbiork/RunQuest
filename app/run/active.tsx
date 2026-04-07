@@ -577,7 +577,7 @@ export default function ActiveRunScreen() {
     }
     Alert.alert(
       'Abort mission?',
-      'GPS progress will be lost. This mission will be marked aborted — you can retry from Journey.',
+      'This mission will be marked aborted — you can retry from Journey.',
       [
         { text: 'Keep going', style: 'cancel' },
         {
@@ -589,6 +589,8 @@ export default function ActiveRunScreen() {
             if (mission) {
               abortMission(mission.id);
               const durationMin = Math.max(0, Math.round(elapsedSec / 60));
+              const step = Math.max(1, Math.ceil(path.length / 100));
+              const sampledPath = path.filter((_, i) => i % step === 0);
               appendRunHistoryEntry({
                 missionId: mission.id,
                 completedAt: getNowISOString(),
@@ -599,6 +601,7 @@ export default function ActiveRunScreen() {
                 goalMet: false,
                 outcome: 'aborted',
                 activityMode,
+                ...(sampledPath.length >= 2 ? { path: sampledPath } : {}),
               });
               if (elapsedSec >= MIN_EFFORT_SECONDS) {
                 recordEffortFromElapsedSec(elapsedSec);

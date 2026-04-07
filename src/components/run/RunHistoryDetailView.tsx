@@ -153,7 +153,13 @@ export function RunHistoryDetailView({
         )}
 
         <View style={styles.block}>
-          <Text style={styles.blockLabel}>Your mission</Text>
+          <View style={styles.blockHeaderRow}>
+            <Text style={styles.blockLabel}>Your mission</Text>
+            <View style={styles.xpRowInline}>
+              <MaterialIcons name="star" size={16} color={colors.purple} />
+              <Text style={styles.xpText}>+{run.xpEarned} XP</Text>
+            </View>
+          </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Distance</Text>
@@ -171,10 +177,6 @@ export function RunHistoryDetailView({
                 {formatPace(run.distanceKm, run.durationMin)}
               </Text>
             </View>
-          </View>
-          <View style={styles.xpRow}>
-            <MaterialIcons name="star" size={18} color={colors.purple} />
-            <Text style={styles.xpText}>+{run.xpEarned} XP</Text>
           </View>
         </View>
 
@@ -267,6 +269,12 @@ const styles = StyleSheet.create({
   block: {
     gap: spacing.sm,
   } as ViewStyle,
+  blockHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  } as ViewStyle,
   blockLabel: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
@@ -298,14 +306,13 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
   } as TextStyle,
-  xpRow: {
+  xpRowInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
+    gap: spacing.xs,
   } as ViewStyle,
   xpText: {
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
     color: colors.purple,
   } as TextStyle,

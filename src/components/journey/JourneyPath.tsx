@@ -42,11 +42,11 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
 
   const handleShare = useCallback(async (missionId: string) => {
     setSharingMissionId(missionId);
-    // Let the off-screen card render before capturing
-    await new Promise((r) => setTimeout(r, 80));
-    await shareCard(shareRef);
+    const run = completedRunByMission.get(missionId);
+    const hasPath = run?.path && run.path.length >= 2;
+    await shareCard(shareRef, { delayMs: hasPath ? 550 : 100 });
     setSharingMissionId(null);
-  }, []);
+  }, [completedRunByMission]);
 
   const sharingRun = sharingMissionId ? completedRunByMission.get(sharingMissionId) : undefined;
   const sharingMission = sharingMissionId

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -42,11 +42,16 @@ import {
   resolveMissionDisplayTitle,
 } from '../../src/utils/missionLookup';
 import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
-import { isAbortedRun, resolveOutcome } from '../../src/utils/runOutcome';
+import {
+  isAbortedRun,
+  isMissionCompletedOrPartial,
+  resolveOutcome,
+} from '../../src/utils/runOutcome';
 import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
-import MonthShareCard from '../../src/components/share/MonthShareCard';
+import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
 import ViewShot from 'react-native-view-shot';
+import { getStreakDayIndex0 } from '../../src/utils/streakDisplay';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -61,6 +66,15 @@ function formatPaceMinPerKm(distanceKm: number, durationMin: number): string {
 function targetPaceLabel(targetKm: number, targetMin: number): string {
   if (targetKm < 0.01 || targetMin <= 0) return '–';
   return formatPaceMinPerKm(targetKm, targetMin);
+}
+
+function dayGroupLabel(iso: string): string {
+  const when = new Date(iso);
+  return when.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function missionForRun(
@@ -96,24 +110,29 @@ function MonthHeader({
   onPrev,
   onNext,
   isCurrentMonth,
+  prevMonthHasData,
 }: {
   year: number;
   month: number;
   onPrev: () => void;
   onNext: () => void;
   isCurrentMonth: boolean;
+  prevMonthHasData: boolean;
 }) {
+  const prevDisabled = !prevMonthHasData;
   return (
     <View style={styles.monthHeader}>
       <TouchableOpacity
         onPress={onPrev}
-        style={styles.navBtn}
-        activeOpacity={0.7}
+        style={[styles.navBtn, prevDisabled && styles.navBtnDisabled]}
+        activeOpacity={prevDisabled ? 1 : 0.7}
+        disabled={prevDisabled}
+        accessibilityState={{ disabled: prevDisabled }}
       >
         <MaterialIcons
           name="chevron-left"
           size={26}
-          color={colors.textPrimary}
+          color={prevDisabled ? colors.textTertiary : colors.textPrimary}
         />
       </TouchableOpacity>
 
@@ -158,10 +177,10 @@ function MonthSummaryRow({
   return (
     <View style={[styles.summaryRow, compact && styles.summaryRowCompact]}>
       <SummaryStat
-        value={`${totalXp}`}
-        unit="XP"
-        icon="star"
-        color={colors.purple}
+        value={formatDistance(totalDistanceKm)}
+        unit="total"
+        icon="straighten"
+        color={colors.primary}
         compact={compact}
       />
       <View style={[styles.summaryDivider, compact && styles.summaryDividerCompact]} />
@@ -174,10 +193,10 @@ function MonthSummaryRow({
       />
       <View style={[styles.summaryDivider, compact && styles.summaryDividerCompact]} />
       <SummaryStat
-        value={formatDistance(totalDistanceKm)}
-        unit="total"
-        icon="straighten"
-        color={colors.primary}
+        value={`${totalXp}`}
+        unit="XP"
+        icon="star"
+        color={colors.purple}
         compact={compact}
       />
     </View>
@@ -223,12 +242,16 @@ function MonthRunRow({
   personaId,
   defaultActivityMode,
   onPress,
+  canShare,
+  onSharePress,
 }: {
   run: CompletedRun;
   mission: Mission | undefined;
   personaId: PersonaId | null | undefined;
   defaultActivityMode: ActivityMode;
   onPress: () => void;
+  canShare: boolean;
+  onSharePress: () => void;
 }) {
   const title = resolveMissionDisplayTitle(
     run.missionId,
@@ -241,9 +264,7 @@ function MonthRunRow({
     mode,
   );
   const when = new Date(run.completedAt);
-  const dateStr = when.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
+  const timeStr = when.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -274,9 +295,13 @@ function MonthRunRow({
             {title}
           </Text>
         </View>
-        <SortieOutcomeBadge outcome={outcome} />
+        <View style={styles.runRowRight}>
+          <SortieOutcomeBadge outcome={outcome} />
+        </View>
       </View>
-      <Text style={styles.runRowDate}>{dateStr} · {modeLabel}</Text>
+      <Text style={styles.runRowDate}>
+        {timeStr} · {modeLabel}
+      </Text>
 
       <View style={styles.runRowMetrics}>
         <Text style={styles.runRowMetricLabel}>Target</Text>
@@ -288,14 +313,26 @@ function MonthRunRow({
       </View>
       <View style={styles.runRowMetrics}>
         <Text style={styles.runRowMetricLabel}>Actual</Text>
-        <Text style={styles.runRowMetricValue}>
+        <Text style={styles.runRowMetricValueActual}>
           {formatDistance(run.distanceKm)} · {Math.round(run.durationMin)} min ·{' '}
           {formatPaceMinPerKm(run.distanceKm, run.durationMin)}
         </Text>
       </View>
-      <View style={styles.runRowXp}>
-        <MaterialIcons name="star" size={14} color={colors.purple} />
-        <Text style={styles.runRowXpText}>+{run.xpEarned} XP</Text>
+      <View style={styles.runRowBottom}>
+        {canShare ? (
+          <TouchableOpacity
+            onPress={onSharePress}
+            style={styles.runRowShareBtn}
+            hitSlop={12}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Share this mission"
+          >
+            <MaterialIcons name="ios-share" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
+        <View style={styles.runRowBottomSpacer} />
+        <Text style={styles.runRowXpInline}>+{run.xpEarned} XP</Text>
         <MaterialIcons
           name="chevron-right"
           size={18}
@@ -316,7 +353,6 @@ export default function StatsScreen() {
 
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
-  const [isMonthSharing, setIsMonthSharing] = useState(false);
   /** When false, missions list omits aborted attempts; tap to reveal. */
   const [showAbortedInMonthList, setShowAbortedInMonthList] = useState(false);
 
@@ -327,7 +363,8 @@ export default function StatsScreen() {
   );
   const weekMissions = useMissionsStore((s) => s.weekMissions);
 
-  const monthShareRef = useRef<ViewShot>(null);
+  const runShareRef = useRef<ViewShot>(null);
+  const [sharingRun, setSharingRun] = useState<CompletedRun | null>(null);
 
   useEffect(() => {
     const n = getNow();
@@ -340,6 +377,12 @@ export default function StatsScreen() {
   }, [year, month]);
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
+  const prevMonthHasData = useMemo(() => {
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    return getRunsForMonth(runHistory, prevYear, prevMonth).length > 0;
+  }, [runHistory, year, month]);
 
   const handlePrev = () => {
     if (month === 0) {
@@ -359,15 +402,6 @@ export default function StatsScreen() {
       setMonth((m) => m + 1);
     }
   };
-
-  const handleMonthShare = useCallback(async () => {
-    setIsMonthSharing(true);
-    try {
-      await shareCard(monthShareRef);
-    } finally {
-      setIsMonthSharing(false);
-    }
-  }, []);
 
   const monthStats = useMemo(
     () => getMonthStats(runHistory, year, month),
@@ -392,6 +426,27 @@ export default function StatsScreen() {
     [runsMonth, showAbortedInMonthList],
   );
 
+  const visibleRunsByDay = useMemo(() => {
+    const groups = new Map<string, CompletedRun[]>();
+    for (const run of visibleRunsMonth) {
+      const key = run.completedAt.slice(0, 10);
+      const bucket = groups.get(key);
+      if (bucket) {
+        bucket.push(run);
+      } else {
+        groups.set(key, [run]);
+      }
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([dayKey, dayRuns]) => {
+        const sorted = [...dayRuns].sort((x, y) =>
+          y.completedAt.localeCompare(x.completedAt),
+        );
+        return [dayKey, sorted] as [string, CompletedRun[]];
+      });
+  }, [visibleRunsMonth]);
+
   const openRunDetail = useCallback((run: CompletedRun) => {
     router.push({
       pathname: '/run/history',
@@ -400,6 +455,17 @@ export default function StatsScreen() {
         completedAt: encodeURIComponent(run.completedAt),
       },
     });
+  }, []);
+
+  const handleShareRun = useCallback(async (run: CompletedRun) => {
+    setSharingRun(run);
+    await new Promise((r) => setTimeout(r, 50));
+    try {
+      const hasPath = run.path && run.path.length >= 2;
+      await shareCard(runShareRef, { delayMs: hasPath ? 550 : 100 });
+    } finally {
+      setSharingRun(null);
+    }
   }, []);
 
   return (
@@ -413,34 +479,18 @@ export default function StatsScreen() {
           <Text style={styles.screenTitle}>Monthly Stats</Text>
         </Animated.View>
 
-        {/* Monthly summary — top (compact, share inline) */}
+        {/* Monthly summary */}
         <Animated.View
           entering={FadeInDown.delay(30).duration(300)}
           style={[styles.card, styles.monthCardCompact]}
         >
           {runsMonth.length > 0 ? (
-            <View style={styles.summaryRowWithShare}>
-              <View style={styles.summaryRowFlex}>
-                <MonthSummaryRow
-                  compact
-                  totalXp={monthStats.totalXp}
-                  totalMissions={monthStats.totalMissions}
-                  totalDistanceKm={monthStats.totalDistanceKm}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={handleMonthShare}
-                style={styles.shareIconInline}
-                activeOpacity={0.7}
-                accessibilityLabel="Share month summary"
-              >
-                <MaterialIcons
-                  name="ios-share"
-                  size={18}
-                  color={isMonthSharing ? colors.textTertiary : colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
+            <MonthSummaryRow
+              compact
+              totalXp={monthStats.totalXp}
+              totalMissions={monthStats.totalMissions}
+              totalDistanceKm={monthStats.totalDistanceKm}
+            />
           ) : (
             <Text style={styles.emptyText}>
               No activity recorded for this month yet.
@@ -455,15 +505,15 @@ export default function StatsScreen() {
             onPrev={handlePrev}
             onNext={handleNext}
             isCurrentMonth={isCurrentMonth}
+            prevMonthHasData={prevMonthHasData}
           />
         </Animated.View>
 
-        {/* Missions this month (list includes all attempts) */}
+        {/* Mission list — no outer card (day groups + mission cards carry borders) */}
         <Animated.View
           entering={FadeInDown.delay(80).duration(300)}
-          style={styles.card}
+          style={styles.missionsSection}
         >
-          <Text style={styles.listSectionTitle}>Missions this month</Text>
           {runsMonth.length === 0 ? (
             <Text style={styles.emptyText}>
               No recorded runs or cycles in {getMonthName(month)} {year}.
@@ -476,15 +526,26 @@ export default function StatsScreen() {
                 </Text>
               ) : (
                 <View style={styles.runList}>
-                  {visibleRunsMonth.map((run) => (
-                    <MonthRunRow
-                      key={`${run.missionId}-${run.completedAt}`}
-                      run={run}
-                      mission={missionForRun(run.missionId, weekMissions)}
-                      personaId={profilePersona}
-                      defaultActivityMode={defaultActivityMode}
-                      onPress={() => openRunDetail(run)}
-                    />
+                  {visibleRunsByDay.map(([dayKey, dayRuns]) => (
+                    <View key={dayKey} style={styles.dayGroup}>
+                      <Text style={styles.dayGroupTitle}>
+                        {dayGroupLabel(dayRuns[0]!.completedAt)}
+                      </Text>
+                      <View style={styles.dayGroupRuns}>
+                        {dayRuns.map((run) => (
+                          <MonthRunRow
+                            key={`${run.missionId}-${run.completedAt}`}
+                            run={run}
+                            mission={missionForRun(run.missionId, weekMissions)}
+                            personaId={profilePersona}
+                            defaultActivityMode={defaultActivityMode}
+                            onPress={() => openRunDetail(run)}
+                            canShare={isMissionCompletedOrPartial(run)}
+                            onSharePress={() => handleShareRun(run)}
+                          />
+                        ))}
+                      </View>
+                    </View>
                   ))}
                 </View>
               )}
@@ -518,14 +579,21 @@ export default function StatsScreen() {
 
       </ScrollView>
 
-      <View style={styles.offscreen} pointerEvents="none">
-        <MonthShareCard
-          ref={monthShareRef}
-          runHistory={runHistory}
-          year={year}
-          month={month}
-        />
-      </View>
+      {sharingRun && (
+        <View style={styles.offscreen} pointerEvents="none">
+          <RunShareCard
+            ref={runShareRef}
+            distanceKm={sharingRun.distanceKm}
+            durationMin={sharingRun.durationMin}
+            xpEarned={sharingRun.xpEarned}
+            streakDay={getStreakDayIndex0(sharingRun, runHistory)}
+            missionType={
+              missionForRun(sharingRun.missionId, weekMissions)?.type ?? 'easy'
+            }
+            path={sharingRun.path}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -599,6 +667,9 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.semibold,
   } as TextStyle,
 
+  missionsSection: {
+    gap: spacing.md,
+  } as ViewStyle,
   offscreen: {
     position: 'absolute',
     left: -9999,
@@ -620,30 +691,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     gap: 0,
   } as ViewStyle,
-  summaryRowWithShare: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  } as ViewStyle,
-  summaryRowFlex: {
-    flex: 1,
-    minWidth: 0,
-  } as ViewStyle,
-  shareIconInline: {
-    padding: spacing.xs,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  } as ViewStyle,
 
-  listSectionTitle: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: spacing.xs,
-  } as TextStyle,
   runList: {
     gap: spacing.md,
   } as ViewStyle,
@@ -657,9 +705,15 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   runRowTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
+  } as ViewStyle,
+  runRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 0,
   } as ViewStyle,
   runRowTitleWrap: {
     flex: 1,
@@ -705,24 +759,46 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     lineHeight: 20,
   } as TextStyle,
-  runRowXp: {
+  runRowMetricValueActual: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    lineHeight: 24,
+  } as TextStyle,
+  runRowXpInline: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.purple,
+  } as TextStyle,
+  runRowBottom: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    marginTop: spacing.xs,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
   } as ViewStyle,
-  runRowXpText: {
+  runRowShareBtn: {
+    padding: spacing.xs,
+    marginLeft: -spacing.xs,
+  } as ViewStyle,
+  runRowBottomSpacer: {
     flex: 1,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    color: colors.purple,
-  } as TextStyle,
+    minWidth: 0,
+  } as ViewStyle,
   runRowChevron: {
-    marginLeft: 'auto',
+    marginTop: 1,
+  } as ViewStyle,
+  dayGroup: {
+    gap: spacing.sm,
+  } as ViewStyle,
+  dayGroupTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   } as TextStyle,
+  dayGroupRuns: {
+    gap: spacing.md,
+  } as ViewStyle,
 
   summaryRow: {
     flexDirection: 'row',

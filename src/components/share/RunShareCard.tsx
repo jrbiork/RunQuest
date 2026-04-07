@@ -1,7 +1,8 @@
 import { forwardRef } from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 import ViewShot from 'react-native-view-shot';
-import Svg, { Polyline } from 'react-native-svg';
+import Svg, { Polyline as SvgPolyline } from 'react-native-svg';
+import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { GpsPoint, MissionType } from '../../types';
 
@@ -59,6 +60,25 @@ function missionLabel(type: MissionType): string {
 }
 
 /** Normalise GPS points to a [0,1] bounding box and scale to the SVG canvas. */
+function regionFromPath(path: GpsPoint[]) {
+  const lats = path.map((p) => p.latitude);
+  const lngs = path.map((p) => p.longitude);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const midLat = (minLat + maxLat) / 2;
+  const midLng = (minLng + maxLng) / 2;
+  const latSpan = Math.max(maxLat - minLat, 0.0004);
+  const lngSpan = Math.max(maxLng - minLng, 0.0004);
+  return {
+    latitude: midLat,
+    longitude: midLng,
+    latitudeDelta: Math.max(latSpan * 1.45, 0.005),
+    longitudeDelta: Math.max(lngSpan * 1.45, 0.005),
+  };
+}
+
 function buildPolylinePoints(path: GpsPoint[], w: number, h: number): string {
   if (path.length < 2) return '';
   const lats = path.map((p) => p.latitude);
@@ -122,7 +142,15 @@ const RunShareCard = forwardRef<ViewShot, RunShareCardProps>(
     const polyPoints = path && path.length >= 2 ? buildPolylinePoints(path, ROUTE_W, ROUTE_H) : '';
 
     return (
-      <ViewShot ref={ref} options={{ format: 'png', quality: 1.0 }} style={sc.shot}>
+      <ViewShot
+        ref={ref}
+        options={{
+          format: 'png',
+          quality: 1.0,
+          handleGLSurfaceViewOnAndroid: true,
+        }}
+        style={sc.shot}
+      >
         <View style={[sc.card, { borderTopColor: accent }]}>
           {/* Header */}
           <View style={[sc.header, { backgroundColor: accent }]}>
@@ -145,20 +173,54 @@ const RunShareCard = forwardRef<ViewShot, RunShareCardProps>(
             <StatBlock label="Time" value={formatDuration(durationMin)} accent="#FF6B35" />
           </View>
 
-          {/* Route path (or placeholder) */}
+          {/* Route: real map + path on native; SVG schematic on web */}
           <View style={sc.routeSection}>
-            {polyPoints.length > 0 ? (
-              <Svg width={ROUTE_W} height={ROUTE_H}>
-                <Polyline
-                  points={polyPoints}
-                  fill="none"
-                  stroke={accent}
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-            ) : (
+            {path && path.length >= 2 ? (
+              Platform.OS === 'web' ? (
+                polyPoints.length > 0 ? (
+                  <Svg width={ROUTE_W} height={ROUTE_H}>
+                    <SvgPolyline
+                      points={polyPoints}
+                      fill="none"
+                      stroke={accent}
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                ) : null
+              ) : (
+                <View style={sc.mapWrap} collapsable={false}>
+                  <MapView
+                    style={sc.map}
+                    provider={PROVIDER_DEFAULT}
+                    initialRegion={regionFromPath(path)}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    pitchEnabled={false}
+                    rotateEnabled={false}
+                    mapType="standard"
+                    showsUserLocation={false}
+                    showsMyLocationButton={false}
+                    showsCompass={false}
+                    toolbarEnabled={false}
+                  >
+                    <Polyline
+                      coordinates={path.map((p) => ({
+                        latitude: p.latitude,
+                        longitude: p.longitude,
+                      }))}
+                      strokeColor={accent}
+                      strokeWidth={4}
+                      lineCap="round"
+                      lineJoin="round"
+                      geodesic
+                    />
+                  </MapView>
+                </View>
+              )
+            ) : null}
+            {(!path || path.length < 2 || (Platform.OS === 'web' && !polyPoints.length)) && (
               <View style={[sc.routePlaceholder, { borderColor: accent }]}>
                 <MaterialIcons name="directions-run" size={28} color={accent} />
                 <Text style={[sc.routePlaceholderText, { color: accent }]}>
@@ -282,10 +344,21 @@ const sc = StyleSheet.create({
   routeSection: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: ROUTE_H + 16,
+    minHeight: ROUTE_H + 16,
     backgroundColor: '#12121C',
     marginHorizontal: 0,
     paddingVertical: 8,
+  } as ViewStyle,
+  mapWrap: {
+    width: ROUTE_W,
+    height: ROUTE_H,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#12121C',
+  } as ViewStyle,
+  map: {
+    width: ROUTE_W,
+    height: ROUTE_H,
   } as ViewStyle,
   routePlaceholder: {
     width: ROUTE_W,

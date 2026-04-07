@@ -88,8 +88,34 @@ interface MissionTargets {
   cyclingDurationMin: number;
 }
 
-function getTargets(type: MissionType, level: ExperienceLevel): MissionTargets {
-  // Running targets (kept at 1km/5min for easy testing)
+/**
+ * Game-level 1 (Recruit) run targets — 300–500 m for testing; 5 min time window.
+ * Matches `LEVEL_CLASS_TITLES[0]` in xpCalculator.
+ */
+export const RECRUIT_TARGET_DISTANCES_KM: Record<MissionType, number> = {
+  easy: 0.4,
+  recovery: 0.3,
+  tempo: 0.45,
+  interval: 0.5,
+  long: 0.5,
+};
+
+function getTargets(
+  type: MissionType,
+  level: ExperienceLevel,
+  classLevel: number,
+): MissionTargets {
+  if (classLevel === 1) {
+    const distanceKm = RECRUIT_TARGET_DISTANCES_KM[type];
+    return {
+      distanceKm,
+      durationMin: 5,
+      cyclingDistanceKm: Math.round(distanceKm * 2.5 * 10) / 10,
+      cyclingDurationMin: 5,
+    };
+  }
+
+  // Running targets (kept at 1km/5min for easy testing above Recruit)
   const runTargets: Record<ExperienceLevel, Record<MissionType, { distanceKm: number; durationMin: number }>> = {
     beginner: {
       easy:     { distanceKm: 1, durationMin: 5 },
@@ -140,7 +166,7 @@ function buildMission(
   classLevel: number,
 ): Mission {
   const template = MISSION_TEMPLATES[type];
-  const targets = getTargets(type, level);
+  const targets = getTargets(type, level, classLevel);
   const variant = template.variants?.length ? pick(template.variants) : null;
 
   // Sequential path only — Run / Journey use first incomplete mission, not calendar day.

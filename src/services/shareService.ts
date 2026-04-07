@@ -4,11 +4,24 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import ViewShot from 'react-native-view-shot';
 
+export type ShareCardOptions = {
+  /** Wait before capture (e.g. let MapView tiles render). */
+  delayMs?: number;
+};
+
 /**
  * Captures a ViewShot ref as a PNG, optionally saves it to the camera roll,
  * then opens the native share sheet (or Instagram Stories deep-link on iOS).
  */
-export async function shareCard(viewShotRef: RefObject<ViewShot | null>): Promise<void> {
+export async function shareCard(
+  viewShotRef: RefObject<ViewShot | null>,
+  options?: ShareCardOptions,
+): Promise<void> {
+  const delayMs = options?.delayMs ?? 0;
+  if (delayMs > 0) {
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+
   const shot = viewShotRef.current;
   if (!shot?.capture) {
     Alert.alert('Share failed', 'Share card is not ready yet. Please try again.');
