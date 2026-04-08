@@ -82,8 +82,7 @@ export default function ProfileScreen() {
   const [showGoalEditor, setShowGoalEditor] = useState(false);
   void showGoalEditor;
   const [levelModalVisible, setLevelModalVisible] = useState(false);
-  const [devTestMissionCountInput, setDevTestMissionCountInput] =
-    useState('1');
+  const [devTestMissionCountInput, setDevTestMissionCountInput] = useState('1');
 
   const handleReset = () => {
     Alert.alert(
@@ -336,7 +335,10 @@ export default function ProfileScreen() {
                     return;
                   }
                   if (n === 0) {
-                    Alert.alert('Nothing to do', 'Enter a number greater than zero.');
+                    Alert.alert(
+                      'Nothing to do',
+                      'Enter a number greater than zero.',
+                    );
                     return;
                   }
                   Alert.alert(
@@ -395,7 +397,10 @@ export default function ProfileScreen() {
                         profile,
                         useUserStore.getState().xp,
                       );
-                      Alert.alert('Missions reset', 'A new mission queue is ready.');
+                      Alert.alert(
+                        'Missions reset',
+                        'A new mission queue is ready.',
+                      );
                     },
                   },
                 ],

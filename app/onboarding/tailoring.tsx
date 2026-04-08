@@ -42,8 +42,12 @@ export default function OnboardingTailoringScreen() {
   const xp = useUserStore((s) => s.xp);
   const runHistory = useUserStore((s) => s.runHistory);
   const missionCount = useMissionsStore((s) => s.weekMissions.length);
-  const iosLocationPromptDone = useUserStore((s) => s.iosAlwaysLocationPromptCompleted);
-  const markIosLocationPromptDone = useUserStore((s) => s.markIosAlwaysLocationPromptCompleted);
+  const iosLocationPromptDone = useUserStore(
+    (s) => s.iosAlwaysLocationPromptCompleted,
+  );
+  const markIosLocationPromptDone = useUserStore(
+    (s) => s.markIosAlwaysLocationPromptCompleted,
+  );
   const [progress, setProgress] = useState(0);
   const [phaseDone, setPhaseDone] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
@@ -143,20 +147,30 @@ export default function OnboardingTailoringScreen() {
           <Text style={styles.kicker}>YOUR CLASS</Text>
           <Text style={styles.title}>You&apos;re cleared to start</Text>
           <Text style={styles.sub}>
-            You begin as <Text style={styles.subEm}>{levelInfo.title}</Text>. Your mission queue matches
-            how often you train. Complete missions for XP — reach the next level to get a fresh set. Hit
-            distance under target time for full credit.
+            You begin as <Text style={styles.subEm}>{levelInfo.title}</Text>.
+            Your mission queue matches how often you train. Complete missions
+            for XP — reach the next level to get a fresh set. Hit distance under
+            target time for full credit.
           </Text>
         </View>
 
         <View style={styles.progressBlock}>
-          <ProgressBar progress={progress} color={levelInfo.accentColor} height={8} />
+          <ProgressBar
+            progress={progress}
+            color={levelInfo.accentColor}
+            height={8}
+          />
         </View>
 
         {phaseDone && (
-          <View style={[styles.rankCard, { borderColor: levelInfo.accentColor }]}>
+          <View
+            style={[styles.rankCard, { borderColor: levelInfo.accentColor }]}
+          >
             <View
-              style={[styles.rankSwatch, { backgroundColor: levelInfo.accentColor }]}
+              style={[
+                styles.rankSwatch,
+                { backgroundColor: levelInfo.accentColor },
+              ]}
             />
             <View style={styles.rankBody}>
               <Text style={styles.summaryLabel}>Starting level</Text>
@@ -164,8 +178,8 @@ export default function OnboardingTailoringScreen() {
                 {levelInfo.title}
               </Text>
               <Text style={styles.summaryDesc}>
-                Level {levelInfo.level} of {SCAVENGER_LEVEL_COUNT}. Earn XP from missions to cross the
-                next threshold.
+                Level {levelInfo.level} of {SCAVENGER_LEVEL_COUNT}. Earn XP from
+                missions to cross the next threshold.
               </Text>
               {nextRankTitle && xpToNext > 0 ? (
                 <Text style={styles.nextRank}>
@@ -184,10 +198,13 @@ export default function OnboardingTailoringScreen() {
               <View style={styles.summaryTextCol}>
                 <Text style={styles.summaryLabel}>Missions queued</Text>
                 <Text style={styles.summaryValue}>
-                  {missionCount > 0 ? `${missionCount} in queue` : 'Open journey to sync'}
+                  {missionCount > 0
+                    ? `${missionCount} in queue`
+                    : 'Open journey to sync'}
                 </Text>
                 <Text style={styles.summaryDesc}>
-                  Finish them in order. When you promote to a new level, you get a fresh set.
+                  Finish them in order. When you promote to a new level, you get
+                  a fresh set.
                 </Text>
               </View>
             </View>
@@ -212,12 +229,18 @@ export default function OnboardingTailoringScreen() {
       >
         <View style={styles.locModalBackdrop}>
           <View style={styles.locModalCard}>
-            <MaterialIcons name="my-location" size={24} color={colors.primary} style={styles.locModalIcon} />
+            <MaterialIcons
+              name="my-location"
+              size={24}
+              color={colors.primary}
+              style={styles.locModalIcon}
+            />
             <Text style={styles.locModalTitle}>Always-on location</Text>
             <Text style={styles.locModalBody}>
-              For accurate distance and route when RunQuest is in the background or your screen is
-              locked, choose <Text style={styles.locModalEm}>Always</Text> when prompted. You can
-              change this anytime in Settings.
+              For accurate distance and route when RunQuest is in the background
+              or your screen is locked, choose{' '}
+              <Text style={styles.locModalEm}>Always</Text> when prompted. You
+              can change this anytime in Settings.
             </Text>
             <TouchableOpacity
               style={[styles.locOpenSettings, { borderColor: colors.primary }]}
@@ -233,13 +256,6 @@ export default function OnboardingTailoringScreen() {
               fullWidth
               disabled={locationRequesting}
               loading={locationRequesting}
-            />
-            <Button
-              label="Not now"
-              onPress={handleLocationNotNow}
-              variant="ghost"
-              fullWidth
-              disabled={locationRequesting}
             />
           </View>
         </View>

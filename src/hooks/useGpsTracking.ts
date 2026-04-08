@@ -151,7 +151,8 @@ export interface GpsTrackingState {
   isTracking: boolean;
   isPaused: boolean;
   hasPermission: boolean | null;
-  start: () => Promise<void>;
+  /** Resolves to true when foreground location permission is granted and tracking is active. */
+  start: () => Promise<boolean>;
   stop: () => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
@@ -323,7 +324,7 @@ export function useGpsTracking(): GpsTrackingState {
       await Location.requestForegroundPermissionsAsync();
     if (fgStatus !== 'granted') {
       setHasPermission(false);
-      return;
+      return false;
     }
 
     let hasBg = false;
@@ -447,6 +448,8 @@ export function useGpsTracking(): GpsTrackingState {
         }
       }
     }, 1000);
+
+    return true;
   }, [_startForegroundWatcher, _startBackgroundTask]);
 
   // Cleanup on unmount

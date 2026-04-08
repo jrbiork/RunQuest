@@ -111,9 +111,6 @@ export default function ActiveRunScreen() {
   const recordEffortFromElapsedSec = useUserStore(
     (s) => s.recordEffortFromElapsedSec,
   );
-  const recordStreakOnMissionStart = useUserStore(
-    (s) => s.recordStreakOnMissionStart,
-  );
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun
     ? FUN_RUN_MISSION
@@ -305,23 +302,16 @@ export default function ActiveRunScreen() {
     return () => setRunActive(false);
   }, [setRunActive]);
 
-  const handleStartSession = useCallback(() => {
-    start();
+  const handleStartSession = useCallback(async () => {
+    const trackingStarted = await start();
+    if (!trackingStarted) return;
     setSessionStarted(true);
+    // Day streak (max once per calendar day): store action; getState avoids stale fn + persist race with rehydrate.
+    if (!streakRecordedForSessionRef.current) {
+      streakRecordedForSessionRef.current = true;
+      useUserStore.getState().recordStreakOnMissionStart();
+    }
   }, [start]);
-
-  // Profile day streak: once per calendar day when a campaign mission’s GPS session starts (outcome does not matter).
-  useEffect(() => {
-    if (
-      !isTracking ||
-      !mission ||
-      isFreeRun ||
-      streakRecordedForSessionRef.current
-    )
-      return;
-    streakRecordedForSessionRef.current = true;
-    recordStreakOnMissionStart();
-  }, [isTracking, mission, isFreeRun, recordStreakOnMissionStart]);
 
   useEffect(() => {
     if (!isTracking) return;

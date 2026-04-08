@@ -54,6 +54,40 @@ interface UserActions {
 
 type UserStore = UserState & UserActions;
 
+/** Avoid regressing session updates if rehydration finishes after an in-memory write (default merge prefers persisted keys). */
+function mergeUserPersist(
+  persistedState: unknown,
+  currentState: UserStore,
+): UserStore {
+  const p = persistedState as Partial<UserState> | undefined;
+  const merged: UserStore = {
+    ...currentState,
+    ...(p ?? {}),
+  };
+  merged.streak = Math.max(currentState.streak, p?.streak ?? 0);
+  merged.longestStreak = Math.max(
+    currentState.longestStreak,
+    p?.longestStreak ?? 0,
+  );
+  const cDate = currentState.lastRunDate;
+  const pDate = p?.lastRunDate ?? null;
+  merged.lastRunDate =
+    cDate && pDate ? (cDate >= pDate ? cDate : pDate) : cDate ?? pDate ?? null;
+  merged.xp = Math.max(currentState.xp, p?.xp ?? 0);
+  merged.totalRuns = Math.max(currentState.totalRuns, p?.totalRuns ?? 0);
+  merged.totalDistanceKm = Math.max(
+    currentState.totalDistanceKm,
+    p?.totalDistanceKm ?? 0,
+  );
+  const cLen = currentState.runHistory?.length ?? 0;
+  const pLen = p?.runHistory?.length ?? 0;
+  merged.runHistory =
+    cLen >= pLen
+      ? currentState.runHistory
+      : (p?.runHistory ?? currentState.runHistory);
+  return merged;
+}
+
 export const useUserStore = create<UserStore>()(
   persist(
     (set, get) => ({
@@ -238,6 +272,7 @@ export const useUserStore = create<UserStore>()(
     {
       name: 'runquest-user',
       storage: createJSONStorage(() => AsyncStorage),
+      merge: mergeUserPersist,
       version: 4,
       migrate: (persisted: unknown, version: number) => {
         const s = persisted as Record<string, unknown> & {
