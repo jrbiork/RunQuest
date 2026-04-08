@@ -7,7 +7,7 @@ import type {
   RunningGoal,
 } from '../types';
 import { MISSION_TEMPLATES } from '../constants/missions';
-import { BASE_XP } from './xpCalculator';
+import { BASE_XP, SCAVENGER_LEVEL_COUNT } from './xpCalculator';
 import { getNextPreferredDayOccurrences, getTodayISO } from './dateUtils';
 import { stripEmojis } from './stripEmojis';
 
@@ -122,7 +122,7 @@ function getTargets(
     };
   }
 
-  const cappedLevel = Math.max(2, Math.min(25, classLevel));
+  const cappedLevel = Math.max(2, Math.min(SCAVENGER_LEVEL_COUNT, classLevel));
   const baseDistanceByLevel: Record<number, number> = {
     2: 1.0,
     3: 1.5,
@@ -222,7 +222,7 @@ function buildMission(
 
 // ─── Level → mission difficulty tier ────────────────────────────────────
 
-/** Map game level (1…25) to mission generator experience band. */
+/** Map game level (1…SCAVENGER_LEVEL_COUNT) to mission generator experience band. */
 export function experienceTierForClassLevel(classLevel: number): ExperienceLevel {
   if (classLevel <= 5) return 'beginner';
   if (classLevel <= 10) return 'intermediate';

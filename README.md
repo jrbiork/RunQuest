@@ -46,18 +46,21 @@ Debug builds load JavaScript from the **Metro bundler** and do **not** embed `ma
 - **Fix during development:** Run `npx expo start` before opening the app; keep the device on the same network or use a tunnel.
 - **Standalone installs (no Metro):** Run a **Release** build from Xcode or ship via EAS so the JS bundle is embedded at build time.
 
-### Optional: map polyline snapping (OpenRouteService)
+### Live route quality (no external map-matching API)
 
-The active run map draws a road-following polyline using a two-tier snap strategy:
+Run tracking now uses a local GPS filtering pipeline (no Google Roads / ORS calls):
 
-1. **Google Roads API** (map matching — best accuracy, no corner-cutting): set `GOOGLE_ROADS_API_KEY`
-2. **OpenRouteService** (routing fallback): set `EXPO_PUBLIC_OPENROUTESERVICE_KEY`
+- **`acceptedPath` (canonical):** filtered GPS points used for distance, pace, persistence, and mission logic
+- **`displayPath` (map-only):** lightly smoothed derivative of `acceptedPath` for cleaner polyline rendering
 
-```bash
-GOOGLE_ROADS_API_KEY=your_key EXPO_PUBLIC_OPENROUTESERVICE_KEY=your_key npx expo start
-```
+Filtering and stability rules:
 
-Both keys are read from `expo.extra` via [`app.config.js`](app.config.js). Without either key the map falls back to raw GPS points.
+- reject poor-accuracy fixes
+- reject tiny jitter and implausible jumps
+- apply a stationary guard to avoid distance creep while standing still
+- delay polyline drawing during startup warmup until signal quality is stable
+
+No map-matching API keys are required for live run tracking.
 
 ---
 
@@ -195,5 +198,3 @@ The architecture is ready for a backend. When you're ready:
 - Path alias `@/` maps to `src/` — configured in both `tsconfig.json` and `babel.config.js`
 - All stores persist to AsyncStorage under keys `runquest-user` and `runquest-missions`
 - To reset all local data: use the "Reset & Restart Onboarding" button in the Profile tab
-# RunQuest
-# RunQuest

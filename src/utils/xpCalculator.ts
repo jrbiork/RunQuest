@@ -13,32 +13,12 @@ export const BASE_XP: Record<MissionType, number> = {
 // ─── Level Thresholds (cumulative XP to reach each level) ───────────────
 
 const LEVEL_THRESHOLDS = [
-  0,
-  150,
-  350,
-  650,
-  1050,
-  1550,
-  2200,
-  3000,
-  4000,
-  5250,
-  6750,
-  8500,
-  10500,
-  12800,
-  15400,
-  // Post-Sovereign (levels 16–25)
-  18200,
-  21200,
-  24500,
-  28200,
-  32400,
-  37200,
-  42800,
-  49400,
-  57200,
-  66500,
+  0, 150, 350, 650, 1050, 1550, 2200, 3000, 4000, 5250, 6750, 8500, 10500,
+  12800, 15400,
+  // Post-Sovereign (levels 16–25); 26–30 continue above
+  18200, 21200, 24500, 28200, 32400, 37200, 42800, 49400, 57200, 66500,
+  // Post-Ultima (levels 26–30)
+  77500, 90500, 106000, 124500, 146500,
 ];
 
 /** Number of levels (1 … MAX inclusive). */
@@ -62,33 +42,38 @@ export function getDisplayXpWithStartingLevelOffset(
   return totalXp + getMinXpForLevel(startingClassLevel);
 }
 
-/** Display names — full level ladder (25 titles). */
+/** Display names — full level ladder (one per threshold row). */
 export const LEVEL_CLASS_TITLES = [
   'Recruit',
+  'Drifter',
+  'Survivor',
   'Runner',
+  'Pathfinder',
+  'Scout',
+  'Ranger',
+  'Tracker',
+  'Messenger',
+  'Outrider',
+  'Vanguard',
   'Strider',
   'Pacer',
-  'Scout',
-  'Pathfinder',
-  'Ranger',
-  'Striker',
+  'Endurer',
+  'Responder',
   'Operative',
+  'Striker',
+  'Guardian',
   'Sentinel',
+  'Enforcer',
+  'Commander',
   'Elite',
-  'Vanguard',
   'Apex',
+  'Overrunner',
+  'Ghost',
+  'Revenant',
+  'Warbringer',
   'Legend',
-  'Sovereign',
-  'Ascendant',
-  'Paragon',
   'Titan',
-  'Mythic',
-  'Eternal',
-  'Zenith',
-  'Prime',
-  'Celestial',
-  'Transcendent',
-  'Ultima',
+  'Last Hope',
 ] as const;
 
 /** Primary accent per level (hex), aligned with LEVEL_THRESHOLDS indices. */
@@ -119,10 +104,18 @@ export const LEVEL_CLASS_ACCENTS = [
   '#2DD4BF',
   '#FACC15',
   '#E879F9',
+  '#5EEAD4',
+  '#A5B4FC',
+  '#FDE68A',
+  '#FB7185',
+  '#86EFAC',
 ] as const;
 
 export function getLevelAccentForIndex(levelIndex0: number): string {
-  return LEVEL_CLASS_ACCENTS[levelIndex0] ?? LEVEL_CLASS_ACCENTS[LEVEL_CLASS_ACCENTS.length - 1]!;
+  return (
+    LEVEL_CLASS_ACCENTS[levelIndex0] ??
+    LEVEL_CLASS_ACCENTS[LEVEL_CLASS_ACCENTS.length - 1]!
+  );
 }
 
 export function getLevelInfo(totalXp: number): LevelInfo {
@@ -138,7 +131,9 @@ export function getLevelInfo(totalXp: number): LevelInfo {
   const levelIdx = level - 1;
   const xpAtLevelStart = LEVEL_THRESHOLDS[levelIdx] ?? 0;
   const xpAtNextLevel =
-    LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] ?? 66500;
+    LEVEL_THRESHOLDS[level] ??
+    LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] ??
+    66500;
 
   const xpInLevel = totalXp - xpAtLevelStart;
   const xpToNextLevel = xpAtNextLevel - xpAtLevelStart;
@@ -153,7 +148,7 @@ export function getLevelInfo(totalXp: number): LevelInfo {
     title:
       LEVEL_CLASS_TITLES[levelIdx] ??
       LEVEL_CLASS_TITLES[LEVEL_CLASS_TITLES.length - 1] ??
-      'Ultima',
+      'Omega',
     accentColor: getLevelAccentForIndex(levelIdx),
     xpInLevel,
     xpToNextLevel,
@@ -174,7 +169,12 @@ export function getOverallLevelRingProgress(info: LevelInfo): number {
 }
 
 /** Ladder rows for UI (global thresholds). */
-export function getScavengerLevelRows(): { level: number; title: string; minXp: number; accentColor: string }[] {
+export function getScavengerLevelRows(): {
+  level: number;
+  title: string;
+  minXp: number;
+  accentColor: string;
+}[] {
   return LEVEL_THRESHOLDS.map((minXp, i) => ({
     level: i + 1,
     title: LEVEL_CLASS_TITLES[i] ?? `Level ${i + 1}`,

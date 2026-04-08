@@ -16,7 +16,6 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import Constants from 'expo-constants';
 import { MaterialIcons } from '@expo/vector-icons';
 import MapView, {
   Polyline,
@@ -49,9 +48,11 @@ import {
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
 import {
+  buildDisplayPath,
   calcDistanceKm,
   formatElapsed,
   formatPaceLiveDisplay,
+  GPS_MAX_ACCURACY_M,
 } from '../../src/utils/haversine';
 import {
   useGpsTracking,
@@ -77,7 +78,6 @@ import {
   findMissionById,
   normalizeRouteParam,
 } from '../../src/utils/missionLookup';
-import { snapPathForMapDisplay } from '../../src/services/routeSnapService';
 import type { ActivityMode } from '../../src/types';
 import * as Location from 'expo-location';
 
@@ -89,6 +89,8 @@ const MAP_FOLLOW_MIN_MOVE_KM = 0.004;
 const MAP_FOLLOW_RESUME_AFTER_MS = 5000;
 /** Ignore region-complete right after our programmatic moves (Apple Maps can emit extras). */
 const MAP_FOLLOW_IGNORE_AFTER_PROGRAMMATIC_MS = 200;
+const POLYLINE_WARMUP_MIN_POINTS = 5;
+const POLYLINE_WARMUP_MIN_SECONDS = 10;
 
 export default function ActiveRunScreen() {
   const insets = useSafeAreaInsets();
@@ -114,7 +116,7 @@ export default function ActiveRunScreen() {
     : findMissionById(weekMissions, id);
   const setRunActive = useRunSessionStore((s) => s.setRunActive);
   const {
-    path,
+    acceptedPath,
     distanceKm,
     elapsedSec,
     speedMps,
@@ -125,12 +127,19 @@ export default function ActiveRunScreen() {
     stop,
     pause,
     resume,
+    gpsDebug,
   } = useGpsTracking();
 
   const paceDisplay = useMemo(
     () =>
-      formatPaceLiveDisplay(path, distanceKm, elapsedSec, speedMps, Date.now()),
-    [path, distanceKm, elapsedSec, speedMps],
+      formatPaceLiveDisplay(
+        acceptedPath,
+        distanceKm,
+        elapsedSec,
+        speedMps,
+        Date.now(),
+      ),
+    [acceptedPath, distanceKm, elapsedSec, speedMps],
   );
 
   // Determine targets based on activity mode
@@ -172,21 +181,8 @@ export default function ActiveRunScreen() {
   const ignoreUserGestureUntilMsRef = useRef(0);
   const [resumeFollowNonce, setResumeFollowNonce] = useState(0);
 
-  const [snappedPolyline, setSnappedPolyline] = useState<
-    { latitude: number; longitude: number }[] | null
-  >(null);
-  const pathSnapRef = useRef(path);
-  pathSnapRef.current = path;
-  const snapGenRef = useRef(0);
-  // Tracks how many path points were used in the last successful snap so the raw GPS
-  // tail (points added since) can be appended to polylineCoords for zero-lag live tracking.
-  const snappedPathCountRef = useRef(0);
-  const orsApiKey = (
-    Constants.expoConfig?.extra?.openRouteServiceApiKey as string | undefined
-  )?.trim();
-  const googleRoadsApiKey = (
-    Constants.expoConfig?.extra?.googleRoadsApiKey as string | undefined
-  )?.trim();
+  const pathSnapRef = useRef(acceptedPath);
+  pathSnapRef.current = acceptedPath;
 
   /** Last known fix so the map can center before Start / before the first watch callback. */
   const [mapBootstrapCoords, setMapBootstrapCoords] = useState<{
@@ -366,10 +362,10 @@ export default function ActiveRunScreen() {
     triggerGoalReached(stripEmojis(mission.title));
   }, [distanceGoalReached, mission, isFreeRun, triggerGoalReached]);
 
-  // Follow latest GPS point while preserving user-chosen map rotation (heading/pitch).
+  // Follow latest accepted GPS point while preserving user-chosen map rotation (heading/pitch).
   // Throttle: animating on every GPS tick stacks animations and flickers. Reset when path clears.
   useEffect(() => {
-    if (path.length === 0) {
+    if (acceptedPath.length === 0) {
       mapFollowStateRef.current = null;
       mapFollowModeRef.current = 'unknown';
       userPausedMapFollowRef.current = false;
@@ -379,7 +375,7 @@ export default function ActiveRunScreen() {
 
     if (userPausedMapFollowRef.current) return;
 
-    const latest = path[path.length - 1];
+    const latest = acceptedPath[acceptedPath.length - 1];
     const map = mapRef.current;
     if (!latest || !map || !mapReady) return;
 
@@ -507,14 +503,14 @@ export default function ActiveRunScreen() {
       }
     };
     void run();
-  }, [path, mapReady, resumeFollowNonce, clearMapFollowResumeTimer]);
+  }, [acceptedPath, mapReady, resumeFollowNonce, clearMapFollowResumeTimer]);
 
   const handleFinish = () => {
     setRunActive(false);
     stop();
     const durationMin = Math.max(1, Math.round(elapsedSec / 60));
-    const step = Math.ceil(path.length / 100);
-    const sampled = path.filter((_, i) => i % step === 0);
+    const step = Math.ceil(acceptedPath.length / 100);
+    const sampled = acceptedPath.filter((_, i) => i % step === 0);
     router.replace({
       pathname: '/run/complete',
       params: {
@@ -568,8 +564,8 @@ export default function ActiveRunScreen() {
             if (mission) {
               abortMission(mission.id);
               const durationMin = Math.max(0, Math.round(elapsedSec / 60));
-              const step = Math.max(1, Math.ceil(path.length / 100));
-              const sampledPath = path.filter((_, i) => i % step === 0);
+              const step = Math.max(1, Math.ceil(acceptedPath.length / 100));
+              const sampledPath = acceptedPath.filter((_, i) => i % step === 0);
               appendRunHistoryEntry({
                 missionId: mission.id,
                 completedAt: getNowISOString(),
@@ -616,64 +612,30 @@ export default function ActiveRunScreen() {
     return () => sub.remove();
   }, [sessionStarted, isTracking, confirmAbort]);
 
-  // Road-following polyline (Google Roads map matching → ORS Directions → ORS Snap fallback):
-  // interval + ref so updates are not reset by every GPS tick.
-  useEffect(() => {
-    if (path.length < 2) {
-      setSnappedPolyline(null);
-      return;
-    }
-    if (!googleRoadsApiKey && !orsApiKey) {
-      setSnappedPolyline(null);
-      return;
-    }
-    let cancelled = false;
-    const runSnap = () => {
-      if (cancelled) return;
-      const p = pathSnapRef.current;
-      if (p.length < 2) return;
-      const gen = ++snapGenRef.current;
-      const ac = new AbortController();
-      const snapPathCount = p.length;
-      snapPathForMapDisplay(
-        p,
-        activityMode,
-        orsApiKey ?? '',
-        ac.signal,
-        googleRoadsApiKey,
-      )
-        .then((coords) => {
-          if (cancelled || gen !== snapGenRef.current) return;
-          snappedPathCountRef.current = snapPathCount;
-          setSnappedPolyline(coords);
-        })
-        .catch(() => {});
-    };
-    runSnap();
-    const id = setInterval(runSnap, 4500);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [path.length >= 2, activityMode, orsApiKey, googleRoadsApiKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only (re)start when path becomes snap-ready
+  const hasWarmupStableAccuracy = useMemo(() => {
+    const tail = acceptedPath.slice(-3);
+    if (tail.length < 3) return false;
+    return tail.every((p) => p.accuracy == null || p.accuracy <= GPS_MAX_ACCURACY_M);
+  }, [acceptedPath]);
 
-  const polylineCoords = useMemo(() => {
-    const raw = path.map((p) => ({
-      latitude: p.latitude,
-      longitude: p.longitude,
-    }));
-    if (!snappedPolyline || snappedPolyline.length < 2) return raw;
-    // Append raw GPS points recorded after the last snap so the drawn path
-    // stays flush with the current position (blue dot) between snap intervals.
-    const tail = path
-      .slice(snappedPathCountRef.current)
-      .map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
-    return tail.length > 0 ? [...snappedPolyline, ...tail] : snappedPolyline;
-  }, [path, snappedPolyline]);
+  const shouldShowPolyline = useMemo(() => {
+    if (acceptedPath.length < 2) return false;
+    if (acceptedPath.length >= POLYLINE_WARMUP_MIN_POINTS && gpsDebug.warmupStable) {
+      return true;
+    }
+    const recentAccOk =
+      gpsDebug.lastAccuracyM == null || gpsDebug.lastAccuracyM <= GPS_MAX_ACCURACY_M;
+    return elapsedSec >= POLYLINE_WARMUP_MIN_SECONDS && hasWarmupStableAccuracy && recentAccOk;
+  }, [acceptedPath.length, elapsedSec, gpsDebug.lastAccuracyM, gpsDebug.warmupStable, hasWarmupStableAccuracy]);
+
+  const displayPath = useMemo(() => {
+    if (!shouldShowPolyline) return [];
+    return buildDisplayPath(acceptedPath);
+  }, [acceptedPath, shouldShowPolyline]);
 
   const initialRegion = useMemo(() => {
-    if (path.length > 0) {
-      const p = path[0]!;
+    if (acceptedPath.length > 0) {
+      const p = acceptedPath[0]!;
       return {
         latitude: p.latitude,
         longitude: p.longitude,
@@ -695,11 +657,11 @@ export default function ActiveRunScreen() {
       latitudeDelta: 0.08,
       longitudeDelta: 0.08,
     };
-  }, [path, mapBootstrapCoords]);
+  }, [acceptedPath, mapBootstrapCoords]);
 
   // Snap map to last known user location as soon as the map is ready (initialRegion often only applies on first mount).
   useEffect(() => {
-    if (!mapBootstrapCoords || !mapReady || path.length > 0) return;
+    if (!mapBootstrapCoords || !mapReady || acceptedPath.length > 0) return;
     const map = mapRef.current;
     if (!map) return;
     programmaticMapMoveRef.current = true;
@@ -712,7 +674,7 @@ export default function ActiveRunScreen() {
       },
       0,
     );
-  }, [mapBootstrapCoords, mapReady, path.length]);
+  }, [mapBootstrapCoords, mapReady, acceptedPath.length]);
 
   // ─── Error states ─────────────────────────────────────────────────────────
 
@@ -872,9 +834,9 @@ export default function ActiveRunScreen() {
           showsMyLocationButton={false}
           mapType="standard"
         >
-          {polylineCoords.length > 1 && (
+          {displayPath.length > 1 && (
             <Polyline
-              coordinates={polylineCoords}
+              coordinates={displayPath}
               strokeColor={config.color}
               strokeWidth={5}
               lineCap="round"
@@ -913,6 +875,19 @@ export default function ActiveRunScreen() {
               <View style={styles.mapFreeRunHint} pointerEvents="none">
                 <Text style={styles.mapFreeRunHintText}>
                   FREE RUN · NO TARGETS
+                </Text>
+              </View>
+            )}
+            {__DEV__ && (
+              <View style={styles.gpsDebugOverlay} pointerEvents="none">
+                <Text style={styles.gpsDebugText}>
+                  {`acc:${gpsDebug.lastAccuracyM?.toFixed(1) ?? '--'}m  sp:${gpsDebug.lastSpeedMps?.toFixed(2) ?? '--'}m/s`}
+                </Text>
+                <Text style={styles.gpsDebugText}>
+                  {`+d:${gpsDebug.lastDistanceDeltaM.toFixed(2)}m  A:${gpsDebug.acceptedPoints}  R:${gpsDebug.rejectedPoints}`}
+                </Text>
+                <Text style={styles.gpsDebugText}>
+                  {`warmup:${shouldShowPolyline ? 'ready' : 'holding'}`}
                 </Text>
               </View>
             )}
@@ -1400,6 +1375,25 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textSecondary,
     letterSpacing: 1,
+  } as TextStyle,
+  gpsDebugOverlay: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 16,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: 2,
+  } as ViewStyle,
+  gpsDebugText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: fontWeights.medium,
+    fontVariant: ['tabular-nums'],
   } as TextStyle,
 
   preStartOverlay: {

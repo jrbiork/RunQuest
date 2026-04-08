@@ -5,6 +5,13 @@ import type { GpsPoint, MissionAudioCueSet } from '../types';
 import {
   advanceGpsDistanceAnchor,
   GPS_MAX_ACCURACY_M,
+  GPS_MAX_JUMP_M_SHORT_DT,
+  GPS_POOR_ACCURACY_JUMP_M,
+  GPS_POOR_ACCURACY_M,
+  GPS_SHORT_DT_SEC,
+  GPS_STATIONARY_RADIUS_M,
+  GPS_STATIONARY_SPEED_MPS,
+  haversineM,
 } from '../utils/haversine';
 import { speakRunCue } from '../services/audioService';
 import { pickCue } from '../constants/missions';
@@ -20,6 +27,16 @@ const FG_TIME_INTERVAL_MS = 1000;
 /** Background updates: slightly conservative vs foreground. */
 const BG_DISTANCE_INTERVAL_M = 5;
 const BG_TIME_INTERVAL_MS = 3000;
+const STATIONARY_WINDOW_SIZE = 5;
+
+interface GpsDebugSnapshot {
+  acceptedPoints: number;
+  rejectedPoints: number;
+  lastAccuracyM: number | null;
+  lastSpeedMps: number | null;
+  lastDistanceDeltaM: number;
+  warmupStable: boolean;
+}
 
 // ─── Shared buffer ────────────────────────────────────────────────────────────
 // Points captured while the app is backgrounded are pushed here.
@@ -57,20 +74,60 @@ const _bgCueState: BgCueState = {
 // Incremental distance tracker — matches calcDistanceKmGps anchor logic (no O(n) each tick).
 let _bgDistanceKm = 0;
 let _bgAnchorPoint: GpsPoint | null = null;
+let _bgRecentAccepted: GpsPoint[] = [];
 // Timestamp set deduplicates points that arrive in both the foreground callback
 // and the background task (both fire while the app is foregrounded).
 const _bgSeenTimestamps = new Set<number>();
 
-function _addBgPoint(point: GpsPoint): void {
-  if (_bgSeenTimestamps.has(point.timestamp)) return;
+function _addBgPoint(point: GpsPoint, speedMps: number | null = null): {
+  accepted: boolean;
+  addedKm: number;
+} {
+  if (_bgSeenTimestamps.has(point.timestamp)) return { accepted: false, addedKm: 0 };
   _bgSeenTimestamps.add(point.timestamp);
+  if (point.accuracy != null && point.accuracy > GPS_MAX_ACCURACY_M) {
+    return { accepted: false, addedKm: 0 };
+  }
   if (_bgAnchorPoint === null) {
     _bgAnchorPoint = point;
-    return;
+    _bgRecentAccepted = [point];
+    return { accepted: true, addedKm: 0 };
+  }
+  const distM = haversineM(_bgAnchorPoint, point);
+  const dtSec = Math.max((point.timestamp - _bgAnchorPoint.timestamp) / 1000, 0.5);
+  const impliedSpeedMps = distM / dtSec;
+  if (dtSec <= GPS_SHORT_DT_SEC && distM > GPS_MAX_JUMP_M_SHORT_DT) {
+    return { accepted: false, addedKm: 0 };
+  }
+  if (
+    point.accuracy != null &&
+    point.accuracy > GPS_POOR_ACCURACY_M &&
+    distM > GPS_POOR_ACCURACY_JUMP_M
+  ) {
+    return { accepted: false, addedKm: 0 };
   }
   const { addedKm, anchor } = advanceGpsDistanceAnchor(_bgAnchorPoint, point);
+  const stationaryWindow = [..._bgRecentAccepted.slice(-4), anchor];
+  let radiusM = 0;
+  if (stationaryWindow.length >= 3) {
+    const center = stationaryWindow[stationaryWindow.length - 1]!;
+    for (const p of stationaryWindow) {
+      radiusM = Math.max(radiusM, haversineM(center, p));
+    }
+  }
+  const candidateSpeed = speedMps ?? impliedSpeedMps;
+  const stationaryBlocked =
+    addedKm > 0 &&
+    candidateSpeed <= GPS_STATIONARY_SPEED_MPS &&
+    radiusM > 0 &&
+    radiusM <= GPS_STATIONARY_RADIUS_M;
+  if (stationaryBlocked) return { accepted: false, addedKm: 0 };
   _bgDistanceKm += addedKm;
   _bgAnchorPoint = anchor;
+  if (addedKm > 0) {
+    _bgRecentAccepted = [..._bgRecentAccepted, anchor].slice(-STATIONARY_WINDOW_SIZE);
+  }
+  return { accepted: addedKm > 0, addedKm };
 }
 
 async function _checkBgMilestoneCues(): Promise<void> {
@@ -133,7 +190,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
         : {}),
     };
     _backgroundBuffer.push(point);
-    _addBgPoint(point);
+    _addBgPoint(point, loc.coords.speed ?? null);
   }
   // Await cue playback so the task stays alive until player.play() fires on native.
   // Without this await, iOS suspends JS before speakRunCue's async chain completes.
@@ -143,6 +200,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface GpsTrackingState {
+  /** Canonical filtered GPS path used for distance, pace, persistence, mission logic. */
+  acceptedPath: GpsPoint[];
+  /** Backward-compatible alias of acceptedPath. */
   path: GpsPoint[];
   distanceKm: number;
   elapsedSec: number;
@@ -151,6 +211,7 @@ export interface GpsTrackingState {
   isTracking: boolean;
   isPaused: boolean;
   hasPermission: boolean | null;
+  gpsDebug: GpsDebugSnapshot;
   /** Resolves to true when foreground location permission is granted and tracking is active. */
   start: () => Promise<boolean>;
   stop: () => Promise<void>;
@@ -166,6 +227,14 @@ export function useGpsTracking(): GpsTrackingState {
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [gpsDebug, setGpsDebug] = useState<GpsDebugSnapshot>({
+    acceptedPoints: 0,
+    rejectedPoints: 0,
+    lastAccuracyM: null,
+    lastSpeedMps: null,
+    lastDistanceDeltaM: 0,
+    warmupStable: false,
+  });
 
   const fgSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -186,6 +255,43 @@ export function useGpsTracking(): GpsTrackingState {
   const distanceKmRef = useRef<number>(0);
   /** Last GPS fix that was accepted as real movement (the anchor for jitter gating). */
   const anchorPointRef = useRef<GpsPoint | null>(null);
+  const recentAcceptedRef = useRef<GpsPoint[]>([]);
+  const rejectedPointsRef = useRef<number>(0);
+  const acceptedPointsRef = useRef<number>(0);
+  const warmupStableRef = useRef(false);
+
+  const _updateGpsDebug = useCallback(
+    (next: Partial<Omit<GpsDebugSnapshot, 'acceptedPoints' | 'rejectedPoints'>>) => {
+      setGpsDebug((prev) => {
+        const snapshot: GpsDebugSnapshot = {
+          acceptedPoints: acceptedPointsRef.current,
+          rejectedPoints: rejectedPointsRef.current,
+          lastAccuracyM:
+            next.lastAccuracyM === undefined ? prev.lastAccuracyM : next.lastAccuracyM,
+          lastSpeedMps:
+            next.lastSpeedMps === undefined ? prev.lastSpeedMps : next.lastSpeedMps,
+          lastDistanceDeltaM:
+            next.lastDistanceDeltaM === undefined
+              ? prev.lastDistanceDeltaM
+              : next.lastDistanceDeltaM,
+          warmupStable:
+            next.warmupStable === undefined ? warmupStableRef.current : next.warmupStable,
+        };
+        if (__DEV__) {
+          console.debug('[GPS]', {
+            accepted: snapshot.acceptedPoints,
+            rejected: snapshot.rejectedPoints,
+            accM: snapshot.lastAccuracyM,
+            speedMps: snapshot.lastSpeedMps,
+            deltaM: snapshot.lastDistanceDeltaM,
+            warmupStable: snapshot.warmupStable,
+          });
+        }
+        return snapshot;
+      });
+    },
+    [],
+  );
 
   const _startForegroundWatcher = useCallback(async () => {
     fgSubscriptionRef.current?.remove();
@@ -197,13 +303,20 @@ export function useGpsTracking(): GpsTrackingState {
       },
       async (loc) => {
         const sp = loc.coords.speed;
-        setSpeedMps(
-          sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
-        );
+        const speedMps = sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null;
+        setSpeedMps(speedMps);
 
         const acc = loc.coords.accuracy;
         // Reject fixes with poor horizontal accuracy (indoor multipath, poor geometry).
-        if (acc != null && acc > GPS_MAX_ACCURACY_M) return;
+        if (acc != null && acc > GPS_MAX_ACCURACY_M) {
+          rejectedPointsRef.current += 1;
+          _updateGpsDebug({
+            lastAccuracyM: acc,
+            lastSpeedMps: speedMps,
+            lastDistanceDeltaM: 0,
+          });
+          return;
+        }
 
         const point: GpsPoint = {
           latitude: loc.coords.latitude,
@@ -219,9 +332,62 @@ export function useGpsTracking(): GpsTrackingState {
         if (anchorPointRef.current === null) {
           anchorPointRef.current = point;
         } else {
+          const distM = haversineM(anchorPointRef.current, point);
+          const dtSec = Math.max(
+            (point.timestamp - anchorPointRef.current.timestamp) / 1000,
+            0.5,
+          );
+          const impliedSpeedMps = distM / dtSec;
+          if (dtSec <= GPS_SHORT_DT_SEC && distM > GPS_MAX_JUMP_M_SHORT_DT) {
+            rejectedPointsRef.current += 1;
+            _updateGpsDebug({
+              lastAccuracyM: point.accuracy ?? null,
+              lastSpeedMps: speedMps ?? impliedSpeedMps,
+              lastDistanceDeltaM: 0,
+            });
+            return;
+          }
+          if (
+            point.accuracy != null &&
+            point.accuracy > GPS_POOR_ACCURACY_M &&
+            distM > GPS_POOR_ACCURACY_JUMP_M
+          ) {
+            rejectedPointsRef.current += 1;
+            _updateGpsDebug({
+              lastAccuracyM: point.accuracy,
+              lastSpeedMps: speedMps ?? impliedSpeedMps,
+              lastDistanceDeltaM: 0,
+            });
+            return;
+          }
           const result = advanceGpsDistanceAnchor(anchorPointRef.current, point);
           addedKm = result.addedKm;
-          anchorPointRef.current = result.anchor;
+          const proposedAnchor = result.anchor;
+          const latestAccepted = recentAcceptedRef.current;
+          const candidateSpeed = speedMps ?? impliedSpeedMps;
+          const stationaryWindow = [...latestAccepted.slice(-4), proposedAnchor];
+          let radiusM = 0;
+          if (stationaryWindow.length >= 3) {
+            const center = stationaryWindow[stationaryWindow.length - 1]!;
+            for (const p of stationaryWindow) {
+              radiusM = Math.max(radiusM, haversineM(center, p));
+            }
+          }
+          const stationaryBlocked =
+            addedKm > 0 &&
+            candidateSpeed <= GPS_STATIONARY_SPEED_MPS &&
+            radiusM > 0 &&
+            radiusM <= GPS_STATIONARY_RADIUS_M;
+          if (stationaryBlocked) {
+            addedKm = 0;
+            _updateGpsDebug({
+              lastAccuracyM: point.accuracy ?? null,
+              lastSpeedMps: candidateSpeed,
+              lastDistanceDeltaM: 0,
+            });
+          } else {
+            anchorPointRef.current = proposedAnchor;
+          }
         }
 
         // Only add accepted fixes to the path so map polyline and pace window
@@ -232,18 +398,35 @@ export function useGpsTracking(): GpsTrackingState {
           const updated = [...pathRef.current, point];
           pathRef.current = updated;
           setPath(updated);
+          acceptedPointsRef.current += 1;
+          recentAcceptedRef.current = updated.slice(-STATIONARY_WINDOW_SIZE);
+          const stableTail = updated.slice(-3);
+          warmupStableRef.current =
+            stableTail.length >= 3 &&
+            stableTail.every(
+              (p) => p.accuracy == null || p.accuracy <= GPS_MAX_ACCURACY_M,
+            );
         }
         if (anchorAdvanced) {
           distanceKmRef.current += addedKm;
           setDistanceKm(distanceKmRef.current);
         }
+        if (!isFirstPoint && !anchorAdvanced) {
+          rejectedPointsRef.current += 1;
+        }
+        _updateGpsDebug({
+          lastAccuracyM: point.accuracy ?? null,
+          lastSpeedMps: speedMps,
+          lastDistanceDeltaM: addedKm * 1000,
+          warmupStable: warmupStableRef.current,
+        });
 
         // Update background-safe distance tracker and fire any due milestone cues.
-        _addBgPoint(point);
+        _addBgPoint(point, speedMps);
         await _checkBgMilestoneCues();
       },
     );
-  }, []);
+  }, [_updateGpsDebug]);
 
   const _startBackgroundTask = useCallback(async () => {
     if (!hasBgRef.current) return;
@@ -344,10 +527,15 @@ export function useGpsTracking(): GpsTrackingState {
     _backgroundBuffer.length = 0;
     distanceKmRef.current = 0;
     anchorPointRef.current = null;
+    recentAcceptedRef.current = [];
+    rejectedPointsRef.current = 0;
+    acceptedPointsRef.current = 0;
+    warmupStableRef.current = false;
 
     // Reset background-safe distance tracking for the new run.
     _bgDistanceKm = 0;
     _bgAnchorPoint = null;
+    _bgRecentAccepted = [];
     _bgSeenTimestamps.clear();
 
     accumulatedMsRef.current = 0;
@@ -358,6 +546,14 @@ export function useGpsTracking(): GpsTrackingState {
     setSpeedMps(null);
     setIsTracking(true);
     setIsPaused(false);
+    setGpsDebug({
+      acceptedPoints: 0,
+      rejectedPoints: 0,
+      lastAccuracyM: null,
+      lastSpeedMps: null,
+      lastDistanceDeltaM: 0,
+      warmupStable: false,
+    });
     trackingActiveRef.current = true;
 
     // Last-known + optional one-shot fix: watchPosition may wait for movement / interval.
@@ -374,8 +570,12 @@ export function useGpsTracking(): GpsTrackingState {
         };
         pathRef.current = [point];
         setPath([point]);
-        _addBgPoint(point);
+        acceptedPointsRef.current = 1;
+        recentAcceptedRef.current = [point];
+        warmupStableRef.current =
+          point.accuracy == null || point.accuracy <= GPS_MAX_ACCURACY_M;
         const sp = last.coords.speed;
+        _addBgPoint(point, sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null);
         setSpeedMps(
           sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
         );
@@ -403,10 +603,14 @@ export function useGpsTracking(): GpsTrackingState {
               : {}),
           };
           if (_bgSeenTimestamps.has(point.timestamp)) return;
-          _addBgPoint(point);
           pathRef.current = [point];
           setPath([point]);
+          acceptedPointsRef.current = 1;
+          recentAcceptedRef.current = [point];
+          warmupStableRef.current =
+            point.accuracy == null || point.accuracy <= GPS_MAX_ACCURACY_M;
           const sp = loc.coords.speed;
+          _addBgPoint(point, sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null);
           setSpeedMps(
             sp != null && !Number.isNaN(sp) && sp >= 0 ? sp : null,
           );
@@ -469,6 +673,7 @@ export function useGpsTracking(): GpsTrackingState {
   }, []);
 
   return {
+    acceptedPath: path,
     path,
     distanceKm,
     elapsedSec,
@@ -476,6 +681,7 @@ export function useGpsTracking(): GpsTrackingState {
     isTracking,
     isPaused,
     hasPermission,
+    gpsDebug,
     start,
     stop,
     pause,

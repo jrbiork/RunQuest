@@ -7,7 +7,7 @@ const EARTH_RADIUS_KM = 6371;
  * is counted as real movement. Stationary phone jitter (including iOS sensor-fusion
  * dead-reckoning from the accelerometer) can wander 8–12 m; 10 m rejects that.
  */
-export const GPS_ANCHOR_MIN_M = 10;
+export const GPS_ANCHOR_MIN_M = 5;
 
 /**
  * Implied speed cap (m/s) between two accepted fixes. Faster movement between
@@ -15,6 +15,18 @@ export const GPS_ANCHOR_MIN_M = 10;
  * (e.g. shaking the phone). 7 m/s ≈ 25 km/h, above any realistic running pace.
  */
 export const GPS_MAX_SPEED_MPS = 7;
+/** Hard jump clamp for very short intervals (reject teleport-like GPS spikes). */
+export const GPS_MAX_JUMP_M_SHORT_DT = 45;
+/** Interval considered "short" for jump clamp checks. */
+export const GPS_SHORT_DT_SEC = 2.5;
+/** Combined poor-accuracy + jump rejection threshold. */
+export const GPS_POOR_ACCURACY_JUMP_M = 28;
+/** Accuracy considered poor enough to distrust larger jumps. */
+export const GPS_POOR_ACCURACY_M = 12;
+/** Stationary guard: near-zero movement radius window. */
+export const GPS_STATIONARY_RADIUS_M = 8;
+/** Stationary guard: below this speed we treat fixes as near-idle. */
+export const GPS_STATIONARY_SPEED_MPS = 0.9;
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -98,6 +110,47 @@ export function advanceGpsDistanceAnchor(
     return { addedKm: 0, anchor };
   }
   return { addedKm: distM / 1000, anchor: curr };
+}
+
+/**
+ * Smoothed map-only path derived from accepted GPS points.
+ * Keeps the final vertex anchored to the latest accepted fix so the polyline
+ * endpoint remains visually attached to the user marker.
+ */
+export function buildDisplayPath(
+  acceptedPath: GpsPoint[],
+): { latitude: number; longitude: number }[] {
+  if (acceptedPath.length === 0) return [];
+  if (acceptedPath.length < 3) {
+    return acceptedPath.map((p) => ({
+      latitude: p.latitude,
+      longitude: p.longitude,
+    }));
+  }
+
+  const out: { latitude: number; longitude: number }[] = [];
+  for (let i = 0; i < acceptedPath.length; i++) {
+    if (i < 2 || i === acceptedPath.length - 1) {
+      const p = acceptedPath[i]!;
+      out.push({ latitude: p.latitude, longitude: p.longitude });
+      continue;
+    }
+    const a = acceptedPath[i - 2]!;
+    const b = acceptedPath[i - 1]!;
+    const c = acceptedPath[i]!;
+    out.push({
+      latitude: a.latitude * 0.2 + b.latitude * 0.3 + c.latitude * 0.5,
+      longitude: a.longitude * 0.2 + b.longitude * 0.3 + c.longitude * 0.5,
+    });
+  }
+
+  // Keep the rendered endpoint flush with current location.
+  const latest = acceptedPath[acceptedPath.length - 1]!;
+  out[out.length - 1] = {
+    latitude: latest.latitude,
+    longitude: latest.longitude,
+  };
+  return out;
 }
 
 /**
