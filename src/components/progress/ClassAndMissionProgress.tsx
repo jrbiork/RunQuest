@@ -13,6 +13,7 @@ import {
   shadows,
 } from '../../constants/theme';
 import {
+  getDisplayXpWithStartingLevelOffset,
   getLevelInfo,
   getXpRemainingToNextLevel,
   LEVEL_CLASS_TITLES,
@@ -44,10 +45,18 @@ export function ClassAndMissionProgress() {
     () => getDisplayXpTotal({ xp, runHistory }),
     [xp, runHistory],
   );
-  const levelInfo = useMemo(() => getLevelInfo(displayXp), [displayXp]);
+  const displayLevelXp = useMemo(
+    () =>
+      getDisplayXpWithStartingLevelOffset(
+        displayXp,
+        profile?.startingClassLevel,
+      ),
+    [displayXp, profile?.startingClassLevel],
+  );
+  const levelInfo = useMemo(() => getLevelInfo(displayLevelXp), [displayLevelXp]);
   const xpRemaining = useMemo(
-    () => getXpRemainingToNextLevel(displayXp),
-    [displayXp],
+    () => getXpRemainingToNextLevel(displayLevelXp),
+    [displayLevelXp],
   );
   const nextTitle =
     levelInfo.level < SCAVENGER_LEVEL_COUNT

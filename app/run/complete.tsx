@@ -21,7 +21,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
-import { useUserStore, MIN_EFFORT_SECONDS } from '../../src/store/userStore';
+import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
@@ -251,7 +251,9 @@ export default function RunCompleteScreen() {
   const regenerateMissionsIfPromoted = useMissionsStore((s) => s.regenerateMissionsIfPromoted);
 
   const completeRun = useUserStore((s) => s.completeRun);
-  const recordEffortFromElapsedSec = useUserStore((s) => s.recordEffortFromElapsedSec);
+  const recordStreakOnMissionStart = useUserStore(
+    (s) => s.recordStreakOnMissionStart,
+  );
   const streak = useUserStore((s) => s.streak);
   const runHistory = useUserStore((s) => s.runHistory);
 
@@ -355,9 +357,6 @@ export default function RunCompleteScreen() {
     alreadyCompleted.current = true;
 
     if (isFreeRun) {
-      if (elapsedSec != null && elapsedSec >= MIN_EFFORT_SECONDS) {
-        recordEffortFromElapsedSec(elapsedSec);
-      }
       return;
     }
 
@@ -365,6 +364,8 @@ export default function RunCompleteScreen() {
     const profile = useUserStore.getState().profile;
 
     if (goalMet) {
+      // Streak increments only when at least one mission is completed (or partial-time completed) that day.
+      recordStreakOnMissionStart();
       completeMission(mission.id, xpEarned);
     }
 

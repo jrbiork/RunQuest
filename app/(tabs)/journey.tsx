@@ -5,7 +5,10 @@ import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore, selectCompletedCount } from '../../src/store/missionsStore';
 import { JourneyPath } from '../../src/components/journey/JourneyPath';
 import { colors, spacing, fontSizes, fontWeights } from '../../src/constants/theme';
-import { getLevelInfo } from '../../src/utils/xpCalculator';
+import {
+  getDisplayXpWithStartingLevelOffset,
+  getLevelInfo,
+} from '../../src/utils/xpCalculator';
 import { getDisplayXpTotal } from '../../src/utils/displayXp';
 
 export default function JourneyScreen() {
@@ -20,7 +23,15 @@ export default function JourneyScreen() {
     () => getDisplayXpTotal({ xp, runHistory }),
     [xp, runHistory],
   );
-  const levelInfo = useMemo(() => getLevelInfo(displayXp), [displayXp]);
+  const displayLevelXp = useMemo(
+    () =>
+      getDisplayXpWithStartingLevelOffset(
+        displayXp,
+        profile?.startingClassLevel,
+      ),
+    [displayXp, profile?.startingClassLevel],
+  );
+  const levelInfo = useMemo(() => getLevelInfo(displayLevelXp), [displayLevelXp]);
 
   const missions = weekMissions;
   const allComplete = missions.length > 0 && missions.every((m) => m.status === 'completed');

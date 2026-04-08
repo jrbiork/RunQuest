@@ -79,6 +79,13 @@ function getMissionMix(
   return baseMix;
 }
 
+export function missionCountForClassLevel(classLevel: number): number {
+  if (classLevel <= 4) return 9;
+  if (classLevel <= 8) return 10;
+  if (classLevel <= 12) return 11;
+  return 12;
+}
+
 // ─── Target distance / duration per mission type ─────────────────────────────
 
 interface MissionTargets {
@@ -115,37 +122,56 @@ function getTargets(
     };
   }
 
-  // Running targets (kept at 1km/5min for easy testing above Recruit)
-  const runTargets: Record<ExperienceLevel, Record<MissionType, { distanceKm: number; durationMin: number }>> = {
-    beginner: {
-      easy:     { distanceKm: 1, durationMin: 5 },
-      recovery: { distanceKm: 1, durationMin: 5 },
-      tempo:    { distanceKm: 1, durationMin: 5 },
-      interval: { distanceKm: 1, durationMin: 5 },
-      long:     { distanceKm: 1, durationMin: 5 },
-    },
-    intermediate: {
-      easy:     { distanceKm: 1, durationMin: 5 },
-      recovery: { distanceKm: 1, durationMin: 5 },
-      tempo:    { distanceKm: 1, durationMin: 5 },
-      interval: { distanceKm: 1, durationMin: 5 },
-      long:     { distanceKm: 1, durationMin: 5 },
-    },
-    advanced: {
-      easy:     { distanceKm: 1, durationMin: 5 },
-      recovery: { distanceKm: 1, durationMin: 5 },
-      tempo:    { distanceKm: 1, durationMin: 5 },
-      interval: { distanceKm: 1, durationMin: 5 },
-      long:     { distanceKm: 1, durationMin: 5 },
-    },
+  const cappedLevel = Math.max(2, Math.min(25, classLevel));
+  const baseDistanceByLevel: Record<number, number> = {
+    2: 1.0,
+    3: 1.5,
+    4: 2.0,
+    5: 2.5,
+    6: 3.0,
+    7: 3.5,
+    8: 4.0,
+    9: 4.5,
+    10: 5.0,
+    11: 6.0,
+    12: 7.0,
+    13: 8.0,
+    14: 9.0,
+    15: 10.0,
   };
-  const run = runTargets[level][type]!;
+  const basePaceMinPerKmByTier: Record<ExperienceLevel, number> = {
+    beginner: 6.8,
+    intermediate: 6.0,
+    advanced: 5.2,
+  };
+  const distanceTypeMultiplier: Record<MissionType, number> = {
+    recovery: 0.8,
+    easy: 1.0,
+    tempo: 1.0,
+    interval: 0.9,
+    long: 1.3,
+  };
+  const durationTypePaceAdj: Record<MissionType, number> = {
+    recovery: 1.07,
+    easy: 1.0,
+    tempo: 0.95,
+    interval: 0.9,
+    long: 1.03,
+  };
+  const baseDistanceKm =
+    cappedLevel <= 15
+      ? (baseDistanceByLevel[cappedLevel] ?? 5)
+      : 10 + (cappedLevel - 15);
+  const distanceKm =
+    Math.round(baseDistanceKm * distanceTypeMultiplier[type] * 10) / 10;
+  const pace = basePaceMinPerKmByTier[level] * durationTypePaceAdj[type];
+  const durationMin = Math.max(5, Math.round(distanceKm * pace));
   return {
-    distanceKm: run.distanceKm,
-    durationMin: run.durationMin,
+    distanceKm,
+    durationMin,
     // Cycling covers ~2.5× the distance in the same time
-    cyclingDistanceKm: Math.round(run.distanceKm * 2.5 * 10) / 10,
-    cyclingDurationMin: run.durationMin,
+    cyclingDistanceKm: Math.round(distanceKm * 2.5 * 10) / 10,
+    cyclingDurationMin: durationMin,
   };
 }
 
@@ -196,7 +222,7 @@ function buildMission(
 
 // ─── Level → mission difficulty tier ────────────────────────────────────
 
-/** Map game level (1…15) to mission generator experience band. */
+/** Map game level (1…25) to mission generator experience band. */
 export function experienceTierForClassLevel(classLevel: number): ExperienceLevel {
   if (classLevel <= 5) return 'beginner';
   if (classLevel <= 10) return 'intermediate';
@@ -235,10 +261,14 @@ export function generateMissionsFromProfile(profile: UserProfile, classLevel: nu
 
   const activeDays = preferredDays.slice(0, runsPerWeek);
   const missionMix = getMissionMix(experienceLevel, runningGoal, runsPerWeek);
-  const scheduledDates = getNextPreferredDayOccurrences(activeDays, missionMix.length);
+  const missionCount = missionCountForClassLevel(classLevel);
+  const scheduledDates = getNextPreferredDayOccurrences(activeDays, missionCount);
   const today = getTodayISO();
+  const missionTypes = Array.from({ length: missionCount }, (_, idx) => {
+    return missionMix[idx % missionMix.length] ?? 'easy';
+  });
 
-  return missionMix.map((type, idx) => {
+  return missionTypes.map((type, idx) => {
     const date = scheduledDates[idx] ?? today;
     const day = activeDays[idx] ?? activeDays[0] ?? 'Mon';
     return buildMission(type, day, date, experienceLevel, idx, classLevel);

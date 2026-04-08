@@ -27,6 +27,7 @@ import {
   shadows,
 } from '../../src/constants/theme';
 import {
+  getDisplayXpWithStartingLevelOffset,
   getLevelInfo,
   formatDistance,
   SCAVENGER_LEVEL_COUNT,
@@ -64,9 +65,17 @@ export default function ProfileScreen() {
     () => getDisplayXpTotal({ xp, runHistory }),
     [xp, runHistory],
   );
+  const displayLevelXp = useMemo(
+    () =>
+      getDisplayXpWithStartingLevelOffset(
+        displayXpTotal,
+        profile?.startingClassLevel,
+      ),
+    [displayXpTotal, profile?.startingClassLevel],
+  );
   const levelInfo = useMemo(
-    () => getLevelInfo(displayXpTotal),
-    [displayXpTotal],
+    () => getLevelInfo(displayLevelXp),
+    [displayLevelXp],
   );
 
   const displayOverallStats = useMemo(

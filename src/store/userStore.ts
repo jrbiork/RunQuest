@@ -135,7 +135,10 @@ export const useUserStore = create<UserStore>()(
       ) => {
         const state = get();
         const level = ((state.profile?.experienceLevel) ?? 'beginner') as 'beginner' | 'intermediate' | 'advanced';
-        const classLevel = getLevelInfo(state.xp).level;
+        const classLevel = Math.max(
+          getLevelInfo(state.xp).level,
+          state.profile?.startingClassLevel ?? 1,
+        );
 
         const distanceMet = distanceGoalMet ?? false;
         const onTime = runOptions?.onTime !== false;

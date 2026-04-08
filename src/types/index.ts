@@ -12,6 +12,19 @@ export type RunningGoal =
 export type WeeklyTargetMode = 'runs' | 'distance';
 
 export type PaceLevel = 'easy' | 'moderate' | 'fast';
+export type DistanceCapacityAnswer =
+  | 'none'
+  | 'up_to_1'
+  | '1_3'
+  | '3_5'
+  | '5_10'
+  | '10_plus';
+export type SustainablePaceAnswer =
+  | 'unknown'
+  | 'slower_than_7'
+  | '6_to_7'
+  | '5_to_6'
+  | 'faster_than_5';
 
 export type DayOfWeek =
   | 'Mon'
@@ -38,6 +51,8 @@ export interface UserProfile {
   defaultActivityMode: ActivityMode;
   preferredDays: DayOfWeek[];
   weeklyTargetRuns: number;        // derived from preferredDays.length
+  /** Onboarding-assigned game class level used for initial mission targeting. */
+  startingClassLevel?: number;
 
   // Legacy fields kept for backward compat (optional so old profiles don't crash)
   experienceLevel?: ExperienceLevel;
@@ -199,6 +214,8 @@ export interface OnboardingDraft {
   cycleDistance?: CycleDistanceAnswer;
   experience?: ExperienceAnswer;
   goal?: GoalAnswer;
+  distanceCapacity?: DistanceCapacityAnswer;
+  sustainablePace?: SustainablePaceAnswer;
   // Legacy fields for backward compat
   experienceLevel?: ExperienceLevel;
   runningGoal?: RunningGoal;

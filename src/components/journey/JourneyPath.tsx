@@ -1,5 +1,14 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  TouchableOpacity,
+  Animated,
+  Easing,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import ViewShot from 'react-native-view-shot';
@@ -31,6 +40,32 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
 
   const shareRef = useRef<ViewShot>(null);
   const [sharingMissionId, setSharingMissionId] = useState<string | null>(null);
+  const completionPulse = useRef(new Animated.Value(1)).current;
+
+  React.useEffect(() => {
+    if (!allComplete) {
+      completionPulse.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(completionPulse, {
+          toValue: 1.06,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(completionPulse, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [allComplete, completionPulse]);
 
   // Build a quick lookup: missionId → most-recent CompletedRun
   const completedRunByMission = React.useMemo(() => {
@@ -70,10 +105,18 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   return (
     <View style={styles.container}>
       {allComplete && (
-        <View style={styles.completeBanner}>
+        <Animated.View
+          style={[
+            styles.completeBanner,
+            { transform: [{ scale: completionPulse }] },
+          ]}
+        >
           <MaterialIcons name="celebration" size={24} color={colors.textSecondary} />
           <View style={styles.completeBannerContent}>
             <Text style={styles.completeBannerTitle}>Set complete</Text>
+            <Text style={styles.completeBannerSub}>
+              Great work. Claim your next mission set.
+            </Text>
           </View>
           <TouchableOpacity
             style={styles.nextSetButton}
@@ -86,7 +129,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
             <Text style={styles.nextSetButtonText}>Next Set</Text>
             <MaterialIcons name="arrow-forward" size={14} color={colors.background} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       )}
 
       <View style={styles.path}>
@@ -182,6 +225,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  } as TextStyle,
+  completeBannerSub: {
+    fontSize: fontSizes.xs,
+    color: colors.textTertiary,
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   } as TextStyle,
   nextSetButton: {
     flexDirection: 'row',

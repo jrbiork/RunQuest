@@ -6,77 +6,84 @@ import { OptionCard } from '../../src/components/onboarding/OptionCard';
 import { useOnboardingDraft } from './_layout';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
-import type { GoalAnswer, UserProfile } from '../../src/types';
+import type { ActivityMode, SustainablePaceAnswer, UserProfile } from '../../src/types';
 import {
   computePersonaId,
-  experienceAnswerToLevel,
   preferredDaysFromScheduleDays,
-  inferExperienceFromVolumeAndGoal,
-  goalAnswerToRunningGoal,
+  startingClassLevelFromDistanceAndPace,
   type PersonaSurveyAnswers,
 } from '../../src/utils/personaScoring';
 
 const OPTIONS: {
-  value: GoalAnswer;
+  value: SustainablePaceAnswer;
   label: string;
   description: string;
   icon: string;
 }[] = [
-  { value: 'started', label: 'Just getting started', description: 'Learning the ropes', icon: 'flag' },
-  { value: 'fit', label: 'Get fit / lose weight', description: 'Health first', icon: 'favorite' },
-  { value: 'endurance', label: 'Build endurance', description: 'Go longer, stronger', icon: 'terrain' },
-  { value: 'speed', label: 'Improve speed / performance', description: 'Push the pace', icon: 'speed' },
-  { value: 'event', label: 'Train for an event', description: 'Race day ready', icon: 'emoji-events' },
+  { value: 'unknown', label: "I don't know my pace yet", description: 'No pace benchmark yet', icon: 'help-outline' },
+  { value: 'slower_than_7', label: 'Slower than 7:00/km', description: 'Easy conversational pace', icon: 'speed' },
+  { value: '6_to_7', label: '6:00-7:00/km', description: 'Steady sustainable pace', icon: 'speed' },
+  { value: '5_to_6', label: '5:00-6:00/km', description: 'Strong endurance pace', icon: 'speed' },
+  { value: 'faster_than_5', label: 'Faster than 5:00/km', description: 'High performance pace', icon: 'bolt' },
+];
+
+const CYCLE_OPTIONS: {
+  value: SustainablePaceAnswer;
+  label: string;
+  description: string;
+  icon: string;
+}[] = [
+  { value: 'unknown', label: "I don't know my ride pace yet", description: 'No pace benchmark yet', icon: 'help-outline' },
+  { value: 'slower_than_7', label: 'Slower than 3:00/km', description: 'Easy spinning pace', icon: 'speed' },
+  { value: '6_to_7', label: '2:30-3:00/km', description: 'Steady endurance pace', icon: 'speed' },
+  { value: '5_to_6', label: '2:00-2:30/km', description: 'Strong sustained pace', icon: 'speed' },
+  { value: 'faster_than_5', label: 'Faster than 2:00/km', description: 'High performance pace', icon: 'bolt' },
 ];
 
 export default function OnboardingGoalScreen() {
   const draft = useOnboardingDraft();
-  const [selected, setSelected] = useState<GoalAnswer | null>(draft.current.goal ?? null);
+  const mode: ActivityMode = draft.current.defaultActivityMode ?? 'run';
+  const [selected, setSelected] = useState<SustainablePaceAnswer | null>(
+    draft.current.sustainablePace ?? null,
+  );
   const completeOnboarding = useUserStore((s) => s.completeOnboarding);
   const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
 
   const handleDeploy = () => {
     if (!selected) return;
     const d = draft.current;
-    const mode = d.defaultActivityMode ?? 'cycle';
     const days = Math.max(1, Math.min(7, Math.round(d.trainingDaysPerWeek ?? 3)));
-    if (mode === 'run' && !d.runDistance) return;
-    if (mode === 'cycle' && !d.cycleDistance) return;
-
-    draft.current.goal = selected;
-
-    const experience = inferExperienceFromVolumeAndGoal(
-      selected,
-      days,
-      mode,
-      mode === 'run' ? d.runDistance ?? null : null,
-      mode === 'cycle' ? d.cycleDistance ?? null : null,
-    );
+    if (!d.distanceCapacity) return;
+    draft.current.sustainablePace = selected;
 
     const survey: PersonaSurveyAnswers = {
       defaultActivityMode: mode,
       trainingDaysPerWeek: days,
-      runDistance: mode === 'run' ? d.runDistance ?? null : null,
-      cycleDistance: mode === 'cycle' ? d.cycleDistance ?? null : null,
-      experience,
-      goal: selected,
+      runDistance: null,
+      cycleDistance: null,
+      experience: 'lt3m',
+      goal: 'fit',
     };
 
     const personaId = computePersonaId(survey);
     const preferredDays = preferredDaysFromScheduleDays(days);
-    const runningGoal = goalAnswerToRunningGoal(selected);
+    const startingClassLevel = startingClassLevelFromDistanceAndPace(
+      d.distanceCapacity,
+      selected,
+    );
 
     const profile: UserProfile = {
       personaId,
       defaultActivityMode: mode,
       preferredDays,
       weeklyTargetRuns: preferredDays.length,
-      experienceLevel: experienceAnswerToLevel(experience),
-      runningGoal,
+      startingClassLevel,
+      experienceLevel: 'beginner',
+      runningGoal: 'consistency',
     };
 
     completeOnboarding(profile);
-    generateMissionsFromProfile(profile, useUserStore.getState().xp);
+    generateMissionsFromProfile(profile, useUserStore.getState().xp, startingClassLevel);
     router.replace('/onboarding/tailoring');
   };
 
@@ -84,14 +91,18 @@ export default function OnboardingGoalScreen() {
     <OnboardingLayout
       step={3}
       totalSteps={3}
-      title="What's your main goal?"
-      subtitle="Objective"
+      title={
+        mode === 'run'
+          ? 'What pace feels sustainable for you right now?'
+          : 'What ride pace feels sustainable for you right now?'
+      }
+      subtitle="Sustainable pace"
       onNext={handleDeploy}
       nextLabel="Continue"
       nextDisabled={!selected}
     >
       <View style={styles.options}>
-        {OPTIONS.map((o) => (
+        {(mode === 'run' ? OPTIONS : CYCLE_OPTIONS).map((o) => (
           <OptionCard
             key={o.value}
             label={o.label}

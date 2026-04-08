@@ -18,6 +18,7 @@ import {
   getLevelInfo,
   getOverallLevelRingProgress,
   getXpRemainingToNextLevel,
+  getDisplayXpWithStartingLevelOffset,
   formatDistance,
   formatDuration,
   LEVEL_CLASS_TITLES,
@@ -120,19 +121,27 @@ export default function HomeScreen() {
     () => getDisplayXpTotal({ xp, runHistory }),
     [xp, runHistory],
   );
+  const displayLevelXp = useMemo(
+    () =>
+      getDisplayXpWithStartingLevelOffset(
+        displayXpTotal,
+        profile?.startingClassLevel,
+      ),
+    [displayXpTotal, profile?.startingClassLevel],
+  );
   const levelInfo = useMemo(
-    () => getLevelInfo(displayXpTotal),
-    [displayXpTotal],
+    () => getLevelInfo(displayLevelXp),
+    [displayLevelXp],
   );
   const levelProgressLabel = useMemo(() => {
     const li = levelInfo;
     if (li.level >= SCAVENGER_LEVEL_COUNT) {
       return 'Max level';
     }
-    const xpRemaining = getXpRemainingToNextLevel(displayXpTotal);
+    const xpRemaining = getXpRemainingToNextLevel(displayLevelXp);
     const nextName = LEVEL_CLASS_TITLES[li.level] ?? `Level ${li.level + 1}`;
     return `+${xpRemaining} XP to ${nextName}`;
-  }, [levelInfo, displayXpTotal]);
+  }, [levelInfo, displayLevelXp]);
 
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const generateMissionsFromProfile = useMissionsStore(

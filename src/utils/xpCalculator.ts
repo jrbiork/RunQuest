@@ -3,11 +3,11 @@ import type { MissionType, LevelInfo } from '../types';
 // ─── Base XP Per Mission Type ─────────────────────────────────────────────────
 
 export const BASE_XP: Record<MissionType, number> = {
-  easy: 50,
-  recovery: 40,
-  tempo: 75,
-  interval: 80,
-  long: 100,
+  easy: 100,
+  recovery: 100,
+  tempo: 150,
+  interval: 150,
+  long: 220,
 };
 
 // ─── Level Thresholds (cumulative XP to reach each level) ───────────────
@@ -28,12 +28,41 @@ const LEVEL_THRESHOLDS = [
   10500,
   12800,
   15400,
+  // Post-Sovereign (levels 16–25)
+  18200,
+  21200,
+  24500,
+  28200,
+  32400,
+  37200,
+  42800,
+  49400,
+  57200,
+  66500,
 ];
 
 /** Number of levels (1 … MAX inclusive). */
 export const SCAVENGER_LEVEL_COUNT = LEVEL_THRESHOLDS.length;
 
-/** Display names — level ladder (15 titles). */
+/** Minimum cumulative XP required to be at the provided 1-based level. */
+export function getMinXpForLevel(level: number): number {
+  const idx = Math.min(
+    LEVEL_THRESHOLDS.length - 1,
+    Math.max(0, Math.floor(level) - 1),
+  );
+  return LEVEL_THRESHOLDS[idx] ?? 0;
+}
+
+/** Add onboarding baseline so displayed level/progress starts at assigned class. */
+export function getDisplayXpWithStartingLevelOffset(
+  totalXp: number,
+  startingClassLevel?: number,
+): number {
+  if (!startingClassLevel || startingClassLevel <= 1) return totalXp;
+  return totalXp + getMinXpForLevel(startingClassLevel);
+}
+
+/** Display names — full level ladder (25 titles). */
 export const LEVEL_CLASS_TITLES = [
   'Recruit',
   'Runner',
@@ -50,6 +79,16 @@ export const LEVEL_CLASS_TITLES = [
   'Apex',
   'Legend',
   'Sovereign',
+  'Ascendant',
+  'Paragon',
+  'Titan',
+  'Mythic',
+  'Eternal',
+  'Zenith',
+  'Prime',
+  'Celestial',
+  'Transcendent',
+  'Ultima',
 ] as const;
 
 /** Primary accent per level (hex), aligned with LEVEL_THRESHOLDS indices. */
@@ -69,6 +108,17 @@ export const LEVEL_CLASS_ACCENTS = [
   '#84CC16',
   '#10B981',
   '#FBBF24',
+  '#A3E635',
+  '#F472B6',
+  '#38BDF8',
+  '#C084FC',
+  '#FDE047',
+  '#FB923C',
+  '#34D399',
+  '#818CF8',
+  '#2DD4BF',
+  '#FACC15',
+  '#E879F9',
 ] as const;
 
 export function getLevelAccentForIndex(levelIndex0: number): string {
@@ -87,7 +137,8 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 
   const levelIdx = level - 1;
   const xpAtLevelStart = LEVEL_THRESHOLDS[levelIdx] ?? 0;
-  const xpAtNextLevel = LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] ?? 15400;
+  const xpAtNextLevel =
+    LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] ?? 66500;
 
   const xpInLevel = totalXp - xpAtLevelStart;
   const xpToNextLevel = xpAtNextLevel - xpAtLevelStart;
@@ -99,7 +150,10 @@ export function getLevelInfo(totalXp: number): LevelInfo {
 
   return {
     level,
-    title: LEVEL_CLASS_TITLES[levelIdx] ?? 'Sovereign',
+    title:
+      LEVEL_CLASS_TITLES[levelIdx] ??
+      LEVEL_CLASS_TITLES[LEVEL_CLASS_TITLES.length - 1] ??
+      'Ultima',
     accentColor: getLevelAccentForIndex(levelIdx),
     xpInLevel,
     xpToNextLevel,
@@ -140,14 +194,21 @@ export const OVERDISTANCE_RATIO_THRESHOLD = 1.3;
 /** Fraction of base mission XP when distance is met after target time (partial completion). */
 export const LATE_COMPLETION_XP_FRACTION = 0.5;
 
+export function getStreakXpMultiplier(streak: number): number {
+  if (streak >= 5) return 1.2;
+  if (streak >= 3) return 1.15;
+  if (streak >= 2) return 1.1;
+  return 1;
+}
+
 export function calculateXpEarned(
   missionType: MissionType,
-  _streak: number,
+  streak: number,
   completionRatio: number = 1,
 ): number {
   const base = BASE_XP[missionType];
   const ratio = Math.min(Math.max(completionRatio, 0), 1);
-  return Math.ceil(base * ratio);
+  return Math.ceil(base * ratio * getStreakXpMultiplier(streak));
 }
 
 export type TimedMissionXpKind = 'on_time' | 'late' | 'incomplete';

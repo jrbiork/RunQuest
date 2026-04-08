@@ -27,6 +27,7 @@ import {
   fontWeights,
 } from '../../src/constants/theme';
 import {
+  getLevelAccentForIndex,
   getLevelInfo,
   getXpRemainingToNextLevel,
   LEVEL_CLASS_TITLES,
@@ -77,7 +78,26 @@ export default function OnboardingTailoringScreen() {
     [xp, runHistory],
   );
 
-  const levelInfo = useMemo(() => getLevelInfo(displayXp), [displayXp]);
+  const levelInfo = useMemo(() => {
+    const assignedLevel = profile?.startingClassLevel;
+    if (assignedLevel != null && assignedLevel > 0) {
+      const index0 = Math.min(
+        SCAVENGER_LEVEL_COUNT - 1,
+        Math.max(0, assignedLevel - 1),
+      );
+      return {
+        level: assignedLevel,
+        title: LEVEL_CLASS_TITLES[index0] ?? 'Recruit',
+        accentColor: getLevelAccentForIndex(index0),
+      };
+    }
+    const fromXp = getLevelInfo(displayXp);
+    return {
+      level: fromXp.level,
+      title: fromXp.title,
+      accentColor: fromXp.accentColor,
+    };
+  }, [displayXp, profile?.startingClassLevel]);
   const xpToNext = useMemo(
     () => getXpRemainingToNextLevel(displayXp),
     [displayXp],
@@ -148,9 +168,9 @@ export default function OnboardingTailoringScreen() {
           <Text style={styles.title}>You&apos;re cleared to start</Text>
           <Text style={styles.sub}>
             You begin as <Text style={styles.subEm}>{levelInfo.title}</Text>.
-            Your mission queue matches how often you train. Complete missions
-            for XP — reach the next level to get a fresh set. Hit distance under
-            target time for full credit.
+            Your mission queue is tailored from your distance and pace answers.
+            Complete missions for XP - reach the next level to get a fresh set.
+            Hit distance under target time for full credit.
           </Text>
         </View>
 

@@ -10,7 +10,11 @@ import { getLevelInfo } from '../utils/xpCalculator';
 
 interface MissionsActions {
   /** Replace mission queue from profile and current total XP (derives level). */
-  generateMissionsFromProfile: (profile: UserProfile, totalXp: number) => void;
+  generateMissionsFromProfile: (
+    profile: UserProfile,
+    totalXp: number,
+    forcedClassLevel?: number,
+  ) => void;
   /** After a run, refill missions when the user crossed into a higher level. */
   regenerateMissionsIfPromoted: (
     profile: UserProfile,
@@ -37,8 +41,15 @@ export const useMissionsStore = create<MissionsStore>()(
       weekMissions: [],
       missionSetClassLevel: null,
 
-      generateMissionsFromProfile: (profile: UserProfile, totalXp: number) => {
-        const classLevel = getLevelInfo(totalXp).level;
+      generateMissionsFromProfile: (
+        profile: UserProfile,
+        totalXp: number,
+        forcedClassLevel?: number,
+      ) => {
+        const classLevel =
+          forcedClassLevel ??
+          profile.startingClassLevel ??
+          getLevelInfo(totalXp).level;
         const missions = buildMissionQueueFromProfile(profile, classLevel);
         set({
           weekMissions: missions,

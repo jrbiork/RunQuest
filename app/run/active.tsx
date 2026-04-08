@@ -34,7 +34,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
-import { useUserStore, MIN_EFFORT_SECONDS } from '../../src/store/userStore';
+import { useUserStore } from '../../src/store/userStore';
 import { getNowISOString } from '../../src/utils/dateUtils';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import {
@@ -108,9 +108,6 @@ export default function ActiveRunScreen() {
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const abortMission = useMissionsStore((s) => s.abortMission);
   const appendRunHistoryEntry = useUserStore((s) => s.appendRunHistoryEntry);
-  const recordEffortFromElapsedSec = useUserStore(
-    (s) => s.recordEffortFromElapsedSec,
-  );
   const isFreeRun = id === FUN_RUN_ID;
   const mission = isFreeRun
     ? FUN_RUN_MISSION
@@ -155,7 +152,6 @@ export default function ActiveRunScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const goalAnnouncedRef = useRef(false);
-  const streakRecordedForSessionRef = useRef(false);
   const startCueFired = useRef(false);
   const mapRef = useRef<MapView>(null);
   /** Throttle map recenter: GPS fires often; animating every fix causes flicker. */
@@ -306,11 +302,6 @@ export default function ActiveRunScreen() {
     const trackingStarted = await start();
     if (!trackingStarted) return;
     setSessionStarted(true);
-    // Day streak (max once per calendar day): store action; getState avoids stale fn + persist race with rehydrate.
-    if (!streakRecordedForSessionRef.current) {
-      streakRecordedForSessionRef.current = true;
-      useUserStore.getState().recordStreakOnMissionStart();
-    }
   }, [start]);
 
   useEffect(() => {
@@ -557,9 +548,6 @@ export default function ActiveRunScreen() {
           onPress: () => {
             setRunActive(false);
             stop();
-            if (elapsedSec >= MIN_EFFORT_SECONDS) {
-              recordEffortFromElapsedSec(elapsedSec);
-            }
             router.replace('/(tabs)/journey');
           },
         },
@@ -594,9 +582,6 @@ export default function ActiveRunScreen() {
                 activityMode,
                 ...(sampledPath.length >= 2 ? { path: sampledPath } : {}),
               });
-              if (elapsedSec >= MIN_EFFORT_SECONDS) {
-                recordEffortFromElapsedSec(elapsedSec);
-              }
             }
             router.replace('/(tabs)/journey');
           },
@@ -613,7 +598,6 @@ export default function ActiveRunScreen() {
     setRunActive,
     distanceKm,
     elapsedSec,
-    recordEffortFromElapsedSec,
   ]);
 
   useEffect(() => {
@@ -1077,11 +1061,11 @@ export default function ActiveRunScreen() {
                   <Text
                     style={styles.statTargetsRowHint}
                     numberOfLines={1}
-                  >{`~${targetDurationMin} min target`}</Text>
+                  >{`~${targetDurationMin} min`}</Text>
                   <Text
                     style={styles.statTargetsRowHint}
                     numberOfLines={1}
-                  >{`${formatDistance(targetDistanceKm)} target`}</Text>
+                  >{formatDistance(targetDistanceKm)}</Text>
                   <View style={styles.statTargetsRowSpacer} />
                 </View>
               )}
@@ -1454,14 +1438,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   } as ViewStyle,
   preStartTargetLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: fontWeights.extrabold,
     color: colors.textTertiary,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   } as TextStyle,
   preStartTargetBig: {
-    fontSize: fontSizes.display,
+    fontSize: fontSizes.xxxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     fontVariant: ['tabular-nums'],
@@ -1673,7 +1657,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   statTargetsRowHint: {
     flex: 1,
-    fontSize: fontSizes.lg,
+    fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
     textAlign: 'center',

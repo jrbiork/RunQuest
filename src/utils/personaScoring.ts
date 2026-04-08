@@ -1,6 +1,7 @@
 import type {
   ActivityMode,
   CycleDistanceAnswer,
+  DistanceCapacityAnswer,
   DayOfWeek,
   ExperienceAnswer,
   ExperienceLevel,
@@ -8,7 +9,9 @@ import type {
   PersonaId,
   RunDistanceAnswer,
   RunningGoal,
+  SustainablePaceAnswer,
 } from '../types';
+import { SCAVENGER_LEVEL_COUNT } from './xpCalculator';
 
 /** Training days per week (1–7) from onboarding slider; legacy 0 may still appear in stored data. */
 export type TrainingFrequencyDays = number;
@@ -176,6 +179,42 @@ export function goalAnswerToRunningGoal(goal: GoalAnswer): RunningGoal {
     default:
       return 'consistency';
   }
+}
+
+function distanceCapacityScore(answer: DistanceCapacityAnswer): number {
+  const map: Record<DistanceCapacityAnswer, number> = {
+    none: 0,
+    up_to_1: 1,
+    '1_3': 2,
+    '3_5': 3,
+    '5_10': 4,
+    '10_plus': 5,
+  };
+  return map[answer];
+}
+
+function sustainablePaceScore(answer: SustainablePaceAnswer): number {
+  const map: Record<SustainablePaceAnswer, number> = {
+    unknown: 0,
+    slower_than_7: 1,
+    '6_to_7': 2,
+    '5_to_6': 3,
+    faster_than_5: 4,
+  };
+  return map[answer];
+}
+
+/**
+ * Map onboarding distance + pace to starting class level (1..SCAVENGER_LEVEL_COUNT).
+ * Uses full ladder while keeping low-confidence answers in early levels.
+ */
+export function startingClassLevelFromDistanceAndPace(
+  distance: DistanceCapacityAnswer,
+  pace: SustainablePaceAnswer,
+): number {
+  const composite = distanceCapacityScore(distance) * 2 + sustainablePaceScore(pace); // 0..14
+  const level = 1 + composite;
+  return Math.max(1, Math.min(SCAVENGER_LEVEL_COUNT, level));
 }
 
 /** Linear class progression for evolution UI and dev tools (ghost → … → vanguard). */

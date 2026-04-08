@@ -70,11 +70,18 @@ export function devCompleteSuccessfulMissions(
   const completeMission = useMissionsStore.getState().completeMission;
   const completeRun = useUserStore.getState().completeRun;
   const regenerateMissionsIfPromoted = useMissionsStore.getState().regenerateMissionsIfPromoted;
+  const generateMissionsFromProfile =
+    useMissionsStore.getState().generateMissionsFromProfile;
 
   let completed = 0;
   for (let i = 0; i < count; i++) {
-    const list = useMissionsStore.getState().weekMissions;
-    const next = getNextIncompleteMission(list);
+    let list = useMissionsStore.getState().weekMissions;
+    let next = getNextIncompleteMission(list);
+    if (!next) {
+      generateMissionsFromProfile(profile, useUserStore.getState().xp);
+      list = useMissionsStore.getState().weekMissions;
+      next = getNextIncompleteMission(list);
+    }
     if (!next) break;
 
     const distKm =
