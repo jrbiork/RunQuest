@@ -5,4 +5,5 @@ export const EXPERIENCE_DISPLAY_LABELS: Record<ExperienceLevel, string> = {
   beginner: 'Recruit',
   intermediate: 'Operative',
   advanced: 'Vanguard',
+  pro: 'Elite',
 };

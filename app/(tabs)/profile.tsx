@@ -136,7 +136,13 @@ export default function ProfileScreen() {
           <View style={styles.identity}>
             {/* Level badge */}
             <TouchableOpacity
-              style={styles.levelBadge}
+              style={[
+                styles.levelBadge,
+                {
+                  borderColor: levelInfo.accentColor,
+                  backgroundColor: `${levelInfo.accentColor}22`,
+                },
+              ]}
               onPress={() => setLevelModalVisible(true)}
               activeOpacity={0.85}
               accessibilityRole="button"
@@ -147,7 +153,9 @@ export default function ProfileScreen() {
                 size={13}
                 color={levelInfo.accentColor}
               />
-              <Text style={styles.levelBadgeText}>
+              <Text
+                style={[styles.levelBadgeText, { color: levelInfo.accentColor }]}
+              >
                 {levelInfo.title} · LVL {levelInfo.level} /{' '}
                 {SCAVENGER_LEVEL_COUNT}
               </Text>
@@ -508,18 +516,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.purpleLight,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: colors.ochre,
     alignSelf: 'flex-start',
   } as ViewStyle,
   levelBadgeText: {
     fontSize: 10,
     fontWeight: fontWeights.extrabold,
-    color: colors.ochre,
     letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,

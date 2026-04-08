@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
+  ExperienceLevel,
   UserProfile,
   UserState,
   CompletedRun,
@@ -13,6 +14,7 @@ import {
   getLevelInfo,
   type TimedMissionXpKind,
 } from '../utils/xpCalculator';
+import { levelTierForClassLevel } from '../constants/missionProgression';
 import { RECRUIT_TARGET_DISTANCES_KM } from '../utils/missionGenerator';
 import { setAudioMutedFlag, syncOnboardingAmbientWithMute } from '../services/audioService';
 import { getTodayISO, getNowISOString, isStreakAlive } from '../utils/dateUtils';
@@ -26,6 +28,8 @@ export type CompleteRunOptions = {
   onTime?: boolean;
   /** Mission target distance for run vs cycle; used for overdistance XP bonus. */
   targetDistanceKm?: number;
+  /** Per-mission base XP from generator (level band distribution). */
+  missionBaseXp?: number;
 };
 
 interface UserActions {
@@ -134,11 +138,11 @@ export const useUserStore = create<UserStore>()(
         runOptions,
       ) => {
         const state = get();
-        const level = ((state.profile?.experienceLevel) ?? 'beginner') as 'beginner' | 'intermediate' | 'advanced';
         const classLevel = Math.max(
           getLevelInfo(state.xp).level,
           state.profile?.startingClassLevel ?? 1,
         );
+        const level = levelTierForClassLevel(classLevel);
 
         const distanceMet = distanceGoalMet ?? false;
         const onTime = runOptions?.onTime !== false;
@@ -172,6 +176,7 @@ export const useUserStore = create<UserStore>()(
           timedKind,
           1,
           distRatio,
+          runOptions?.missionBaseXp,
         );
         const newXp = state.xp + xpEarned;
 
@@ -300,32 +305,34 @@ export const selectLevelInfo = (state: UserStore) => getLevelInfo(state.xp);
 
 function getMissionTargetDistance(
   type: MissionType,
-  level: 'beginner' | 'intermediate' | 'advanced',
+  level: ExperienceLevel,
   classLevel: number,
 ): number {
   if (classLevel === 1) {
     return RECRUIT_TARGET_DISTANCES_KM[type] ?? 0.4;
   }
-  const targets = {
+  const targets: Record<ExperienceLevel, Record<MissionType, number>> = {
     beginner: { easy: 3, recovery: 2, tempo: 3, interval: 3, long: 5 },
     intermediate: { easy: 5, recovery: 4, tempo: 6, interval: 5, long: 10 },
     advanced: { easy: 8, recovery: 6, tempo: 10, interval: 8, long: 16 },
+    pro: { easy: 9, recovery: 7, tempo: 12, interval: 10, long: 18 },
   };
   return targets[level][type] ?? 5;
 }
 
 function getMissionTargetDuration(
   type: MissionType,
-  level: 'beginner' | 'intermediate' | 'advanced',
+  level: ExperienceLevel,
   classLevel: number,
 ): number {
   if (classLevel === 1) {
     return 5;
   }
-  const durations = {
+  const durations: Record<ExperienceLevel, Record<MissionType, number>> = {
     beginner: { easy: 25, recovery: 20, tempo: 25, interval: 25, long: 40 },
     intermediate: { easy: 35, recovery: 30, tempo: 40, interval: 35, long: 65 },
     advanced: { easy: 45, recovery: 40, tempo: 55, interval: 50, long: 95 },
+    pro: { easy: 50, recovery: 45, tempo: 60, interval: 55, long: 105 },
   };
   return durations[level][type] ?? 30;
 }

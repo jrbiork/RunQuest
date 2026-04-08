@@ -24,6 +24,17 @@ const LEVEL_THRESHOLDS = [
 /** Number of levels (1 … MAX inclusive). */
 export const SCAVENGER_LEVEL_COUNT = LEVEL_THRESHOLDS.length;
 
+/** XP to earn from min XP at `level` to min XP at `level + 1` (1-based mission pack level). */
+export function getXpBandForLevel(level: number): number {
+  const L = Math.max(1, Math.min(SCAVENGER_LEVEL_COUNT, Math.floor(level)));
+  if (L >= SCAVENGER_LEVEL_COUNT) {
+    const last = LEVEL_THRESHOLDS[SCAVENGER_LEVEL_COUNT - 1] ?? 0;
+    const prev = LEVEL_THRESHOLDS[SCAVENGER_LEVEL_COUNT - 2] ?? 0;
+    return Math.max(0, last - prev);
+  }
+  return (LEVEL_THRESHOLDS[L] ?? 0) - (LEVEL_THRESHOLDS[L - 1] ?? 0);
+}
+
 /** Minimum cumulative XP required to be at the provided 1-based level. */
 export function getMinXpForLevel(level: number): number {
   const idx = Math.min(
@@ -205,8 +216,9 @@ export function calculateXpEarned(
   missionType: MissionType,
   streak: number,
   completionRatio: number = 1,
+  baseXp?: number,
 ): number {
-  const base = BASE_XP[missionType];
+  const base = baseXp ?? BASE_XP[missionType];
   const ratio = Math.min(Math.max(completionRatio, 0), 1);
   return Math.ceil(base * ratio * getStreakXpMultiplier(streak));
 }
@@ -225,9 +237,10 @@ export function calculateTimedMissionXp(
   kind: TimedMissionXpKind,
   completionRatio: number = 1,
   distanceRatioVsTarget?: number,
+  baseXp?: number,
 ): number {
   if (kind === 'incomplete') return 0;
-  const base = calculateXpEarned(missionType, streak, completionRatio);
+  const base = calculateXpEarned(missionType, streak, completionRatio, baseXp);
   if (kind === 'late') {
     return Math.max(1, Math.floor(base * LATE_COMPLETION_XP_FRACTION));
   }

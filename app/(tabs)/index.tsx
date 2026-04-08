@@ -235,7 +235,13 @@ export default function HomeScreen() {
           <View style={styles.headerLeft}>
             <Text style={styles.wordmark}>RUNQUEST</Text>
             <TouchableOpacity
-              style={styles.levelBadge}
+              style={[
+                styles.levelBadge,
+                {
+                  borderColor: levelInfo.accentColor,
+                  backgroundColor: `${levelInfo.accentColor}22`,
+                },
+              ]}
               onPress={() => setStatModal('level')}
               activeOpacity={0.85}
               accessibilityRole="button"
@@ -244,10 +250,15 @@ export default function HomeScreen() {
               <MaterialIcons
                 name="military-tech"
                 size={12}
-                color={colors.orange}
+                color={levelInfo.accentColor}
               />
               <View style={styles.levelBadgeTextRow}>
-                <Text style={styles.levelBadgeLabel}>
+                <Text
+                  style={[
+                    styles.levelBadgeLabel,
+                    { color: levelInfo.accentColor },
+                  ]}
+                >
                   {levelInfo.title}
                 </Text>
                 <Text style={styles.levelBadgeMeta}> {levelProgressLabel}</Text>
@@ -523,12 +534,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.border,
     alignSelf: 'stretch',
     maxWidth: '100%',
   } as ViewStyle,
@@ -542,7 +551,6 @@ const styles = StyleSheet.create({
   levelBadgeLabel: {
     fontSize: 9,
     fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   } as TextStyle,

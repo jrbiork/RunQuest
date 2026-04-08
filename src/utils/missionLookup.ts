@@ -11,6 +11,7 @@ import {
   FUN_RUN_MISSION,
   MISSION_TEMPLATES,
 } from '../constants/missions';
+import { setIndexForMissionIndex } from '../constants/missionProgression';
 import { getMissionTargetsForClassLevel } from './missionGenerator';
 import { BASE_XP } from './xpCalculator';
 import { stripEmojis } from './stripEmojis';
@@ -87,6 +88,7 @@ function missionFromCampaignTemplate(
     day: 'Mon' as DayOfWeek,
     scheduledDate,
     status: 'completed',
+    setIndex: 0,
     ...(template.audioCues ? { audioCues: template.audioCues } : {}),
   };
 }
@@ -106,7 +108,11 @@ export function resolveMissionForHistory(
 
   const queueParsed = parseQueueMissionId(missionId);
   if (queueParsed) {
-    const t = getMissionTargetsForClassLevel(queueParsed.type, queueParsed.classLevel);
+    const t = getMissionTargetsForClassLevel(
+      queueParsed.type,
+      queueParsed.classLevel,
+      queueParsed.index,
+    );
     const tmpl = MISSION_TEMPLATES[queueParsed.type];
     return {
       id: missionId,
@@ -122,6 +128,10 @@ export function resolveMissionForHistory(
       day: 'Mon' as DayOfWeek,
       scheduledDate: queueParsed.scheduledDate,
       status: 'completed',
+      setIndex: setIndexForMissionIndex(
+        queueParsed.classLevel,
+        queueParsed.index,
+      ),
     };
   }
 

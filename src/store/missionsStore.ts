@@ -5,21 +5,18 @@ import type { Mission, MissionsState, UserProfile } from '../types';
 import {
   generateMissionsFromProfile as buildMissionQueueFromProfile,
   getNextIncompleteMission,
+  recomputeMissionStatuses,
 } from '../utils/missionGenerator';
-import { getLevelInfo } from '../utils/xpCalculator';
+import { parseQueueMissionId } from '../utils/missionLookup';
+import { setIndexForMissionIndex } from '../constants/missionProgression';
+import { getLevelInfo, SCAVENGER_LEVEL_COUNT } from '../utils/xpCalculator';
 
 interface MissionsActions {
-  /** Replace mission queue from profile and current total XP (derives level). */
+  /** Replace mission queue from profile; optional forced ladder level (e.g. next pack after full completion). */
   generateMissionsFromProfile: (
     profile: UserProfile,
     totalXp: number,
     forcedClassLevel?: number,
-  ) => void;
-  /** After a run, refill missions when the user crossed into a higher level. */
-  regenerateMissionsIfPromoted: (
-    profile: UserProfile,
-    xpBefore: number,
-    xpAfter: number,
   ) => void;
   completeMission: (missionId: string, xpEarned?: number) => void;
   abortMission: (missionId: string) => void;
@@ -33,6 +30,17 @@ function normalizeMissionStatuses(list: Mission[]): Mission[] {
   return list.map((m) =>
     (m.status as string) === 'failed' ? { ...m, status: 'active' as const } : m,
   );
+}
+
+function withRecomputed(
+  list: Mission[],
+  missionSetClassLevel: number | null,
+): Mission[] {
+  const cl =
+    missionSetClassLevel != null && missionSetClassLevel >= 1
+      ? missionSetClassLevel
+      : 1;
+  return recomputeMissionStatuses(list, cl);
 }
 
 export const useMissionsStore = create<MissionsStore>()(
@@ -49,25 +57,19 @@ export const useMissionsStore = create<MissionsStore>()(
         const classLevel =
           forcedClassLevel ??
           profile.startingClassLevel ??
+          get().missionSetClassLevel ??
           getLevelInfo(totalXp).level;
-        const missions = buildMissionQueueFromProfile(profile, classLevel);
+        const capped = Math.min(SCAVENGER_LEVEL_COUNT, Math.max(1, classLevel));
+        const missions = buildMissionQueueFromProfile(profile, capped);
         set({
           weekMissions: missions,
-          missionSetClassLevel: classLevel,
+          missionSetClassLevel: capped,
         });
       },
 
-      /** If XP crosses at least one level threshold, rebuild the queue for the new level. Multi-level jumps in one run use the final level (one new batch). */
-      regenerateMissionsIfPromoted: (profile, xpBefore, xpAfter) => {
-        const beforeLv = getLevelInfo(xpBefore).level;
-        const afterLv = getLevelInfo(xpAfter).level;
-        if (afterLv <= beforeLv) return;
-        get().generateMissionsFromProfile(profile, xpAfter);
-      },
-
       completeMission: (missionId: string, xpEarned?: number) => {
-        set((state) => ({
-          weekMissions: state.weekMissions.map((m) =>
+        set((state) => {
+          const mapped = state.weekMissions.map((m) =>
             m.id === missionId
               ? {
                   ...m,
@@ -75,26 +77,34 @@ export const useMissionsStore = create<MissionsStore>()(
                   ...(xpEarned !== undefined ? { xpReward: xpEarned } : {}),
                 }
               : m,
-          ),
-        }));
+          );
+          const cl = state.missionSetClassLevel ?? 1;
+          return {
+            weekMissions: withRecomputed(mapped, cl),
+          };
+        });
       },
 
       abortMission: (missionId: string) => {
-        set((state) => ({
-          weekMissions: state.weekMissions.map((m) =>
+        set((state) => {
+          const mapped = state.weekMissions.map((m) =>
             m.id === missionId ? { ...m, status: 'aborted' as const } : m,
-          ),
-        }));
+          );
+          const cl = state.missionSetClassLevel ?? 1;
+          return { weekMissions: withRecomputed(mapped, cl) };
+        });
       },
 
       retryMission: (missionId: string) => {
-        set((state) => ({
-          weekMissions: state.weekMissions.map((m) =>
+        set((state) => {
+          const mapped = state.weekMissions.map((m) =>
             m.id === missionId && m.status === 'aborted'
               ? { ...m, status: 'active' as const }
               : m,
-          ),
-        }));
+          );
+          const cl = state.missionSetClassLevel ?? 1;
+          return { weekMissions: withRecomputed(mapped, cl) };
+        });
       },
 
       resetMissions: () => {
@@ -106,9 +116,9 @@ export const useMissionsStore = create<MissionsStore>()(
     }),
     {
       name: 'runquest-missions',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
-      migrate: (persisted: unknown) => {
+      migrate: (persisted: unknown, version: number) => {
         const s = persisted as {
           weekMissions?: Mission[];
           campaignMissions?: Mission[];
@@ -118,10 +128,38 @@ export const useMissionsStore = create<MissionsStore>()(
           s.campaignMissions && s.campaignMissions.length > 0
             ? s.campaignMissions
             : s.weekMissions ?? [];
+        let normalized = normalizeMissionStatuses(raw) as Mission[];
+        let missionSetClassLevel = s.missionSetClassLevel ?? null;
+
+        if (version < 3 && normalized.length > 0) {
+          const inferred =
+            parseQueueMissionId(normalized[0]!.id)?.classLevel ??
+            missionSetClassLevel ??
+            1;
+          if (missionSetClassLevel == null) missionSetClassLevel = inferred;
+          normalized = normalized.map((m, idx) => {
+            const p = parseQueueMissionId(m.id);
+            const cl = p?.classLevel ?? inferred;
+            const i = p?.index ?? idx;
+            return {
+              ...m,
+              setIndex: setIndexForMissionIndex(cl, i),
+            };
+          });
+          normalized = withRecomputed(normalized, missionSetClassLevel);
+        }
+
         return {
-          weekMissions: normalizeMissionStatuses(raw),
-          missionSetClassLevel: s.missionSetClassLevel ?? null,
+          weekMissions: normalized,
+          missionSetClassLevel,
         };
+      },
+      onRehydrateStorage: () => (state) => {
+        if (!state?.weekMissions?.length) return;
+        const cl = state.missionSetClassLevel ?? 1;
+        useMissionsStore.setState({
+          weekMissions: recomputeMissionStatuses(state.weekMissions, cl),
+        });
       },
       partialize: (state) => ({
         weekMissions: state.weekMissions,

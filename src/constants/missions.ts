@@ -572,6 +572,7 @@ export const FUN_RUN_MISSION: Mission = {
   day: 'Mon',
   scheduledDate: '',
   status: 'active',
+  setIndex: 0,
 };
 
 export const REST_DAY_MESSAGES = [

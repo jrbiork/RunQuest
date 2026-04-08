@@ -17,6 +17,7 @@ import { MissionNode } from './MissionNode';
 import { useUserStore } from '../../store/userStore';
 import { useMissionsStore } from '../../store/missionsStore';
 import { getDisplayXpTotal } from '../../utils/displayXp';
+import { SCAVENGER_LEVEL_COUNT } from '../../utils/xpCalculator';
 import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/theme';
 import RunShareCard from '../share/RunShareCard';
 import { shareCard } from '../../services/shareService';
@@ -34,6 +35,7 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
   const profile = useUserStore((s) => s.profile);
   const xp = useUserStore((s) => s.xp);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
+  const missionSetClassLevel = useMissionsStore((s) => s.missionSetClassLevel);
 
   const retryMission = useMissionsStore((s) => s.retryMission);
   const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
@@ -104,7 +106,9 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
 
   return (
     <View style={styles.container}>
-      {allComplete && (
+      {allComplete &&
+        missionSetClassLevel != null &&
+        missionSetClassLevel < SCAVENGER_LEVEL_COUNT && (
         <Animated.View
           style={[
             styles.completeBanner,
@@ -113,9 +117,9 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
         >
           <MaterialIcons name="celebration" size={24} color={colors.textSecondary} />
           <View style={styles.completeBannerContent}>
-            <Text style={styles.completeBannerTitle}>Set complete</Text>
+            <Text style={styles.completeBannerTitle}>Level complete</Text>
             <Text style={styles.completeBannerSub}>
-              Great work. Claim your next mission set.
+              Great work. Continue to your next mission level.
             </Text>
           </View>
           <TouchableOpacity
@@ -123,10 +127,14 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
             onPress={() => {
               if (!profile) return;
               const totalXp = getDisplayXpTotal({ xp, runHistory });
-              generateMissionsFromProfile(profile, totalXp);
+              const nextLevel = Math.min(
+                SCAVENGER_LEVEL_COUNT,
+                missionSetClassLevel + 1,
+              );
+              generateMissionsFromProfile(profile, totalXp, nextLevel);
             }}
           >
-            <Text style={styles.nextSetButtonText}>Next Set</Text>
+            <Text style={styles.nextSetButtonText}>Next level</Text>
             <MaterialIcons name="arrow-forward" size={14} color={colors.background} />
           </TouchableOpacity>
         </Animated.View>

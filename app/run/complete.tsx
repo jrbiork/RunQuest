@@ -248,7 +248,6 @@ export default function RunCompleteScreen() {
 
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const completeMission = useMissionsStore((s) => s.completeMission);
-  const regenerateMissionsIfPromoted = useMissionsStore((s) => s.regenerateMissionsIfPromoted);
 
   const completeRun = useUserStore((s) => s.completeRun);
   const recordStreakOnMissionStart = useUserStore(
@@ -284,7 +283,14 @@ export default function RunCompleteScreen() {
         ? actualDistanceKm / targetKm
         : undefined;
     if (!goalMet) {
-      return calculateTimedMissionXp(mission.type, streak, 'incomplete', completionRatio);
+      return calculateTimedMissionXp(
+        mission.type,
+        streak,
+        'incomplete',
+        completionRatio,
+        undefined,
+        mission.xpReward,
+      );
     }
     const kind = onTime ? 'on_time' : 'late';
     return calculateTimedMissionXp(
@@ -293,6 +299,7 @@ export default function RunCompleteScreen() {
       kind,
       completionRatio,
       distanceRatioVsTarget,
+      mission.xpReward,
     );
   }, [mission, isFreeRun, actualDistanceKm, streak, goalMet, onTime, activityMode]);
 
@@ -360,9 +367,6 @@ export default function RunCompleteScreen() {
       return;
     }
 
-    const xpBefore = useUserStore.getState().xp;
-    const profile = useUserStore.getState().profile;
-
     if (goalMet) {
       // Streak increments only when at least one mission is completed (or partial-time completed) that day.
       recordStreakOnMissionStart();
@@ -383,13 +387,14 @@ export default function RunCompleteScreen() {
       goalMet,
       activityMode,
       elapsedSec,
-      goalMet ? { onTime, targetDistanceKm: targetKm } : undefined,
+      goalMet
+        ? {
+            onTime,
+            targetDistanceKm: targetKm,
+            missionBaseXp: mission.xpReward,
+          }
+        : undefined,
     );
-
-    const xpAfter = useUserStore.getState().xp;
-    if (profile) {
-      regenerateMissionsIfPromoted(profile, xpBefore, xpAfter);
-    }
   }, []);
 
   if (!mission) {

@@ -69,7 +69,6 @@ export function devCompleteSuccessfulMissions(
   const activityMode = profile.defaultActivityMode ?? 'run';
   const completeMission = useMissionsStore.getState().completeMission;
   const completeRun = useUserStore.getState().completeRun;
-  const regenerateMissionsIfPromoted = useMissionsStore.getState().regenerateMissionsIfPromoted;
   const generateMissionsFromProfile =
     useMissionsStore.getState().generateMissionsFromProfile;
 
@@ -94,9 +93,14 @@ export function devCompleteSuccessfulMissions(
         : next.targetDurationMin;
 
     const streak = useUserStore.getState().streak;
-    const xpEarned = calculateTimedMissionXp(next.type, streak, 'on_time');
-    const xpBefore = useUserStore.getState().xp;
-
+    const xpEarned = calculateTimedMissionXp(
+      next.type,
+      streak,
+      'on_time',
+      1,
+      undefined,
+      next.xpReward,
+    );
     completeMission(next.id, xpEarned);
     completeRun(
       next.id,
@@ -107,12 +111,13 @@ export function devCompleteSuccessfulMissions(
       true,
       activityMode,
       MIN_EFFORT_SECONDS,
-      { onTime: true, targetDistanceKm: distKm },
+      {
+        onTime: true,
+        targetDistanceKm: distKm,
+        missionBaseXp: next.xpReward,
+      },
     );
 
-    const xpAfter = useUserStore.getState().xp;
-    const p = useUserStore.getState().profile ?? profile;
-    regenerateMissionsIfPromoted(p, xpBefore, xpAfter);
     completed += 1;
   }
 

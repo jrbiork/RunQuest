@@ -871,13 +871,6 @@ export default function ActiveRunScreen() {
                 </View>
               </View>
             )}
-            {isFreeRun && (
-              <View style={styles.mapFreeRunHint} pointerEvents="none">
-                <Text style={styles.mapFreeRunHintText}>
-                  FREE RUN · NO TARGETS
-                </Text>
-              </View>
-            )}
             {__DEV__ && (
               <View style={styles.gpsDebugOverlay} pointerEvents="none">
                 <Text style={styles.gpsDebugText}>
@@ -916,9 +909,6 @@ export default function ActiveRunScreen() {
                         </Text>
                       </View>
                     </View>
-                  )}
-                  {isFreeRun && (
-                    <Text style={styles.preStartFreeTitle}>Free run</Text>
                   )}
                   {mapReady ? (
                     <Text style={styles.preStartHint}>
@@ -1081,19 +1071,19 @@ export default function ActiveRunScreen() {
                   activeOpacity={0.85}
                 >
                   <MaterialIcons
-                    name={isFreeRun ? 'stop' : 'emoji-events'}
+                    name={isFreeRun ? 'check-circle' : 'emoji-events'}
                     size={20}
                     color={colors.textInverse}
                   />
                   <Text
                     style={[styles.finishBtnText, styles.finishBtnTextGoal]}
                   >
-                    {isFreeRun ? 'FINISH FREE RUN' : 'COMPLETE MISSION'}
+                    {isFreeRun ? 'COMPLETE RUN' : 'COMPLETE MISSION'}
                   </Text>
                 </TouchableOpacity>
               )}
 
-              {/* Pause + Abort — hidden once the goal is reached for non-free-run missions */}
+              {/* Pause + Abort — hidden once the goal is reached for non-free-run missions. Free run: pause only (no end/abort). */}
               {(isFreeRun || !goalHit) && (
                 <View style={styles.pauseAbortRow}>
                   <TouchableOpacity
@@ -1121,20 +1111,20 @@ export default function ActiveRunScreen() {
                       {isPaused ? 'RESUME' : 'PAUSE'}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.pauseResumeBtn, styles.pauseAbortHalf]}
-                    onPress={confirmAbort}
-                    activeOpacity={0.85}
-                  >
-                    <MaterialIcons
-                      name="close"
-                      size={20}
-                      color={colors.textSecondary}
-                    />
-                    <Text style={styles.pauseResumeBtnText}>
-                      {isFreeRun ? 'END' : 'ABORT'}
-                    </Text>
-                  </TouchableOpacity>
+                  {!isFreeRun && (
+                    <TouchableOpacity
+                      style={[styles.pauseResumeBtn, styles.pauseAbortHalf]}
+                      onPress={confirmAbort}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialIcons
+                        name="close"
+                        size={20}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={styles.pauseResumeBtnText}>ABORT</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>
@@ -1358,24 +1348,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     fontVariant: ['tabular-nums'],
   } as TextStyle,
-  mapFreeRunHint: {
-    position: 'absolute',
-    top: spacing.md,
-    alignSelf: 'center',
-    zIndex: 15,
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  } as ViewStyle,
-  mapFreeRunHintText: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textSecondary,
-    letterSpacing: 1,
-  } as TextStyle,
   gpsDebugOverlay: {
     position: 'absolute',
     top: spacing.md,
@@ -1443,14 +1415,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     fontVariant: ['tabular-nums'],
-  } as TextStyle,
-  preStartFreeTitle: {
-    fontSize: fontSizes.xxl,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   } as TextStyle,
   preStartHint: {
     fontSize: fontSizes.sm,

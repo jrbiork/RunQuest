@@ -1,6 +1,10 @@
 // ─── Onboarding & Profile ────────────────────────────────────────────────────
 
-export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
+export type ExperienceLevel =
+  | 'beginner'
+  | 'intermediate'
+  | 'advanced'
+  | 'pro';
 
 export type RunningGoal =
   | 'consistency'
@@ -103,6 +107,8 @@ export interface Mission {
   status: MissionStatus;
   /** When set, overrides type-based MISSION_AUDIO_CUES during the run. */
   audioCues?: MissionAudioCueSet;
+  /** 0-based index of the mission set within this level pack (unlock gating). */
+  setIndex: number;
 }
 
 // ─── Campaign Types ──────────────────────────────────────────────────────────

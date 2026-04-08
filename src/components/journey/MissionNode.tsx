@@ -892,8 +892,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
-    borderLeftWidth: 1,
-    borderLeftColor: colors.border,
   } as ViewStyle,
   collapsedCompletedText: {
     flex: 1,
@@ -917,7 +915,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
-    borderLeftWidth: 1,
-    borderLeftColor: colors.border,
   } as ViewStyle,
 });
