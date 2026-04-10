@@ -1,306 +1,145 @@
 import type { Mission, MissionType, MissionAudioCueSet } from '../types';
 
-// ─── Mission Microcopy Templates ─────────────────────────────────────────────
+// ─── Mission card copy (weekly queue) ──────────────────────────────────────────
 
-/** Aligned title, subtitle, briefing, and optional in-run cues for legacy week missions. */
-export interface MissionTemplateVariant {
+export interface MissionCopyRow {
   title: string;
   subtitle: string;
   description: string;
-  audioCues?: MissionAudioCueSet;
 }
 
-export interface MissionTemplate {
-  type: MissionType;
-  titles: string[];
-  subtitles: string[];
-  descriptions: string[];
-  /** When set, buildMission picks one variant so title, subtitle, and briefing align. */
-  variants?: MissionTemplateVariant[];
-  motivationalFraming: string[];
-  completionMessages: string[];
+/** Flavor text for queue missions; paired rows cycle by mission index in the week. */
+export const MISSION_COPY_POOL: readonly MissionCopyRow[] = [
+  {
+    title: 'Med Supply Delivery',
+    subtitle: 'Crate to the community aid station.',
+    description:
+      'Deliver medications to the community aid station on your route. Run easy: even pace, full sentences, until you hit the target distance or time.',
+  },
+  {
+    title: 'Supplement Drop',
+    subtitle: 'Childcare center on the manifest.',
+    description:
+      'Take food supplements to the childcare center listed on your manifest. Hold easy effort throughout; complete the distance or time without surging.',
+  },
+  {
+    title: 'Recruiter Post',
+    subtitle: 'Next checkpoint; confirm arrival slot.',
+    description:
+      'Meet the recruiter at the next post on the route sheet. Move at easy pace; finish the assigned distance or duration.',
+  },
+  {
+    title: 'Water Distribution',
+    subtitle: 'Depot to the community tent.',
+    description:
+      'Move water containers from the depot to the distribution tent. Run easy and steady; meet the target distance or time.',
+  },
+  {
+    title: 'Dispatch Window',
+    subtitle: 'Orders to forward command before cutoff.',
+    description:
+      'Relay written orders to forward command before the comm window closes. Hold one hard, steady effort—not a sprint—until the duration ends.',
+  },
+  {
+    title: 'Specimen Run',
+    subtitle: 'Cooler to the pathology lab.',
+    description:
+      'Deliver the sealed specimen cooler to the pathology lab on schedule. Maintain threshold effort: strong and controlled for the full run.',
+  },
+  {
+    title: 'Checkpoint Clear',
+    subtitle: 'Route before the barrier reconfigures.',
+    description:
+      'Clear the access checkpoint before it reconfigures for the next shift. Stay at sustained hard pace for the full duration.',
+  },
+  {
+    title: 'Signals Handoff',
+    subtitle: 'Drives to the mobile signals unit.',
+    description:
+      'Transport encrypted drives from Station B to the mobile signals unit. Hold one sustained hard effort without backing off.',
+  },
+  {
+    title: 'Blood Sample Relay',
+    subtitle: 'Clinic to lab; courier window.',
+    description:
+      'Pick up blood samples at the clinic and bring them to the lab before the courier window closes. Run long at easy endurance pace; bank distance, do not race early.',
+  },
+  {
+    title: 'Shelter Forms',
+    subtitle: 'Three stops; return to HQ by cutoff.',
+    description:
+      'Collect signed intake forms from three shelters on the route sheet and return them to headquarters by the end time. Keep an easy aerobic pace for the full distance or duration.',
+  },
+  {
+    title: 'Field Rations',
+    subtitle: 'End of the marked supply route.',
+    description:
+      'Move field rations to the evacuation camp at the end of the marked route. Pace for distance: comfortable and patient until the full target is done.',
+  },
+  {
+    title: 'Vaccine Cold Chain',
+    subtitle: 'Mobile unit at the fairgrounds.',
+    description:
+      'Deliver cold-chain vaccine packs to the mobile unit at the fairgrounds; confirm temperature logs on receipt. Run long and easy; no surges.',
+  },
+  {
+    title: 'Fence Survey',
+    subtitle: 'Log breach markers; low effort.',
+    description:
+      'Walk the fence line and log breach markers. Keep effort low: light jog or shuffle; complete the full distance or time.',
+  },
+  {
+    title: 'All-Clear Sweep',
+    subtitle: 'Observation pace after the lift.',
+    description:
+      'Move through the cleared block at observation pace after the all-clear. Effort stays easy; do not push heart rate.',
+  },
+  {
+    title: 'Medic Escort',
+    subtitle: 'Slow sweep; you set the pace.',
+    description:
+      'Escort the medic on a slow route sweep. You set an easy pace; cover the target distance or duration without intensity.',
+  },
+  {
+    title: 'Witness Transfer',
+    subtitle: 'Transit station to courthouse handoff.',
+    description:
+      'Escort a witness from the transit station to the courthouse entrance and hand them off to court security. Move at recovery effort for the full segment.',
+  },
+  {
+    title: 'Multi-Stop Drop',
+    subtitle: 'Supply at each post; hard then recover.',
+    description:
+      'Hit multiple supply drops in sequence: hard work segments, full recovery between. Do not blend easy and hard segments.',
+  },
+  {
+    title: 'Alarm Response',
+    subtitle: 'Fast segment per ping; then reset.',
+    description:
+      'Respond to each alarm ping with a fast segment, then jog easy until the next. Full effort on work; real rest on recovery.',
+  },
+  {
+    title: 'Courier Handoffs',
+    subtitle: 'Cordon posts; surge then wait.',
+    description:
+      'Rapid courier handoffs along the cordon: hard intervals, then easy movement until the next station. No half-effort work reps.',
+  },
+  {
+    title: 'Equipment Draw',
+    subtitle: 'Armory bundle to range officer.',
+    description:
+      'Report to the armory, draw the equipment bundle on your name, and deliver it to the training range officer. Use hard work segments for each rush leg; easy segments between.',
+  },
+];
+
+export function missionCopyForQueueIndex(index: number): MissionCopyRow {
+  const n = MISSION_COPY_POOL.length;
+  if (n === 0) return { title: '', subtitle: '', description: '' };
+  return MISSION_COPY_POOL[index % n]!;
 }
 
-export const MISSION_TEMPLATES: Record<MissionType, MissionTemplate> = {
-  easy: {
-    type: 'easy',
-    titles: [
-      'Med Supply Delivery',
-      'Supplement Drop',
-      'Recruiter Post',
-      'Water Distribution',
-    ],
-    subtitles: [
-      'Crate to the community aid station.',
-      'Childcare center on the manifest.',
-      'Next checkpoint; confirm arrival slot.',
-      'Depot to the community tent.',
-    ],
-    descriptions: [
-      'Move sealed supply to the address on the dispatch card. Run easy: even pace and full sentences until the target distance or time is done.',
-      'Foot courier for non-urgent parcels. Hold one easy gear for the full run; no surges.',
-    ],
-    variants: [
-      {
-        title: 'Med Supply Delivery',
-        subtitle: 'Crate to the community aid station.',
-        description:
-          'Deliver medications to the community aid station on your route. Run easy: even pace, full sentences, until you hit the target distance or time.',
-      },
-      {
-        title: 'Supplement Drop',
-        subtitle: 'Childcare center on the manifest.',
-        description:
-          'Take food supplements to the childcare center listed on your manifest. Hold easy effort throughout; complete the distance or time without surging.',
-      },
-      {
-        title: 'Recruiter Post',
-        subtitle: 'Next checkpoint; confirm arrival slot.',
-        description:
-          'Meet the recruiter at the next post on the route sheet. Move at easy pace; finish the assigned distance or duration.',
-      },
-      {
-        title: 'Water Distribution',
-        subtitle: 'Depot to the community tent.',
-        description:
-          'Move water containers from the depot to the distribution tent. Run easy and steady; meet the target distance or time.',
-      },
-    ],
-    motivationalFraming: [
-      'Manifest distance logged.',
-      'Courier window covered.',
-      'Target distance or time filed.',
-    ],
-    completionMessages: [
-      'Delivery logged. Crate signed at aid station.',
-      'Drop complete. Manifest closed.',
-      'Easy run complete. Distance or time on record.',
-    ],
-  },
-  tempo: {
-    type: 'tempo',
-    titles: [
-      'Dispatch Window',
-      'Specimen Run',
-      'Checkpoint Clear',
-      'Signals Handoff',
-    ],
-    subtitles: [
-      'Orders to forward command before cutoff.',
-      'Cooler to the pathology lab.',
-      'Route before the barrier reconfigures.',
-      'Drives to the mobile signals unit.',
-    ],
-    descriptions: [
-      'Time-critical paperwork to a fixed recipient. Hold one hard, steady effort for the full duration.',
-      'Threshold pace: uncomfortable, controlled, no sprint finish early.',
-    ],
-    variants: [
-      {
-        title: 'Dispatch Window',
-        subtitle: 'Orders to forward command before cutoff.',
-        description:
-          'Relay written orders to forward command before the comm window closes. Hold one hard, steady effort—not a sprint—until the duration ends.',
-      },
-      {
-        title: 'Specimen Run',
-        subtitle: 'Cooler to the pathology lab.',
-        description:
-          'Deliver the sealed specimen cooler to the pathology lab on schedule. Maintain threshold effort: strong and controlled for the full run.',
-      },
-      {
-        title: 'Checkpoint Clear',
-        subtitle: 'Route before the barrier reconfigures.',
-        description:
-          'Clear the access checkpoint before it reconfigures for the next shift. Stay at sustained hard pace for the full duration.',
-      },
-      {
-        title: 'Signals Handoff',
-        subtitle: 'Drives to the mobile signals unit.',
-        description:
-          'Transport encrypted drives from Station B to the mobile signals unit. Hold one sustained hard effort without backing off.',
-      },
-    ],
-    motivationalFraming: [
-      'Threshold segment scheduled.',
-      'Hard steady pace assigned.',
-      'Duration target is fixed.',
-    ],
-    completionMessages: [
-      'Dispatch delivered. Window closed on time.',
-      'Cooler receipt confirmed at lab.',
-      'Tempo run complete. Duration on file.',
-    ],
-  },
-  long: {
-    type: 'long',
-    titles: [
-      'Blood Sample Relay',
-      'Shelter Forms',
-      'Field Rations',
-      'Vaccine Cold Chain',
-    ],
-    subtitles: [
-      'Clinic to lab; courier window.',
-      'Three stops; return to HQ by cutoff.',
-      'End of the marked supply route.',
-      'Mobile unit at the fairgrounds.',
-    ],
-    descriptions: [
-      'Long foot leg with weight allowance for pack. Easy endurance pace; full distance or time.',
-      'Distance priority over speed. No mid-run surges.',
-    ],
-    variants: [
-      {
-        title: 'Blood Sample Relay',
-        subtitle: 'Clinic to lab; courier window.',
-        description:
-          'Pick up blood samples at the clinic and bring them to the lab before the courier window closes. Run long at easy endurance pace; bank distance, do not race early.',
-      },
-      {
-        title: 'Shelter Forms',
-        subtitle: 'Three stops; return to HQ by cutoff.',
-        description:
-          'Collect signed intake forms from three shelters on the route sheet and return them to headquarters by the end time. Keep an easy aerobic pace for the full distance or duration.',
-      },
-      {
-        title: 'Field Rations',
-        subtitle: 'End of the marked supply route.',
-        description:
-          'Move field rations to the evacuation camp at the end of the marked route. Pace for distance: comfortable and patient until the full target is done.',
-      },
-      {
-        title: 'Vaccine Cold Chain',
-        subtitle: 'Mobile unit at the fairgrounds.',
-        description:
-          'Deliver cold-chain vaccine packs to the mobile unit at the fairgrounds; confirm temperature logs on receipt. Run long and easy; no surges.',
-      },
-    ],
-    motivationalFraming: [
-      'Route mileage assigned.',
-      'Endurance segment on the schedule.',
-      'Full distance or duration required.',
-    ],
-    completionMessages: [
-      'Relay complete. Lab receipt on file.',
-      'Forms returned to HQ. Route closed.',
-      'Long run complete. Distance or time logged.',
-    ],
-  },
-  recovery: {
-    type: 'recovery',
-    titles: [
-      'Fence Survey',
-      'All-Clear Sweep',
-      'Medic Escort',
-      'Witness Transfer',
-    ],
-    subtitles: [
-      'Log breach markers; low effort.',
-      'Observation pace after the lift.',
-      'Slow sweep; you set the pace.',
-      'Transit station to courthouse handoff.',
-    ],
-    descriptions: [
-      'Low-intensity movement only. Full target at recovery heart rate.',
-      'Motion without training stress. Complete distance or time.',
-    ],
-    variants: [
-      {
-        title: 'Fence Survey',
-        subtitle: 'Log breach markers; low effort.',
-        description:
-          'Walk the fence line and log breach markers. Keep effort low: light jog or shuffle; complete the full distance or time.',
-      },
-      {
-        title: 'All-Clear Sweep',
-        subtitle: 'Observation pace after the lift.',
-        description:
-          'Move through the cleared block at observation pace after the all-clear. Effort stays easy; do not push heart rate.',
-      },
-      {
-        title: 'Medic Escort',
-        subtitle: 'Slow sweep; you set the pace.',
-        description:
-          'Escort the medic on a slow route sweep. You set an easy pace; cover the target distance or duration without intensity.',
-      },
-      {
-        title: 'Witness Transfer',
-        subtitle: 'Transit station to courthouse handoff.',
-        description:
-          'Escort a witness from the transit station to the courthouse entrance and hand them off to court security. Move at recovery effort for the full segment.',
-      },
-    ],
-    motivationalFraming: [
-      'Recovery segment only.',
-      'Low effort logged as ordered.',
-      'Distance or time at easy output.',
-    ],
-    completionMessages: [
-      'Survey filed. Perimeter notes attached.',
-      'Sweep complete. Observation log closed.',
-      'Recovery run complete. Effort band met.',
-    ],
-  },
-  interval: {
-    type: 'interval',
-    titles: [
-      'Multi-Stop Drop',
-      'Alarm Response',
-      'Courier Handoffs',
-      'Equipment Draw',
-    ],
-    subtitles: [
-      'Supply at each post; hard then recover.',
-      'Fast segment per ping; then reset.',
-      'Cordon posts; surge then wait.',
-      'Armory bundle to range officer.',
-    ],
-    descriptions: [
-      'Repeated hard segments with full recovery between. No mixed pacing.',
-      'Work intervals at full effort; easy intervals slow enough to speak in full sentences.',
-    ],
-    variants: [
-      {
-        title: 'Multi-Stop Drop',
-        subtitle: 'Supply at each post; hard then recover.',
-        description:
-          'Hit multiple supply drops in sequence: hard work segments, full recovery between. Do not blend easy and hard segments.',
-      },
-      {
-        title: 'Alarm Response',
-        subtitle: 'Fast segment per ping; then reset.',
-        description:
-          'Respond to each alarm ping with a fast segment, then jog easy until the next. Full effort on work; real rest on recovery.',
-      },
-      {
-        title: 'Courier Handoffs',
-        subtitle: 'Cordon posts; surge then wait.',
-        description:
-          'Rapid courier handoffs along the cordon: hard intervals, then easy movement until the next station. No half-effort work reps.',
-      },
-      {
-        title: 'Equipment Draw',
-        subtitle: 'Armory bundle to range officer.',
-        description:
-          'Report to the armory, draw the equipment bundle on your name, and deliver it to the training range officer. Use hard work segments for each rush leg; easy segments between.',
-      },
-    ],
-    motivationalFraming: [
-      'Interval set on the board.',
-      'Work and recovery segments fixed.',
-      'Repeat until the set is complete.',
-    ],
-    completionMessages: [
-      'Drop sequence complete. All posts checked.',
-      'Interval set logged. Rep count closed.',
-      'Handoffs complete. Equipment receipt filed.',
-    ],
-  },
-};
-
-// ─── In-Run Audio Cues per Mission Type ──────────────────────────────────────
-// Fallback when mission.audioCues is unset. Short lines — one sentence each. Survivor address.
+// ─── In-Run Audio Cues ───────────────────────────────────────────────────────
+// Fallback when mission.audioCues is unset. Short lines — one sentence each.
 
 /** Pick a random line from a cue variants array. */
 export function pickCue(variants: string[]): string {
@@ -339,7 +178,11 @@ export function pickMissionCompleteLiveCue(): string {
   return pickCue([...MISSION_COMPLETE_LIVE_CUE_LINES]);
 }
 
-export const MISSION_AUDIO_CUES: Record<MissionType, MissionAudioCueSet> = {
+/**
+ * In-run TTS when `mission.audioCues` is unset — JSON-shaped manifest per mission type.
+ * Edit like config: one object keyed by type, each phase is a string array.
+ */
+export const MISSION_AUDIO_CUES_JSON = {
   easy: {
     start: [
       'Easy segment. Pace you can talk through.',
@@ -479,7 +322,11 @@ export const MISSION_AUDIO_CUES: Record<MissionType, MissionAudioCueSet> = {
       'Interval segment finished.',
     ],
   },
-};
+} satisfies Record<MissionType, MissionAudioCueSet>;
+
+/** Lookup alias — use `MISSION_AUDIO_CUES_JSON` for the editable blob. */
+export const MISSION_AUDIO_CUES: Record<MissionType, MissionAudioCueSet> =
+  MISSION_AUDIO_CUES_JSON;
 
 // ─── Post-Run World Impact Messages ──────────────────────────────────────────
 
@@ -517,7 +364,7 @@ export const GREETINGS_BY_TIME = {
   morning: [
     'Dawn patrol. Zones need you.',
     'First light. The world is waiting.',
-    'Morning runner. The grid wakes with you.',
+    'Morning. The grid wakes up with you.',
   ],
   afternoon: [
     'Midday mission. Lace up.',
