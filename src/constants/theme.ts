@@ -42,8 +42,8 @@ export const colors = {
   textTertiary: '#5C5850',
   textInverse: '#0E1210',
 
-  // Tab bar (active = navigation; Deploy button stays orange separately)
-  tabActive: '#679058',
+  // Tab bar — active is muted bone (not brand green); Deploy FAB stays orange in _layout
+  tabActive: '#9A968E',
   tabInactive: '#5C5850',
 } as const;
 

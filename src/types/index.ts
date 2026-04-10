@@ -105,34 +105,10 @@ export interface Mission {
   day: DayOfWeek;
   scheduledDate: string;   // ISO date string YYYY-MM-DD
   status: MissionStatus;
-  /** When set, overrides type-based MISSION_AUDIO_CUES during the run. */
+  /** When set, overrides type-based `MISSION_AUDIO_CUES` during the run. */
   audioCues?: MissionAudioCueSet;
   /** 0-based index of the mission set within this level pack (unlock gating). */
   setIndex: number;
-}
-
-// ─── Campaign Types ──────────────────────────────────────────────────────────
-
-export interface CampaignMissionTemplate {
-  type: MissionType;
-  title: string;
-  subtitle: string;
-  /** When set, overrides auto-generated briefing. */
-  description?: string;
-  /** When set, overrides auto-generated in-run TTS. */
-  audioCues?: MissionAudioCueSet;
-  targetDistanceKm: number;
-  targetDurationMin: number;
-  targetCyclingDistanceKm: number;
-  targetCyclingDurationMin: number;
-  xpReward: number;
-}
-
-export interface CampaignTemplate {
-  index: number;   // 1-based (1–10)
-  title: string;
-  subtitle: string;
-  missionTemplates: CampaignMissionTemplate[];
 }
 
 // ─── GPS Tracking ─────────────────────────────────────────────────────────────

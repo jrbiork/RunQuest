@@ -6,7 +6,7 @@ import type {
   ExperienceLevel,
   RunningGoal,
 } from '../types';
-import { MISSION_TEMPLATES } from '../constants/missions';
+import { missionCopyForQueueIndex } from '../constants/missions';
 import {
   getXpBandForLevel,
   SCAVENGER_LEVEL_COUNT,
@@ -323,10 +323,6 @@ function getTargets(
   };
 }
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)] as T;
-}
-
 function buildMission(
   type: MissionType,
   day: DayOfWeek,
@@ -338,21 +334,15 @@ function buildMission(
   xpReward: number,
   setIndex: number,
 ): Mission {
-  const template = MISSION_TEMPLATES[type];
+  const copy = missionCopyForQueueIndex(index);
   const targets = getTargets(type, level, classLevel, index, missionCount);
-  const variant = template.variants?.length ? pick(template.variants) : null;
-
-  const rawTitle = variant?.title ?? pick(template.titles);
-  const rawSubtitle = variant?.subtitle ?? pick(template.subtitles);
-  const rawDescription = variant?.description ?? pick(template.descriptions);
 
   return {
     id: `mission-L${classLevel}-i${index}-${scheduledDate}-${type}`,
     type,
-    title: stripEmojis(rawTitle),
-    subtitle: stripEmojis(rawSubtitle),
-    description: stripEmojis(rawDescription),
-    ...(variant?.audioCues ? { audioCues: variant.audioCues } : {}),
+    title: stripEmojis(copy.title),
+    subtitle: stripEmojis(copy.subtitle),
+    description: stripEmojis(copy.description),
     targetDistanceKm: targets.distanceKm,
     targetDurationMin: targets.durationMin,
     targetCyclingDistanceKm: targets.cyclingDistanceKm,

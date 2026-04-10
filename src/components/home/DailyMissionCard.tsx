@@ -37,15 +37,14 @@ export function DailyMissionCard({ mission, onStartRun }: DailyMissionCardProps)
         <Text style={styles.title}>{stripEmojis(mission.title)}</Text>
         <Text style={styles.subtitle}>{stripEmojis(mission.subtitle)}</Text>
 
-        {/* Stats row — one group per activity */}
+        {/* Stats row — run left, cycle right */}
         <View style={styles.statsRow}>
-          <View style={styles.activityGroup}>
+          <View style={[styles.activityGroup, styles.activityGroupLeft]}>
             <MaterialIcons name="directions-run" size={16} color="rgba(255,255,255,0.8)" />
             <Text style={styles.statValue}>{formatDistance(mission.targetDistanceKm)}</Text>
             <Text style={styles.statDim}>~{formatDuration(mission.targetDurationMin)}</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.activityGroup}>
+          <View style={[styles.activityGroup, styles.activityGroupRight]}>
             <MaterialIcons name="directions-bike" size={16} color="rgba(255,255,255,0.8)" />
             <Text style={styles.statValue}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
             <Text style={styles.statDim}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
@@ -109,6 +108,8 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
     marginTop: spacing.md,
     gap: spacing.md,
   } as ViewStyle,
@@ -116,6 +117,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flexShrink: 1,
+  } as ViewStyle,
+  activityGroupLeft: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    minWidth: 0,
+  } as ViewStyle,
+  activityGroupRight: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    minWidth: 0,
   } as ViewStyle,
   statValue: {
     fontSize: fontSizes.sm,
@@ -127,11 +139,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.65)',
     fontWeight: fontWeights.medium,
   } as TextStyle,
-  divider: {
-    width: 1,
-    height: 16,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-  } as ViewStyle,
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',

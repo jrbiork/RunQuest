@@ -13,6 +13,8 @@ import {
   GPS_STATIONARY_SPEED_MPS,
   haversineM,
 } from '../utils/haversine';
+import { GPS_MICRO_JITTER_MAX_ACCURACY_M } from '../constants/gpsTrackingConfig';
+import { applyMicroJitterToDistanceDelta } from '../utils/gpsMicroJitterDistance';
 import { speakRunCue } from '../services/audioService';
 import { pickCue } from '../constants/missions';
 
@@ -79,6 +81,10 @@ let _bgRecentAccepted: GpsPoint[] = [];
 // and the background task (both fire while the app is foregrounded).
 const _bgSeenTimestamps = new Set<number>();
 
+/** Mirrors hook micro-jitter state for background distance accumulation. */
+let _bgMicroCommitted: GpsPoint | null = null;
+let _bgMicroInJitter = false;
+
 function _addBgPoint(point: GpsPoint, speedMps: number | null = null): {
   accepted: boolean;
   addedKm: number;
@@ -91,6 +97,20 @@ function _addBgPoint(point: GpsPoint, speedMps: number | null = null): {
   if (_bgAnchorPoint === null) {
     _bgAnchorPoint = point;
     _bgRecentAccepted = [point];
+    const microEnabled =
+      point.accuracy != null &&
+      point.accuracy <= GPS_MICRO_JITTER_MAX_ACCURACY_M;
+    const micro = applyMicroJitterToDistanceDelta({
+      state: {
+        committedAnchor: _bgMicroCommitted,
+        inJitterZone: _bgMicroInJitter,
+      },
+      candidate: point,
+      rawAddedKm: 0,
+      microEnabled,
+    });
+    _bgMicroCommitted = micro.state.committedAnchor;
+    _bgMicroInJitter = micro.state.inJitterZone;
     return { accepted: true, addedKm: 0 };
   }
   const distM = haversineM(_bgAnchorPoint, point);
@@ -121,13 +141,34 @@ function _addBgPoint(point: GpsPoint, speedMps: number | null = null): {
     candidateSpeed <= GPS_STATIONARY_SPEED_MPS &&
     radiusM > 0 &&
     radiusM <= GPS_STATIONARY_RADIUS_M;
-  if (stationaryBlocked) return { accepted: false, addedKm: 0 };
-  _bgDistanceKm += addedKm;
+  const rawKmAfterStationary = stationaryBlocked ? 0 : addedKm;
+
+  const microEnabled =
+    point.accuracy != null &&
+    point.accuracy <= GPS_MICRO_JITTER_MAX_ACCURACY_M;
+  const micro = applyMicroJitterToDistanceDelta({
+    state: {
+      committedAnchor: _bgMicroCommitted,
+      inJitterZone: _bgMicroInJitter,
+    },
+    candidate: point,
+    rawAddedKm: rawKmAfterStationary,
+    microEnabled,
+  });
+  _bgMicroCommitted = micro.state.committedAnchor;
+  _bgMicroInJitter = micro.state.inJitterZone;
+  const effectiveKm = micro.effectiveKm;
+
+  if (stationaryBlocked) {
+    return { accepted: false, addedKm: 0 };
+  }
+
+  _bgDistanceKm += effectiveKm;
   _bgAnchorPoint = anchor;
   if (addedKm > 0) {
     _bgRecentAccepted = [..._bgRecentAccepted, anchor].slice(-STATIONARY_WINDOW_SIZE);
   }
-  return { accepted: addedKm > 0, addedKm };
+  return { accepted: effectiveKm > 0, addedKm: effectiveKm };
 }
 
 async function _checkBgMilestoneCues(): Promise<void> {
@@ -259,6 +300,12 @@ export function useGpsTracking(): GpsTrackingState {
   const rejectedPointsRef = useRef<number>(0);
   const acceptedPointsRef = useRef<number>(0);
   const warmupStableRef = useRef(false);
+  /**
+   * Micro-jitter deadband (distance totals only): committed anchor + hysteresis.
+   * Independent of `anchorPointRef` / polyline path.
+   */
+  const microDistanceCommittedAnchorRef = useRef<GpsPoint | null>(null);
+  const microInJitterZoneRef = useRef(false);
 
   const _updateGpsDebug = useCallback(
     (next: Partial<Omit<GpsDebugSnapshot, 'acceptedPoints' | 'rejectedPoints'>>) => {
@@ -390,9 +437,23 @@ export function useGpsTracking(): GpsTrackingState {
           }
         }
 
+        const rawKmAfterStationary = addedKm;
+        const micro = applyMicroJitterToDistanceDelta({
+          state: {
+            committedAnchor: microDistanceCommittedAnchorRef.current,
+            inJitterZone: microInJitterZoneRef.current,
+          },
+          candidate: point,
+          rawAddedKm: rawKmAfterStationary,
+          microEnabled: true,
+        });
+        microDistanceCommittedAnchorRef.current = micro.state.committedAnchor;
+        microInJitterZoneRef.current = micro.state.inJitterZone;
+        const effectiveDistanceKm = micro.effectiveKm;
+
         // Only add accepted fixes to the path so map polyline and pace window
         // never see raw jitter points.
-        const anchorAdvanced = addedKm > 0;
+        const anchorAdvanced = rawKmAfterStationary > 0;
         const isFirstPoint = pathRef.current.length === 0;
         if (isFirstPoint || anchorAdvanced) {
           const updated = [...pathRef.current, point];
@@ -408,7 +469,7 @@ export function useGpsTracking(): GpsTrackingState {
             );
         }
         if (anchorAdvanced) {
-          distanceKmRef.current += addedKm;
+          distanceKmRef.current += effectiveDistanceKm;
           setDistanceKm(distanceKmRef.current);
         }
         if (!isFirstPoint && !anchorAdvanced) {
@@ -417,7 +478,7 @@ export function useGpsTracking(): GpsTrackingState {
         _updateGpsDebug({
           lastAccuracyM: point.accuracy ?? null,
           lastSpeedMps: speedMps,
-          lastDistanceDeltaM: addedKm * 1000,
+          lastDistanceDeltaM: effectiveDistanceKm * 1000,
           warmupStable: warmupStableRef.current,
         });
 
@@ -496,6 +557,12 @@ export function useGpsTracking(): GpsTrackingState {
     if (!isTracking || !isPaused) return;
     // Reset anchor so the first fix after resuming doesn't bridge the pause gap.
     anchorPointRef.current = null;
+    microDistanceCommittedAnchorRef.current = null;
+    microInJitterZoneRef.current = false;
+    _bgAnchorPoint = null;
+    _bgRecentAccepted = [];
+    _bgMicroCommitted = null;
+    _bgMicroInJitter = false;
     segmentStartMsRef.current = Date.now();
     await _startForegroundWatcher();
     await _startBackgroundTask();
@@ -527,6 +594,8 @@ export function useGpsTracking(): GpsTrackingState {
     _backgroundBuffer.length = 0;
     distanceKmRef.current = 0;
     anchorPointRef.current = null;
+    microDistanceCommittedAnchorRef.current = null;
+    microInJitterZoneRef.current = false;
     recentAcceptedRef.current = [];
     rejectedPointsRef.current = 0;
     acceptedPointsRef.current = 0;
@@ -536,6 +605,8 @@ export function useGpsTracking(): GpsTrackingState {
     _bgDistanceKm = 0;
     _bgAnchorPoint = null;
     _bgRecentAccepted = [];
+    _bgMicroCommitted = null;
+    _bgMicroInJitter = false;
     _bgSeenTimestamps.clear();
 
     accumulatedMsRef.current = 0;

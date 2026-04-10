@@ -223,8 +223,9 @@ export default function ProfileScreen() {
             <Switch
               value={!audioMuted}
               onValueChange={(val) => setAudioMuted(!val)}
-              trackColor={{ false: colors.border, true: colors.primary }}
+              trackColor={{ false: colors.border, true: colors.surfaceElevated }}
               thumbColor={audioMuted ? colors.textTertiary : colors.orange}
+              ios_backgroundColor={colors.border}
             />
           </View>
         </Card>

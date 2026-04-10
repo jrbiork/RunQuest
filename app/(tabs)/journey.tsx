@@ -53,8 +53,14 @@ export default function JourneyScreen() {
       >
         <View style={styles.header}>
           <View style={styles.classBadge}>
-            <View style={styles.classDot} />
-            <Text style={styles.classBadgeText}>{levelInfo.title}</Text>
+            <View
+              style={[styles.classDot, { backgroundColor: levelInfo.accentColor }]}
+            />
+            <Text
+              style={[styles.classBadgeText, { color: levelInfo.accentColor }]}
+            >
+              {levelInfo.title}
+            </Text>
           </View>
           <Text style={styles.title}>MISSION PATH</Text>
           <Text style={styles.subtitle}>
@@ -108,14 +114,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.textTertiary,
   } as ViewStyle,
   classBadgeText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    color: colors.textSecondary,
   } as TextStyle,
   title: {
     fontSize: fontSizes.xxxl,

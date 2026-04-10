@@ -27,6 +27,20 @@ function formatPace(distKm: number, durMin: number): string {
   return `${m}:${String(s).padStart(2, '0')} /km`;
 }
 
+/** Target pace from mission distance + time (running). */
+function formatApproxRunPace(distanceKm: number, durationMin: number): string {
+  if (distanceKm < 0.01 || durationMin <= 0) return '–';
+  return `~${formatPace(distanceKm, durationMin)}`;
+}
+
+/** Approximate cycling speed from target distance + duration. */
+function formatApproxCycleSpeed(distanceKm: number, durationMin: number): string {
+  if (distanceKm < 0.01 || durationMin <= 0) return '–';
+  const kmh = distanceKm / (durationMin / 60);
+  if (!Number.isFinite(kmh)) return '–';
+  return `~${kmh.toFixed(1)} km/h`;
+}
+
 // ─── Completed result card ────────────────────────────────────────────────────
 
 function CompletedResultCard({
@@ -95,15 +109,27 @@ function CompletedResultCard({
       </View>
 
       <TouchableOpacity style={rc.body} onPress={onPress} activeOpacity={0.9}>
-        {/* Mission type + date */}
-        <View style={rc.headerRow}>
-          <View style={rc.typePill}>
-            <MaterialIcons name={config.icon as any} size={11} color={colors.textSecondary} />
-            <Text style={rc.typeText}>{config.label}</Text>
+        <View style={rc.bodyTopRow}>
+          <View style={rc.bodyTopLeft}>
+            <View style={rc.headerRow}>
+              <View style={rc.typePill}>
+                <MaterialIcons name={config.icon as any} size={11} color={colors.textSecondary} />
+                <Text style={rc.typeText}>{config.label}</Text>
+              </View>
+            </View>
+            <Text style={rc.missionTitle}>{stripEmojis(mission.title)}</Text>
+          </View>
+          <View style={rc.bodyTopRight}>
+            <View style={rc.xpCornerRow}>
+              <MaterialIcons name="star" size={13} color={colors.textTertiary} />
+              <Text style={rc.xpCornerText}>+{run.xpEarned} XP</Text>
+            </View>
+            <View style={rc.streakPill}>
+              <MaterialIcons name="local-fire-department" size={11} color={colors.textTertiary} />
+              <Text style={rc.streakText}>DAY {streakDayIndex}</Text>
+            </View>
           </View>
         </View>
-
-        <Text style={rc.missionTitle}>{stripEmojis(mission.title)}</Text>
 
         {/* Actual stats grid */}
         <View style={rc.statsGrid}>
@@ -112,16 +138,6 @@ function CompletedResultCard({
           <StatChip icon="timer" value={formatDuration(run.durationMin)} label="Time" color={colors.textPrimary} />
           <View style={rc.divider} />
           <StatChip icon="speed" value={formatPace(run.distanceKm, run.durationMin)} label="Pace" color={colors.textPrimary} />
-        </View>
-
-        {/* XP footer */}
-        <View style={rc.xpRow}>
-          <MaterialIcons name="star" size={13} color={colors.textTertiary} />
-          <Text style={rc.xpText}>+{run.xpEarned} XP</Text>
-          <View style={rc.streakPill}>
-            <MaterialIcons name="local-fire-department" size={11} color={colors.textTertiary} />
-            <Text style={rc.streakText}>DAY {streakDayIndex}</Text>
-          </View>
         </View>
       </TouchableOpacity>
     </View>
@@ -273,45 +289,56 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
             </View>
             <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
               <View style={styles.nodeBody}>
-                <View style={styles.nodeTitleRow}>
-                  <View
-                    style={[
-                      styles.typeIconBlock,
-                      { backgroundColor: config.bgColor, borderColor: config.color },
-                    ]}
-                  >
-                    <MaterialIcons name={config.icon as any} size={18} color={config.color} />
-                  </View>
-                  <View style={styles.nodeTitleBlock}>
-                    <View style={styles.typeTagRow}>
-                      <View style={[styles.missionTypePill, { borderColor: config.color }]}>
-                        <MaterialIcons name={config.icon as any} size={10} color={config.color} />
-                        <Text style={[styles.missionTypePillText, { color: config.color }]}>
-                          {config.label}
-                        </Text>
-                      </View>
+                <View style={styles.cardTopRow}>
+                  <View style={styles.nodeTitleRow}>
+                    <View
+                      style={[
+                        styles.typeIconBlock,
+                        { backgroundColor: config.bgColor, borderColor: config.color },
+                      ]}
+                    >
+                      <MaterialIcons name={config.icon as any} size={18} color={config.color} />
                     </View>
-                    <Text style={styles.missionTitle} numberOfLines={2}>
-                      {stripEmojis(mission.title)}
-                    </Text>
+                    <View style={styles.nodeTitleBlock}>
+                      <View style={styles.typeTagRow}>
+                        <View style={[styles.missionTypePill, { borderColor: config.color }]}>
+                          <MaterialIcons name={config.icon as any} size={10} color={config.color} />
+                          <Text style={[styles.missionTypePillText, { color: config.color }]}>
+                            {config.label}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.missionTitle} numberOfLines={2}>
+                        {stripEmojis(mission.title)}
+                      </Text>
+                    </View>
                   </View>
+                  <XPBadge xp={mission.xpReward} size="sm" />
                 </View>
 
                 <View style={styles.nodeMetaRow}>
                   <View style={styles.distancePills}>
-                    <View style={styles.distancePill}>
-                      <MaterialIcons name="directions-run" size={12} color={colors.textSecondary} />
-                      <Text style={styles.distanceText}>{formatDistance(mission.targetDistanceKm)}</Text>
-                      <Text style={styles.durationText}>~{formatDuration(mission.targetDurationMin)}</Text>
+                    <View style={styles.distancePillColumnLeft}>
+                      <View style={styles.distancePill}>
+                        <MaterialIcons name="directions-run" size={12} color={colors.textSecondary} />
+                        <Text style={styles.distanceText}>{formatDistance(mission.targetDistanceKm)}</Text>
+                        <Text style={styles.durationText}>~{formatDuration(mission.targetDurationMin)}</Text>
+                      </View>
+                      <Text style={styles.paceApprox}>
+                        {formatApproxRunPace(mission.targetDistanceKm, mission.targetDurationMin)}
+                      </Text>
                     </View>
-                    <Text style={styles.metaPipe}>|</Text>
-                    <View style={styles.distancePill}>
-                      <MaterialIcons name="directions-bike" size={12} color={colors.textSecondary} />
-                      <Text style={styles.distanceText}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
-                      <Text style={styles.durationText}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
+                    <View style={styles.distancePillColumnRight}>
+                      <View style={[styles.distancePill, styles.distancePillEnd]}>
+                        <MaterialIcons name="directions-bike" size={12} color={colors.textSecondary} />
+                        <Text style={styles.distanceText}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
+                        <Text style={styles.durationText}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
+                      </View>
+                      <Text style={styles.paceApproxRight}>
+                        {formatApproxCycleSpeed(mission.targetCyclingDistanceKm, mission.targetCyclingDurationMin)}
+                      </Text>
                     </View>
                   </View>
-                  <XPBadge xp={mission.xpReward} size="sm" />
                 </View>
 
                 <View style={styles.progressRow}>
@@ -348,80 +375,84 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
             )}
 
             <View style={styles.nodeBody}>
-              <View style={styles.nodeTitleRow}>
-                <View
-                  style={[
-                    styles.typeIconBlock,
-                    {
-                      backgroundColor: isLocked ? colors.border : config.bgColor,
-                      borderColor: isLocked ? colors.border : config.color,
-                    },
-                  ]}
-                >
-                  {isLocked ? (
-                    <MaterialIcons name="lock" size={18} color={colors.textTertiary} />
-                  ) : (
-                    <MaterialIcons name={config.icon as any} size={18} color={config.color} />
-                  )}
-                </View>
-                <View style={styles.nodeTitleBlock}>
-                  <Text
-                    style={[styles.missionTitle, isLocked && styles.textLocked]}
-                    numberOfLines={2}
-                  >
-                    {stripEmojis(mission.title)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.nodeMetaRow}>
-                <View style={styles.distancePills}>
-                  <View style={styles.distancePill}>
-                    <MaterialIcons
-                      name="directions-run"
-                      size={12}
-                      color={isLocked ? colors.textTertiary : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.distanceText,
-                        isLocked && styles.textLocked,
-                      ]}
-                    >
-                      {formatDistance(mission.targetDistanceKm)}
-                    </Text>
-                    <Text style={[styles.durationText, isLocked && styles.textLocked]}>
-                      ~{formatDuration(mission.targetDurationMin)}
-                    </Text>
-                  </View>
-                  <Text
+              <View style={styles.cardTopRow}>
+                <View style={styles.nodeTitleRow}>
+                  <View
                     style={[
-                      styles.metaPipe,
-                      isLocked && styles.metaPipeLocked,
+                      styles.typeIconBlock,
+                      {
+                        backgroundColor: isLocked ? colors.border : config.bgColor,
+                        borderColor: isLocked ? colors.border : config.color,
+                      },
                     ]}
                   >
-                    |
-                  </Text>
-                  <View style={styles.distancePill}>
-                    <MaterialIcons
-                      name="directions-bike"
-                      size={12}
-                      color={isLocked ? colors.textTertiary : colors.textSecondary}
-                    />
+                    {isLocked ? (
+                      <MaterialIcons name="lock" size={18} color={colors.textTertiary} />
+                    ) : (
+                      <MaterialIcons name={config.icon as any} size={18} color={config.color} />
+                    )}
+                  </View>
+                  <View style={styles.nodeTitleBlock}>
                     <Text
-                      style={[
-                        styles.distanceText,
-                        isLocked && styles.textLocked,
-                      ]}
+                      style={[styles.missionTitle, isLocked && styles.textLocked]}
+                      numberOfLines={2}
                     >
-                      {formatDistance(mission.targetCyclingDistanceKm)}
-                    </Text>
-                    <Text style={[styles.durationText, isLocked && styles.textLocked]}>
-                      ~{formatDuration(mission.targetCyclingDurationMin)}
+                      {stripEmojis(mission.title)}
                     </Text>
                   </View>
                 </View>
                 {!isLocked && <XPBadge xp={mission.xpReward} size="sm" />}
+              </View>
+
+              <View style={styles.nodeMetaRow}>
+                <View style={styles.distancePills}>
+                  <View style={styles.distancePillColumnLeft}>
+                    <View style={styles.distancePill}>
+                      <MaterialIcons
+                        name="directions-run"
+                        size={12}
+                        color={isLocked ? colors.textTertiary : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.distanceText,
+                          isLocked && styles.textLocked,
+                        ]}
+                      >
+                        {formatDistance(mission.targetDistanceKm)}
+                      </Text>
+                      <Text style={[styles.durationText, isLocked && styles.textLocked]}>
+                        ~{formatDuration(mission.targetDurationMin)}
+                      </Text>
+                    </View>
+                    <Text style={[styles.paceApprox, isLocked && styles.textLocked]}>
+                      {formatApproxRunPace(mission.targetDistanceKm, mission.targetDurationMin)}
+                    </Text>
+                  </View>
+                  <View style={styles.distancePillColumnRight}>
+                    <View style={[styles.distancePill, styles.distancePillEnd]}>
+                      <MaterialIcons
+                        name="directions-bike"
+                        size={12}
+                        color={isLocked ? colors.textTertiary : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.distanceText,
+                          isLocked && styles.textLocked,
+                        ]}
+                      >
+                        {formatDistance(mission.targetCyclingDistanceKm)}
+                      </Text>
+                      <Text style={[styles.durationText, isLocked && styles.textLocked]}>
+                        ~{formatDuration(mission.targetCyclingDurationMin)}
+                      </Text>
+                    </View>
+                    <Text style={[styles.paceApproxRight, isLocked && styles.textLocked]}>
+                      {formatApproxCycleSpeed(mission.targetCyclingDistanceKm, mission.targetCyclingDurationMin)}
+                    </Text>
+                  </View>
+                </View>
               </View>
 
               {!isLocked && (
@@ -499,6 +530,34 @@ const rc = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   } as ViewStyle,
+  bodyTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  } as ViewStyle,
+  bodyTopLeft: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  } as ViewStyle,
+  bodyTopRight: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+    paddingTop: 1,
+  } as ViewStyle,
+  xpCornerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  } as ViewStyle,
+  xpCornerText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -556,19 +615,6 @@ const rc = StyleSheet.create({
     fontWeight: fontWeights.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-  } as TextStyle,
-  xpRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  } as ViewStyle,
-  xpText: {
-    flex: 1,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   } as TextStyle,
   streakPill: {
     flexDirection: 'row',
@@ -695,10 +741,18 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   } as ViewStyle,
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  } as ViewStyle,
   nodeTitleRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: spacing.md,
+    flex: 1,
+    minWidth: 0,
   } as ViewStyle,
   typeTagRow: {
     flexDirection: 'row',
@@ -760,36 +814,55 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   } as TextStyle,
 
-  // Meta row: distance + XP
+  // Meta row: targets + approximate pace
   nodeMetaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   } as ViewStyle,
   distancePills: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: spacing.md,
   } as ViewStyle,
-  metaPipe: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
+  distancePillColumnLeft: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    gap: 2,
+  } as ViewStyle,
+  distancePillColumnRight: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-end',
+    gap: 2,
+  } as ViewStyle,
+  paceApprox: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.medium,
     color: colors.textTertiary,
-    paddingHorizontal: 2,
+    marginLeft: 16,
+    letterSpacing: 0.2,
   } as TextStyle,
-  metaPipeLocked: {
+  paceApproxRight: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.medium,
     color: colors.textTertiary,
-    opacity: 0.7,
-  } as TextStyle,
-  metaPipeFailed: {
-    color: colors.red,
-    opacity: 0.85,
+    letterSpacing: 0.2,
+    textAlign: 'right',
+    alignSelf: 'flex-end',
+    marginRight: 0,
   } as TextStyle,
   distancePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  } as ViewStyle,
+  distancePillEnd: {
+    justifyContent: 'flex-end',
+    width: '100%',
   } as ViewStyle,
   distanceText: {
     fontSize: fontSizes.sm,

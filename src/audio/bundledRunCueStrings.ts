@@ -4,9 +4,24 @@ import {
   MISSION_COMPLETE_LIVE_CUE_LINES,
   MISSION_START_LIVE_CUE_TEMPLATES,
 } from '../constants/missions';
-import { CAMPAIGN_BUNDLED_MILESTONE_CUES } from '../utils/campaignMissionNarrative';
 
-/** Order matches `MISSION_AUDIO_CUES` iteration. */
+/** Extra milestone lines bundled for offline playback (legacy campaign path). */
+const EXTRA_BUNDLED_MILESTONE_CUES = {
+  quarter: [
+    'Twenty-five percent of target. Same effort.',
+    'First quarter complete. Hold pace.',
+  ],
+  half: [
+    'Half of target. No change in effort band.',
+    'Midpoint. Continue as assigned.',
+  ],
+  threeQuarter: [
+    'Seventy-five percent of target.',
+    'Three quarters. Finish at same output.',
+  ],
+} as const;
+
+/** Order matches iteration over `MISSION_AUDIO_CUES` by type. */
 const MISSION_TYPES: readonly MissionType[] = [
   'easy',
   'tempo',
@@ -15,7 +30,7 @@ const MISSION_TYPES: readonly MissionType[] = [
   'interval',
 ];
 
-/** Expected unique static lines (start + complete + legacy milestones + campaign milestones). */
+/** Expected unique static lines (start + complete + per-type milestones + extra milestones). */
 export const EXPECTED_BUNDLED_RUN_CUE_COUNT = 64;
 
 function buildBundledRunCueStrings(): readonly string[] {
@@ -38,9 +53,9 @@ function buildBundledRunCueStrings(): readonly string[] {
     for (const s of c.threeQuarter) add(s);
   }
 
-  for (const s of CAMPAIGN_BUNDLED_MILESTONE_CUES.quarter) add(s);
-  for (const s of CAMPAIGN_BUNDLED_MILESTONE_CUES.half) add(s);
-  for (const s of CAMPAIGN_BUNDLED_MILESTONE_CUES.threeQuarter) add(s);
+  for (const s of EXTRA_BUNDLED_MILESTONE_CUES.quarter) add(s);
+  for (const s of EXTRA_BUNDLED_MILESTONE_CUES.half) add(s);
+  for (const s of EXTRA_BUNDLED_MILESTONE_CUES.threeQuarter) add(s);
 
   return out;
 }

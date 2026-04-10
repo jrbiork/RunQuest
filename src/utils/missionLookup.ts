@@ -1,15 +1,8 @@
-import type {
-  CampaignMissionTemplate,
-  DayOfWeek,
-  Mission,
-  MissionType,
-  PersonaId,
-} from '../types';
-import { PERSONA_CAMPAIGNS } from '../constants/campaigns';
+import type { DayOfWeek, Mission, MissionType, PersonaId } from '../types';
 import {
   FUN_RUN_ID,
   FUN_RUN_MISSION,
-  MISSION_TEMPLATES,
+  missionCopyForQueueIndex,
 } from '../constants/missions';
 import { setIndexForMissionIndex } from '../constants/missionProgression';
 import { getMissionTargetsForClassLevel } from './missionGenerator';
@@ -29,8 +22,6 @@ export function findMissionById(
   if (!id) return undefined;
   return missions.find((m) => m.id === id);
 }
-
-const CAMPAIGN_MISSION_ID_RE = /^campaign-(\d+)-day-(\d+)$/;
 
 /** Matches `mission-L{class}-i{idx}-{YYYY-MM-DD}-{type}` from `missionGenerator`. */
 const QUEUE_MISSION_ID_RE =
@@ -52,55 +43,14 @@ export function parseQueueMissionId(missionId: string): {
   };
 }
 
-function getCampaignMissionTemplate(
-  missionId: string,
-  personaId: PersonaId | null | undefined,
-): CampaignMissionTemplate | null {
-  const match = missionId.match(CAMPAIGN_MISSION_ID_RE);
-  if (!match || !personaId) return null;
-  const campaignIndex = Number(match[1]);
-  const dayIdx = Number(match[2]);
-  const campaigns = PERSONA_CAMPAIGNS[personaId];
-  if (!campaigns) return null;
-  const campaign = campaigns[campaignIndex];
-  if (!campaign) return null;
-  const templates = campaign.missionTemplates;
-  if (templates.length === 0) return null;
-  return templates[dayIdx % templates.length] ?? null;
-}
-
-function missionFromCampaignTemplate(
-  missionId: string,
-  template: CampaignMissionTemplate,
-  scheduledDate: string,
-): Mission {
-  return {
-    id: missionId,
-    type: template.type,
-    title: stripEmojis(template.title),
-    subtitle: stripEmojis(template.subtitle),
-    description: stripEmojis(template.description ?? ''),
-    targetDistanceKm: template.targetDistanceKm,
-    targetDurationMin: template.targetDurationMin,
-    targetCyclingDistanceKm: template.targetCyclingDistanceKm,
-    targetCyclingDurationMin: template.targetCyclingDurationMin,
-    xpReward: template.xpReward,
-    day: 'Mon' as DayOfWeek,
-    scheduledDate,
-    status: 'completed',
-    setIndex: 0,
-    ...(template.audioCues ? { audioCues: template.audioCues } : {}),
-  };
-}
-
 /**
  * Resolve mission metadata for stats/history when `weekMissions` no longer contains
- * the id (queue regenerated after level-up). Parses stored queue ids and campaign ids.
+ * the id (queue regenerated after level-up). Parses stored queue ids.
  */
 export function resolveMissionForHistory(
   missionId: string,
   weekMissions: Mission[],
-  personaId: PersonaId | null | undefined,
+  _personaId: PersonaId | null | undefined,
 ): Mission | undefined {
   const live = findMissionById(weekMissions, missionId);
   if (live) return live;
@@ -113,13 +63,13 @@ export function resolveMissionForHistory(
       queueParsed.classLevel,
       queueParsed.index,
     );
-    const tmpl = MISSION_TEMPLATES[queueParsed.type];
+    const copy = missionCopyForQueueIndex(queueParsed.index);
     return {
       id: missionId,
       type: queueParsed.type,
-      title: stripEmojis(tmpl.titles[0] ?? queueParsed.type),
-      subtitle: stripEmojis(tmpl.subtitles[0] ?? ''),
-      description: stripEmojis(tmpl.descriptions[0] ?? ''),
+      title: stripEmojis(copy.title),
+      subtitle: stripEmojis(copy.subtitle),
+      description: stripEmojis(copy.description),
       targetDistanceKm: t.distanceKm,
       targetDurationMin: t.durationMin,
       targetCyclingDistanceKm: t.cyclingDistanceKm,
@@ -135,36 +85,17 @@ export function resolveMissionForHistory(
     };
   }
 
-  const camp = getCampaignMissionTemplate(missionId, personaId);
-  if (camp) {
-    return missionFromCampaignTemplate(missionId, camp, '1970-01-01');
-  }
-
   return undefined;
 }
 
-/**
- * Title from campaign template by stable id (`campaign-{n}-day-{k}`), for history rows
- * when the live mission list no longer contains that id.
- */
-export function titleForCampaignMissionId(
-  missionId: string,
-  personaId: PersonaId | null | undefined,
-): string | null {
-  if (missionId === FUN_RUN_ID) return FUN_RUN_MISSION.title;
-  const template = getCampaignMissionTemplate(missionId, personaId);
-  return template?.title ?? null;
-}
-
-/** Prefer live mission copy; fall back to campaign template / free-run title; last resort id. */
+/** Prefer live mission copy; fall back to free-run title; last resort id. */
 export function resolveMissionDisplayTitle(
   missionId: string,
   mission: Mission | undefined,
-  personaId: PersonaId | null | undefined,
+  _personaId: PersonaId | null | undefined,
 ): string {
   const fromLive = mission?.title != null ? stripEmojis(mission.title).trim() : '';
   if (fromLive) return fromLive;
-  const fromTemplate = titleForCampaignMissionId(missionId, personaId);
-  if (fromTemplate) return stripEmojis(fromTemplate).trim();
+  if (missionId === FUN_RUN_ID) return FUN_RUN_MISSION.title;
   return missionId;
 }

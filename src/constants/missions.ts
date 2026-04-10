@@ -12,123 +12,362 @@ export interface MissionCopyRow {
 export const MISSION_COPY_POOL: readonly MissionCopyRow[] = [
   {
     title: 'Med Supply Delivery',
-    subtitle: 'Crate to the community aid station.',
+    subtitle: 'Insulin crate to the east aid station.',
     description:
-      'Deliver medications to the community aid station on your route. Run easy: even pace, full sentences, until you hit the target distance or time.',
+      'Deliver the insulin crate to the east aid station before the refrigeration window fails. Run easy: even pace, full sentences, until the full distance or time is complete.',
   },
   {
     title: 'Supplement Drop',
-    subtitle: 'Childcare center on the manifest.',
+    subtitle: 'Protein packs to the childcare bunker.',
     description:
-      'Take food supplements to the childcare center listed on your manifest. Hold easy effort throughout; complete the distance or time without surging.',
+      'Carry protein packs to the childcare bunker before the noon ration count. Hold easy effort throughout; complete the full distance or time without surging.',
   },
   {
     title: 'Recruiter Post',
-    subtitle: 'Next checkpoint; confirm arrival slot.',
+    subtitle: 'Roster to the intake checkpoint.',
     description:
-      'Meet the recruiter at the next post on the route sheet. Move at easy pace; finish the assigned distance or duration.',
+      'Deliver the survivor roster to the intake checkpoint before the gate closes. Move at easy pace; finish the assigned distance or duration without pushing.',
   },
   {
     title: 'Water Distribution',
-    subtitle: 'Depot to the community tent.',
+    subtitle: 'Purified canisters to Block C.',
     description:
-      'Move water containers from the depot to the distribution tent. Run easy and steady; meet the target distance or time.',
+      'Move purified water canisters to Block C before the reserve tanks run dry. Run easy and steady; meet the full target distance or time.',
   },
   {
     title: 'Dispatch Window',
-    subtitle: 'Orders to forward command before cutoff.',
+    subtitle: 'Fire orders to forward command before cutoff.',
     description:
-      'Relay written orders to forward command before the comm window closes. Hold one hard, steady effort—not a sprint—until the duration ends.',
+      'Relay fire-response orders to forward command before the comm window closes. Hold one hard, steady effort—not a sprint—until the duration ends.',
   },
   {
     title: 'Specimen Run',
-    subtitle: 'Cooler to the pathology lab.',
+    subtitle: 'Sealed cooler to the pathology lab.',
     description:
-      'Deliver the sealed specimen cooler to the pathology lab on schedule. Maintain threshold effort: strong and controlled for the full run.',
+      'Deliver the sealed specimen cooler to the pathology lab before the sample degrades. Maintain threshold effort: strong and controlled for the full run.',
   },
   {
     title: 'Checkpoint Clear',
-    subtitle: 'Route before the barrier reconfigures.',
+    subtitle: 'Cross Gate 6 before the barrier locks.',
     description:
-      'Clear the access checkpoint before it reconfigures for the next shift. Stay at sustained hard pace for the full duration.',
+      'Clear Gate 6 before the barrier locks for the next security cycle. Stay at sustained hard pace for the full duration.',
   },
   {
     title: 'Signals Handoff',
-    subtitle: 'Drives to the mobile signals unit.',
+    subtitle: 'Encrypted drives to the mobile relay truck.',
     description:
-      'Transport encrypted drives from Station B to the mobile signals unit. Hold one sustained hard effort without backing off.',
+      'Transport encrypted drives to the mobile relay truck before the uplink window closes. Hold one sustained hard effort without backing off.',
   },
   {
     title: 'Blood Sample Relay',
-    subtitle: 'Clinic to lab; courier window.',
+    subtitle: 'Clinic vials to the central lab.',
     description:
-      'Pick up blood samples at the clinic and bring them to the lab before the courier window closes. Run long at easy endurance pace; bank distance, do not race early.',
+      'Pick up blood vials at the clinic and bring them to the central lab before the testing slot expires. Run long at easy endurance pace; bank distance and do not race early.',
   },
   {
     title: 'Shelter Forms',
-    subtitle: 'Three stops; return to HQ by cutoff.',
+    subtitle: 'Three shelter signatures; return to HQ.',
     description:
-      'Collect signed intake forms from three shelters on the route sheet and return them to headquarters by the end time. Keep an easy aerobic pace for the full distance or duration.',
+      'Collect signed intake forms from three shelters and return them to headquarters before curfew. Keep an easy aerobic pace for the full distance or duration.',
   },
   {
     title: 'Field Rations',
-    subtitle: 'End of the marked supply route.',
+    subtitle: 'Meal packs to the outer camp.',
     description:
-      'Move field rations to the evacuation camp at the end of the marked route. Pace for distance: comfortable and patient until the full target is done.',
+      'Move field rations to the outer camp before the evening meal line forms. Pace for distance: comfortable and patient until the full target is done.',
   },
   {
     title: 'Vaccine Cold Chain',
-    subtitle: 'Mobile unit at the fairgrounds.',
+    subtitle: 'Cold packs to the mobile clinic.',
     description:
-      'Deliver cold-chain vaccine packs to the mobile unit at the fairgrounds; confirm temperature logs on receipt. Run long and easy; no surges.',
+      'Deliver vaccine cold packs to the mobile clinic before the internal temperature rises. Run long and easy; no surges.',
   },
   {
     title: 'Fence Survey',
-    subtitle: 'Log breach markers; low effort.',
+    subtitle: 'Mark breach points along the perimeter.',
     description:
-      'Walk the fence line and log breach markers. Keep effort low: light jog or shuffle; complete the full distance or time.',
+      'Jog the perimeter fence and mark every breach point before the repair crew deploys. Keep effort low: light jog or shuffle; complete the full distance or time.',
   },
   {
     title: 'All-Clear Sweep',
-    subtitle: 'Observation pace after the lift.',
+    subtitle: 'Street check after the sirens stop.',
     description:
-      'Move through the cleared block at observation pace after the all-clear. Effort stays easy; do not push heart rate.',
+      'Move through the cleared streets after the sirens stop and confirm no civilians remain exposed. Effort stays easy; do not push heart rate.',
   },
   {
     title: 'Medic Escort',
-    subtitle: 'Slow sweep; you set the pace.',
+    subtitle: 'Guide the medic through the safe corridor.',
     description:
-      'Escort the medic on a slow route sweep. You set an easy pace; cover the target distance or duration without intensity.',
+      'Escort the medic through the safe corridor while they check the injured. You set an easy pace; cover the target distance or duration without intensity.',
   },
   {
     title: 'Witness Transfer',
-    subtitle: 'Transit station to courthouse handoff.',
+    subtitle: 'Protected handoff to tribunal security.',
     description:
-      'Escort a witness from the transit station to the courthouse entrance and hand them off to court security. Move at recovery effort for the full segment.',
+      'Escort the witness to tribunal security before the testimony window closes. Move at recovery effort for the full segment.',
   },
   {
     title: 'Multi-Stop Drop',
-    subtitle: 'Supply at each post; hard then recover.',
+    subtitle: 'Four supply posts; hard then recover.',
     description:
-      'Hit multiple supply drops in sequence: hard work segments, full recovery between. Do not blend easy and hard segments.',
+      'Hit four supply posts in sequence before the route expires: hard work segments, full recovery between. Do not blend easy and hard segments.',
   },
   {
     title: 'Alarm Response',
-    subtitle: 'Fast segment per ping; then reset.',
+    subtitle: 'Sprint on each breach ping; reset between.',
     description:
-      'Respond to each alarm ping with a fast segment, then jog easy until the next. Full effort on work; real rest on recovery.',
+      'Respond to every breach alarm with a fast segment, then jog easy until the next alert. Full effort on work; real rest on recovery.',
   },
   {
     title: 'Courier Handoffs',
-    subtitle: 'Cordon posts; surge then wait.',
+    subtitle: 'Rapid transfers along the defense cordon.',
     description:
-      'Rapid courier handoffs along the cordon: hard intervals, then easy movement until the next station. No half-effort work reps.',
+      'Complete rapid courier handoffs along the defense cordon before the line shifts position. Hard intervals, then easy movement until the next station. No half-effort work reps.',
   },
   {
     title: 'Equipment Draw',
-    subtitle: 'Armory bundle to range officer.',
+    subtitle: 'Ammo case to the range officer.',
     description:
-      'Report to the armory, draw the equipment bundle on your name, and deliver it to the training range officer. Use hard work segments for each rush leg; easy segments between.',
+      'Report to the armory, collect the ammo case under your name, and deliver it to the range officer before drills begin. Use hard work segments for each rush leg; easy segments between.',
+  },
+  {
+    title: 'Power Relay',
+    subtitle: 'Battery unit to the grid node.',
+    description:
+      'Carry the backup power unit to the nearest grid node to restore signal coverage. Hold a steady tempo effort—controlled, strong, and uninterrupted until the target is complete.',
+  },
+  {
+    title: 'Antidote Run',
+    subtitle: 'Injectable dose to Sector 3 patient.',
+    description:
+      'Deliver the antidote dose to the infected patient in Sector 3 before systemic failure. Maintain sustained hard effort; do not slow until the delivery point is reached.',
+  },
+  {
+    title: 'Oxygen Delivery',
+    subtitle: 'Tank to collapsed subway survivor.',
+    description:
+      'Deliver the oxygen tank to the trapped survivor in the collapsed subway before depletion. Maintain continuous hard effort; do not stop until delivery is complete.',
+  },
+  {
+    title: 'Firewall Reset',
+    subtitle: 'Manual reboot at Sector 5 terminal.',
+    description:
+      'Reach the offline terminal and execute a manual firewall reset before breach occurs. Sustain tempo effort from start to finish.',
+  },
+  {
+    title: 'Evacuation Signal',
+    subtitle: 'Trigger beacon at hilltop tower.',
+    description:
+      'Activate the evacuation beacon at the hilltop tower before the next wave arrives. Hold steady pace; no interruptions.',
+  },
+  {
+    title: 'Fuel Transfer',
+    subtitle: 'Diesel canister to generator site.',
+    description:
+      'Transport the diesel canister to the generator before full shutdown. Maintain controlled tempo effort without slowing.',
+  },
+  {
+    title: 'Antibiotic Drop',
+    subtitle: 'Dose to field medic in Zone B.',
+    description:
+      'Deliver antibiotics to the field medic before infection spreads. Keep sustained effort; reach the target without delay.',
+  },
+  {
+    title: 'Perimeter Breach',
+    subtitle: 'Seal gate at Sector 2 entrance.',
+    description:
+      'Reach the breached gate and seal it before hostile entry. Move at hard effort until the objective is secured.',
+  },
+  {
+    title: 'Thermal Core Restart',
+    subtitle: 'Reignite reactor in power block.',
+    description:
+      'Reach the reactor and restart the thermal core before temperature drops below threshold. Maintain steady tempo effort.',
+  },
+  {
+    title: 'Drone Recovery',
+    subtitle: 'Retrieve unit from crash site.',
+    description:
+      'Recover the crashed drone before data corruption. Maintain continuous pace and complete retrieval without stopping.',
+  },
+  {
+    title: 'Quarantine Delivery',
+    subtitle: 'Supplies to isolated unit.',
+    description:
+      'Deliver quarantine supplies before isolation breach. Maintain hard steady effort until handoff.',
+  },
+  {
+    title: 'Signal Boost',
+    subtitle: 'Amplifier to comms relay.',
+    description:
+      'Install the signal amplifier at the relay node before blackout. Sustain tempo effort throughout.',
+  },
+  {
+    title: 'Contamination Sample',
+    subtitle: 'Specimen to mobile lab.',
+    description:
+      'Transport contamination samples before decay window expires. Hold controlled hard effort.',
+  },
+  {
+    title: 'Battery Swap',
+    subtitle: 'Replace unit at defense turret.',
+    description:
+      'Replace depleted battery at the turret before defense drops. Maintain continuous tempo effort.',
+  },
+  {
+    title: 'Water Purifier Fix',
+    subtitle: 'Repair kit to filtration plant.',
+    description:
+      'Deliver repair kit to restore water purification before supply runs out. Move at steady pace until completion.',
+  },
+  {
+    title: 'Emergency Broadcast',
+    subtitle: 'Trigger system at central hub.',
+    description:
+      'Reach central hub and trigger broadcast before signal loss. Maintain sustained effort.',
+  },
+  {
+    title: 'Hazmat Transfer',
+    subtitle: 'Containment unit to lab.',
+    description:
+      'Move hazardous material before containment failure. Maintain strict tempo effort; no stops.',
+  },
+  {
+    title: 'Shield Generator',
+    subtitle: 'Core to defensive grid.',
+    description:
+      'Deliver the generator core before shield collapse. Maintain strong steady effort.',
+  },
+  {
+    title: 'Bridge Access',
+    subtitle: 'Override lock before collapse.',
+    description:
+      'Reach the control panel and override the bridge lock before structural failure. Move at sustained effort.',
+  },
+  {
+    title: 'Radiation Dose',
+    subtitle: 'Iodine tablets to exposed team.',
+    description:
+      'Deliver iodine tablets before radiation exposure escalates. Maintain continuous hard effort.',
+  },
+  {
+    title: 'Power Grid Sync',
+    subtitle: 'Manual sync at node 4.',
+    description:
+      'Synchronize grid node before cascading failure. Hold tempo effort throughout.',
+  },
+  {
+    title: 'Supply Convoy Lead',
+    subtitle: 'Clear path to extraction.',
+    description:
+      'Lead convoy route and clear path before arrival window closes. Maintain steady effort.',
+  },
+  {
+    title: 'Data Core Extraction',
+    subtitle: 'Secure core from bunker.',
+    description:
+      'Extract data core before auto-wipe. Maintain continuous pace until secured.',
+  },
+  {
+    title: 'Ventilation Restart',
+    subtitle: 'Activate airflow system.',
+    description:
+      'Reach system controls and restart ventilation before suffocation risk. Maintain sustained effort.',
+  },
+  {
+    title: 'Minefield Mapping',
+    subtitle: 'Mark safe corridor.',
+    description:
+      'Map safe path before unit movement. Maintain controlled steady pace.',
+  },
+  {
+    title: 'Rescue Beacon',
+    subtitle: 'Deploy beacon for extraction.',
+    description:
+      'Deploy rescue beacon before extraction window closes. Hold steady effort.',
+  },
+  {
+    title: 'Cold Storage Run',
+    subtitle: 'Preserve samples before thaw.',
+    description:
+      'Transport samples before temperature rise. Maintain tempo effort.',
+  },
+  {
+    title: 'Defense Override',
+    subtitle: 'Manual control at turret station.',
+    description:
+      'Override defense system before shutdown. Maintain continuous effort.',
+  },
+  {
+    title: 'Med Evac Prep',
+    subtitle: 'Prepare zone for extraction.',
+    description:
+      'Reach extraction zone and prepare site before arrival. Maintain steady pace.',
+  },
+  {
+    title: 'Backup Server',
+    subtitle: 'Restore system at node.',
+    description:
+      'Restore backup server before data loss. Maintain tempo effort.',
+  },
+  {
+    title: 'Escape Route',
+    subtitle: 'Mark safe path out.',
+    description:
+      'Mark escape route before containment breach. Maintain continuous pace.',
+  },
+  {
+    title: 'Hydrogen Cell',
+    subtitle: 'Deliver fuel to drone.',
+    description:
+      'Deliver fuel cell before drone shutdown. Maintain sustained effort.',
+  },
+  {
+    title: 'Security Lockdown',
+    subtitle: 'Engage locks before breach.',
+    description:
+      'Reach control system and engage lockdown. Maintain hard effort.',
+  },
+  {
+    title: 'Emergency Rations',
+    subtitle: 'Food supply to survivors.',
+    description: 'Deliver rations before depletion. Maintain steady pace.',
+  },
+  {
+    title: 'Heat Core Transfer',
+    subtitle: 'Move unit before freeze.',
+    description:
+      'Transfer heat core before temperature drop. Maintain tempo effort.',
+  },
+  {
+    title: 'Airlock Seal',
+    subtitle: 'Close chamber before breach.',
+    description:
+      'Seal airlock before pressure loss. Maintain continuous effort.',
+  },
+  {
+    title: 'Sensor Calibration',
+    subtitle: 'Reset tracking system.',
+    description:
+      'Calibrate sensors before navigation failure. Maintain steady pace.',
+  },
+  {
+    title: 'Emergency Power',
+    subtitle: 'Restore backup grid.',
+    description:
+      'Restore power before blackout spreads. Maintain sustained effort.',
+  },
+  {
+    title: 'Final Transmission',
+    subtitle: 'Send last data packet.',
+    description:
+      'Reach transmitter and send final data before shutdown. Maintain hard steady effort.',
+  },
+  {
+    title: 'Antidote Run',
+    subtitle: 'Injectable dose to Sector 3 patient.',
+    description:
+      'Deliver the antidote dose to the infected patient in Sector 3 before systemic failure. Maintain sustained hard effort; do not slow until the delivery point is reached.',
   },
 ];
 

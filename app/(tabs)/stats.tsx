@@ -475,18 +475,12 @@ export default function StatsScreen() {
           entering={FadeInDown.delay(30).duration(300)}
           style={[styles.card, styles.monthCardCompact]}
         >
-          {runsMonth.length > 0 ? (
-            <MonthSummaryRow
-              compact
-              totalXp={monthStats.totalXp}
-              totalMissions={monthStats.totalMissions}
-              totalDistanceKm={monthStats.totalDistanceKm}
-            />
-          ) : (
-            <Text style={styles.emptyText}>
-              No activity recorded for this month yet.
-            </Text>
-          )}
+          <MonthSummaryRow
+            compact
+            totalXp={monthStats.totalXp}
+            totalMissions={monthStats.totalMissions}
+            totalDistanceKm={monthStats.totalDistanceKm}
+          />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(50).duration(300)}>
