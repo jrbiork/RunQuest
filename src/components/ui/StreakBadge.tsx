@@ -1,7 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors, radii, spacing, fontSizes, fontWeights } from '../../constants/theme';
+import {
+  colors,
+  radii,
+  spacing,
+  fontSizes,
+  fontWeights,
+} from '../../constants/theme';
 
 interface StreakBadgeProps {
   streak: number;
@@ -22,9 +28,15 @@ export function StreakBadge({
 
   return (
     <View style={[styles.badge, styles[size], dimmed && styles.dimmed, style]}>
-      <MaterialIcons name="local-fire-department" size={size === 'lg' ? 18 : size === 'md' ? 15 : 13} color={colors.orange} />
+      <MaterialIcons
+        name="local-fire-department"
+        size={size === 'lg' ? 18 : size === 'md' ? 15 : 13}
+        color={colors.orange}
+      />
       <Text style={[styles.count, styles[`count_${size}`]]}>{streak}</Text>
-      {showLabel && <Text style={[styles.label, styles[`count_${size}`]]}> day streak</Text>}
+      {showLabel && (
+        <Text style={[styles.label, styles[`count_${size}`]]}> day streak</Text>
+      )}
     </View>
   );
 }

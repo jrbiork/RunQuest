@@ -1,6 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors, radii, spacing, fontSizes, fontWeights } from '../../constants/theme';
+import {
+  colors,
+  radii,
+  spacing,
+  fontSizes,
+  fontWeights,
+} from '../../constants/theme';
 
 interface LevelBadgeProps {
   level: number;
@@ -26,9 +32,22 @@ export function LevelBadge({
         style,
       ]}
     >
-      <Text style={[styles.levelNum, styles[`num_${size}`], { color: accentColor }]}>{level}</Text>
+      <Text
+        style={[styles.levelNum, styles[`num_${size}`], { color: accentColor }]}
+      >
+        {level}
+      </Text>
       {showLabel && (
-        <Text style={[styles.levelLabel, styles[`num_${size}`], { color: accentColor }]}> RANK</Text>
+        <Text
+          style={[
+            styles.levelLabel,
+            styles[`num_${size}`],
+            { color: accentColor },
+          ]}
+        >
+          {' '}
+          RANK
+        </Text>
       )}
     </View>
   );

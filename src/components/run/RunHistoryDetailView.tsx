@@ -1,4 +1,12 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,7 +16,13 @@ import type {
   Mission,
   PersonaId,
 } from '../../types';
-import { colors, spacing, radii, fontSizes, fontWeights } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+} from '../../constants/theme';
 import { formatDistance } from '../../utils/xpCalculator';
 import { resolveMissionDisplayTitle } from '../../utils/missionLookup';
 import { resolveOutcome } from '../../utils/runOutcome';
@@ -33,6 +47,8 @@ type Props = {
   personaId: PersonaId | null | undefined;
   activityMode: ActivityMode;
   onClose: () => void;
+  /** Level-ladder accent for +XP (frozen per run in history). */
+  xpTagAccentColor: string;
 };
 
 export function RunHistoryDetailView({
@@ -41,6 +57,7 @@ export function RunHistoryDetailView({
   personaId,
   activityMode,
   onClose,
+  xpTagAccentColor,
 }: Props) {
   const title = resolveMissionDisplayTitle(run.missionId, mission, personaId);
   const outcome = resolveOutcome(run);
@@ -85,12 +102,7 @@ export function RunHistoryDetailView({
 
   return (
     <View style={styles.root}>
-      <View
-        style={[
-          styles.header,
-          { paddingTop: insets.top + spacing.md },
-        ]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.headerTitle} numberOfLines={2}>
           {title}
         </Text>
@@ -104,14 +116,14 @@ export function RunHistoryDetailView({
         </TouchableOpacity>
       </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + spacing.xxl },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + spacing.xxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.modePill}>
           <MaterialIcons
             name={isCycle ? 'pedal-bike' : 'directions-run'}
@@ -156,14 +168,18 @@ export function RunHistoryDetailView({
           <View style={styles.blockHeaderRow}>
             <Text style={styles.blockLabel}>Your mission</Text>
             <View style={styles.xpRowInline}>
-              <MaterialIcons name="star" size={16} color={colors.purple} />
-              <Text style={styles.xpText}>+{run.xpEarned} XP</Text>
+              <MaterialIcons name="star" size={16} color={xpTagAccentColor} />
+              <Text style={[styles.xpText, { color: xpTagAccentColor }]}>
+                +{run.xpEarned} XP
+              </Text>
             </View>
           </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Distance</Text>
-              <Text style={styles.statValue}>{formatDistance(run.distanceKm)}</Text>
+              <Text style={styles.statValue}>
+                {formatDistance(run.distanceKm)}
+              </Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Time</Text>
@@ -314,7 +330,6 @@ const styles = StyleSheet.create({
   xpText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
-    color: colors.purple,
   } as TextStyle,
   mapWrap: { gap: spacing.sm } as ViewStyle,
   mapLabel: {

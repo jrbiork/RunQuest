@@ -34,6 +34,7 @@ import {
   SCAVENGER_LEVEL_COUNT,
 } from '../../src/utils/xpCalculator';
 import { getDisplayXpTotal } from '../../src/utils/displayXp';
+import { logEvent, Events } from '../../src/services/analytics';
 
 const TAILOR_MS = 2200;
 const TICK_MS = 48;
@@ -120,14 +121,18 @@ export default function OnboardingTailoringScreen() {
 
   const handleLocationContinue = async () => {
     setLocationRequesting(true);
+    void logEvent(Events.LOCATION_PERMISSION_REQUESTED);
+    let granted = false;
     try {
-      await Location.requestForegroundPermissionsAsync();
+      const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+      granted = fgStatus === 'granted';
       await Location.requestBackgroundPermissionsAsync();
     } catch {
       // expo-location may throw if already determined
     } finally {
       setLocationRequesting(false);
     }
+    void logEvent(Events.LOCATION_PERMISSION_RESULT, { granted });
     markIosLocationPromptDone();
     setLocationModalVisible(false);
     goToTabs();
@@ -159,7 +164,7 @@ export default function OnboardingTailoringScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.badge}>
-          <MaterialIcons name="wifi" size={11} color={colors.orange} />
+          <MaterialIcons name="wifi" size={11} color={colors.earthGreen} />
           <Text style={styles.badgeText}>CLASS ASSIGNMENT</Text>
         </View>
 
@@ -214,7 +219,7 @@ export default function OnboardingTailoringScreen() {
         {phaseDone && (
           <View style={styles.summary}>
             <View style={styles.summaryRow}>
-              <MaterialIcons name="route" size={20} color={colors.primary} />
+              <MaterialIcons name="route" size={20} color={colors.earthGreen} />
               <View style={styles.summaryTextCol}>
                 <Text style={styles.summaryLabel}>Missions queued</Text>
                 <Text style={styles.summaryValue}>
@@ -223,8 +228,8 @@ export default function OnboardingTailoringScreen() {
                     : 'Open journey to sync'}
                 </Text>
                 <Text style={styles.summaryDesc}>
-                  Finish them in order. When you promote to a new level, you get
-                  a fresh set.
+                  Complete missions to earn XP. Once you hit the next level
+                  threshold, your queue refreshes with a new set.
                 </Text>
               </View>
             </View>
@@ -236,6 +241,7 @@ export default function OnboardingTailoringScreen() {
         <Button
           label="Enter base"
           onPress={handleEnterBase}
+          variant="accent"
           fullWidth
           disabled={!phaseDone}
         />
@@ -252,7 +258,7 @@ export default function OnboardingTailoringScreen() {
             <MaterialIcons
               name="my-location"
               size={24}
-              color={colors.primary}
+              color={colors.earthGreen}
               style={styles.locModalIcon}
             />
             <Text style={styles.locModalTitle}>Always-on location</Text>
@@ -263,16 +269,17 @@ export default function OnboardingTailoringScreen() {
               can change this anytime in Settings.
             </Text>
             <TouchableOpacity
-              style={[styles.locOpenSettings, { borderColor: colors.primary }]}
+              style={[styles.locOpenSettings, { borderColor: colors.earthGreen }]}
               onPress={() => Linking.openSettings()}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="settings" size={18} color={colors.primary} />
+              <MaterialIcons name="settings" size={18} color={colors.earthGreen} />
               <Text style={styles.locOpenSettingsText}>Open Settings</Text>
             </TouchableOpacity>
             <Button
               label="Continue"
               onPress={handleLocationContinue}
+              variant="accent"
               fullWidth
               disabled={locationRequesting}
               loading={locationRequesting}
@@ -309,18 +316,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.purpleLight,
+    backgroundColor: colors.earthGreenLight,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: colors.orange,
+    borderColor: colors.earthGreen,
     marginTop: spacing.md,
   } as ViewStyle,
   badgeText: {
     fontSize: 10,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.earthGreen,
     letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -331,7 +338,7 @@ const styles = StyleSheet.create({
   kicker: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.earthGreen,
     textTransform: 'uppercase',
     letterSpacing: 2,
   } as TextStyle,
@@ -473,12 +480,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radii.md,
     borderWidth: 1,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.earthGreenLight,
   } as ViewStyle,
   locOpenSettingsText: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
-    color: colors.primary,
+    color: colors.earthGreen,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   } as TextStyle,

@@ -16,7 +16,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.rbiork.runquest",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio", "location"]
       }
     },
     "android": {
@@ -32,6 +32,19 @@
       "favicon": "./assets/ios_icon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              }
+            ]
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -53,6 +66,7 @@
         "expo-audio",
         { "enableBackgroundPlayback": true }
       ],
+      "@react-native-firebase/app",
       "expo-sharing",
       [
         "expo-media-library",

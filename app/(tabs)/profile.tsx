@@ -123,13 +123,13 @@ export default function ProfileScreen() {
       >
         {/* ─── Operative header ─────────────────────────────────────── */}
         <View style={styles.heroSection}>
-          {/* Dog-tag avatar with ochre ring */}
+          {/* Avatar — neutral ring + icon */}
           <View style={styles.avatarRing}>
             <View style={styles.avatar}>
               <MaterialIcons
                 name="directions-run"
                 size={38}
-                color={colors.primary}
+                color={colors.textSecondary}
               />
             </View>
           </View>
@@ -154,7 +154,10 @@ export default function ProfileScreen() {
                 color={levelInfo.accentColor}
               />
               <Text
-                style={[styles.levelBadgeText, { color: levelInfo.accentColor }]}
+                style={[
+                  styles.levelBadgeText,
+                  { color: levelInfo.accentColor },
+                ]}
               >
                 {levelInfo.title} · LVL {levelInfo.level} /{' '}
                 {SCAVENGER_LEVEL_COUNT}
@@ -177,25 +180,25 @@ export default function ProfileScreen() {
               label="Missions"
               value={displayOverallStats.missions.toString()}
               icon="directions-run"
-              iconColor={colors.primary}
+              iconColor={colors.earthGreen}
             />
             <StatBlock
               label="Distance"
               value={formatDistance(displayOverallStats.distanceKm)}
               icon="straighten"
-              iconColor={colors.primary}
+              iconColor={colors.earthGreen}
             />
             <StatBlock
               label="Attempts"
               value={displayOverallStats.attempts.toString()}
               icon="task-alt"
-              iconColor={colors.orange}
+              iconColor={colors.earthGreen}
             />
             <StatBlock
               label="Level"
               value={`${levelInfo.level} / ${SCAVENGER_LEVEL_COUNT}`}
               icon="military-tech"
-              iconColor={levelInfo.accentColor}
+              iconColor={colors.earthGreen}
             />
           </View>
         </View>
@@ -211,7 +214,9 @@ export default function ProfileScreen() {
               <MaterialIcons
                 name={audioMuted ? 'volume-off' : 'volume-up'}
                 size={20}
-                color={audioMuted ? colors.textTertiary : colors.orange}
+                color={
+                  audioMuted ? colors.textTertiary : colors.textSecondary
+                }
               />
               <View>
                 <Text style={styles.settingLabel}>MISSION AUDIO</Text>
@@ -223,8 +228,13 @@ export default function ProfileScreen() {
             <Switch
               value={!audioMuted}
               onValueChange={(val) => setAudioMuted(!val)}
-              trackColor={{ false: colors.border, true: colors.surfaceElevated }}
-              thumbColor={audioMuted ? colors.textTertiary : colors.orange}
+              trackColor={{
+                false: colors.border,
+                true: colors.surfaceElevated,
+              }}
+              thumbColor={
+                audioMuted ? colors.textTertiary : colors.textPrimary
+              }
               ios_backgroundColor={colors.border}
             />
           </View>
@@ -372,7 +382,7 @@ export default function ProfileScreen() {
                           if (completed === 0) {
                             Alert.alert(
                               'No missions',
-                              'There are no incomplete missions in your current deployment.',
+                              'There are no incomplete missions left to start in this set.',
                             );
                           } else if (completed < requested) {
                             Alert.alert(
@@ -493,7 +503,7 @@ const styles = StyleSheet.create({
     height: 78,
     borderRadius: radii.full,
     borderWidth: 2,
-    borderColor: colors.orange,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 3,
@@ -593,8 +603,8 @@ const styles = StyleSheet.create({
   campaignAccent: {
     width: 3,
     height: 16,
-    backgroundColor: colors.ochre,
     borderRadius: 2,
+    backgroundColor: colors.earthGreen,
   } as ViewStyle,
   campaignTitle: {
     fontSize: fontSizes.xs,
@@ -708,7 +718,7 @@ const styles = StyleSheet.create({
   settingsSectionTitle: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.textSecondary,
     letterSpacing: 2,
     textTransform: 'uppercase',
   } as TextStyle,

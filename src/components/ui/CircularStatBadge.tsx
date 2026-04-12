@@ -68,7 +68,9 @@ export function CircularStatBadge({
       </View>
 
       {/* Label below ring */}
-      <Text style={styles.label} numberOfLines={2}>{label}</Text>
+      <Text style={styles.label} numberOfLines={2}>
+        {label}
+      </Text>
     </View>
   );
 }

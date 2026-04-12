@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -11,37 +11,42 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import ViewShot from 'react-native-view-shot';
 import type { Mission, CompletedRun } from '../../types';
 import { MissionNode } from './MissionNode';
 import { useUserStore } from '../../store/userStore';
 import { useMissionsStore } from '../../store/missionsStore';
 import { getDisplayXpTotal } from '../../utils/displayXp';
 import { SCAVENGER_LEVEL_COUNT } from '../../utils/xpCalculator';
-import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/theme';
-import RunShareCard from '../share/RunShareCard';
-import { shareCard } from '../../services/shareService';
-import { findMissionById } from '../../utils/missionLookup';
-import { getStreakDayIndex0 } from '../../utils/streakDisplay';
-
+import {
+  colors,
+  spacing,
+  fontSizes,
+  fontWeights,
+  radii,
+} from '../../constants/theme';
 
 interface JourneyPathProps {
   missions: Mission[];
   allComplete: boolean;
+  /** Current scavenger level accent — mission icons on path. */
+  levelAccent: string;
 }
 
-export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
+export function JourneyPath({
+  missions,
+  allComplete,
+  levelAccent,
+}: JourneyPathProps) {
   const runHistory = useUserStore((s) => s.runHistory);
   const profile = useUserStore((s) => s.profile);
   const xp = useUserStore((s) => s.xp);
-  const weekMissions = useMissionsStore((s) => s.weekMissions);
   const missionSetClassLevel = useMissionsStore((s) => s.missionSetClassLevel);
 
   const retryMission = useMissionsStore((s) => s.retryMission);
-  const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
+  const generateMissionsFromProfile = useMissionsStore(
+    (s) => s.generateMissionsFromProfile,
+  );
 
-  const shareRef = useRef<ViewShot>(null);
-  const [sharingMissionId, setSharingMissionId] = useState<string | null>(null);
   const completionPulse = useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
@@ -81,25 +86,22 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
     return map;
   }, [runHistory]);
 
-  const handleShare = useCallback(async (missionId: string) => {
-    setSharingMissionId(missionId);
-    const run = completedRunByMission.get(missionId);
-    const hasPath = run?.path && run.path.length >= 2;
-    await shareCard(shareRef, { delayMs: hasPath ? 550 : 100 });
-    setSharingMissionId(null);
-  }, [completedRunByMission]);
-
-  const sharingRun = sharingMissionId ? completedRunByMission.get(sharingMissionId) : undefined;
-  const sharingMission = sharingMissionId
-    ? findMissionById(weekMissions, sharingMissionId)
-    : undefined;
+  const missionIdsWithAttempt = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const run of runHistory) {
+      ids.add(run.missionId);
+    }
+    return ids;
+  }, [runHistory]);
 
   if (missions.length === 0) {
     return (
       <View style={styles.empty}>
         <MaterialIcons name="map" size={48} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No missions yet</Text>
-        <Text style={styles.emptyText}>Complete onboarding to unlock your mission path.</Text>
+        <Text style={styles.emptyText}>
+          Complete onboarding to unlock your mission path.
+        </Text>
       </View>
     );
   }
@@ -109,36 +111,44 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
       {allComplete &&
         missionSetClassLevel != null &&
         missionSetClassLevel < SCAVENGER_LEVEL_COUNT && (
-        <Animated.View
-          style={[
-            styles.completeBanner,
-            { transform: [{ scale: completionPulse }] },
-          ]}
-        >
-          <MaterialIcons name="celebration" size={24} color={colors.textSecondary} />
-          <View style={styles.completeBannerContent}>
-            <Text style={styles.completeBannerTitle}>Level complete</Text>
-            <Text style={styles.completeBannerSub}>
-              Great work. Continue to your next mission level.
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.nextSetButton}
-            onPress={() => {
-              if (!profile) return;
-              const totalXp = getDisplayXpTotal({ xp, runHistory });
-              const nextLevel = Math.min(
-                SCAVENGER_LEVEL_COUNT,
-                missionSetClassLevel + 1,
-              );
-              generateMissionsFromProfile(profile, totalXp, nextLevel);
-            }}
+          <Animated.View
+            style={[
+              styles.completeBanner,
+              { transform: [{ scale: completionPulse }] },
+            ]}
           >
-            <Text style={styles.nextSetButtonText}>Next level</Text>
-            <MaterialIcons name="arrow-forward" size={14} color={colors.background} />
-          </TouchableOpacity>
-        </Animated.View>
-      )}
+            <MaterialIcons
+              name="celebration"
+              size={24}
+              color={colors.textSecondary}
+            />
+            <View style={styles.completeBannerContent}>
+              <Text style={styles.completeBannerTitle}>Level complete</Text>
+              <Text style={styles.completeBannerSub}>
+                Great work. Continue to your next mission level.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.nextSetButton}
+              onPress={() => {
+                if (!profile) return;
+                const totalXp = getDisplayXpTotal({ xp, runHistory });
+                const nextLevel = Math.min(
+                  SCAVENGER_LEVEL_COUNT,
+                  missionSetClassLevel + 1,
+                );
+                generateMissionsFromProfile(profile, totalXp, nextLevel);
+              }}
+            >
+              <Text style={styles.nextSetButtonText}>Next level</Text>
+              <MaterialIcons
+                name="arrow-forward"
+                size={14}
+                color={colors.background}
+              />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
       <View style={styles.path}>
         {missions.map((mission, idx) => (
@@ -146,17 +156,34 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
             key={mission.id}
             mission={mission}
             completedRun={completedRunByMission.get(mission.id)}
+            hasMissionAttempts={missionIdsWithAttempt.has(mission.id)}
             isLast={idx === missions.length - 1}
+            levelAccent={levelAccent}
             onPress={() => {
               if (mission.status !== 'locked') {
-                router.push({ pathname: '/run/[id]', params: { id: mission.id } });
+                router.push({
+                  pathname: '/run/[id]',
+                  params: { id: mission.id },
+                });
               }
             }}
-            onShare={
-              mission.status === 'completed'
-                ? () => handleShare(mission.id)
-                : undefined
-            }
+            onViewMissionRuns={() => {
+              const run = completedRunByMission.get(mission.id);
+              if (run) {
+                router.push({
+                  pathname: '/run/history',
+                  params: {
+                    missionId: mission.id,
+                    completedAt: encodeURIComponent(run.completedAt),
+                  },
+                });
+              } else {
+                router.push({
+                  pathname: '/run/mission-runs',
+                  params: { missionId: mission.id },
+                });
+              }
+            }}
             onRetry={
               mission.status === 'aborted'
                 ? () => retryMission(mission.id)
@@ -165,21 +192,6 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
           />
         ))}
       </View>
-
-      {/* Off-screen share card — rendered only while a share is in progress */}
-      {sharingRun && sharingMission && (
-        <View style={styles.offscreen} pointerEvents="none">
-          <RunShareCard
-            ref={shareRef}
-            distanceKm={sharingRun.distanceKm}
-            durationMin={sharingRun.durationMin}
-            xpEarned={sharingRun.xpEarned}
-            streakDay={getStreakDayIndex0(sharingRun, runHistory)}
-            missionType={sharingMission.type}
-            path={sharingRun.path}
-          />
-        </View>
-      )}
     </View>
   );
 }
@@ -187,12 +199,6 @@ export function JourneyPath({ missions, allComplete }: JourneyPathProps) {
 const styles = StyleSheet.create({
   container: {
     gap: spacing.md,
-  } as ViewStyle,
-  offscreen: {
-    position: 'absolute',
-    top: 0,
-    left: -9999,
-    opacity: 0,
   } as ViewStyle,
   path: {
     gap: spacing.xl,

@@ -2,7 +2,10 @@ import { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUserStore } from '../../store/userStore';
-import { useMissionsStore, selectCompletedCount } from '../../store/missionsStore';
+import {
+  useMissionsStore,
+  selectCompletedCount,
+} from '../../store/missionsStore';
 import { ProgressBar } from '../ui/ProgressBar';
 import {
   colors,
@@ -53,7 +56,10 @@ export function ClassAndMissionProgress() {
       ),
     [displayXp, profile?.startingClassLevel],
   );
-  const levelInfo = useMemo(() => getLevelInfo(displayLevelXp), [displayLevelXp]);
+  const levelInfo = useMemo(
+    () => getLevelInfo(displayLevelXp),
+    [displayLevelXp],
+  );
   const xpRemaining = useMemo(
     () => getXpRemainingToNextLevel(displayLevelXp),
     [displayLevelXp],
@@ -65,12 +71,11 @@ export function ClassAndMissionProgress() {
   const classRingProgress = levelInfo.progress;
 
   const totalMissions = weekMissions.length;
-  const weekProgress =
-    totalMissions > 0 ? completedCount / totalMissions : 0;
+  const weekProgress = totalMissions > 0 ? completedCount / totalMissions : 0;
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.classCard, { borderColor: levelInfo.accentColor }]}>
+      <View style={styles.classCard}>
         <View style={styles.classHeader}>
           <View style={styles.classHeaderLeft}>
             <MaterialIcons
@@ -94,24 +99,32 @@ export function ClassAndMissionProgress() {
           backgroundColor={`${levelInfo.accentColor}22`}
           height={8}
         />
-        <Text style={styles.classSub}>{displayXp.toLocaleString()} total XP</Text>
+        <Text style={styles.classSub}>
+          {displayXp.toLocaleString()} total XP
+        </Text>
       </View>
 
       {totalMissions > 0 && (
         <View style={styles.queueCard}>
           <View style={styles.queueHeader}>
             <View style={styles.queueHeaderLeft}>
-              <MaterialIcons name="route" size={18} color={colors.primary} />
+              <MaterialIcons
+                name="route"
+                size={18}
+                color={levelInfo.accentColor}
+              />
               <Text style={styles.queueTitle}>Mission queue</Text>
             </View>
-            <Text style={styles.queueCount}>
+            <Text
+              style={[styles.queueCount, { color: levelInfo.accentColor }]}
+            >
               {completedCount}/{totalMissions}
             </Text>
           </View>
           <ProgressBar
             progress={weekProgress}
-            color={colors.primary}
-            backgroundColor={colors.primaryLight}
+            color={levelInfo.accentColor}
+            backgroundColor={`${levelInfo.accentColor}22`}
             height={8}
           />
         </View>
@@ -127,7 +140,6 @@ const styles = StyleSheet.create({
   classCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 2,
     padding: spacing.lg,
     gap: spacing.md,
     ...shadows.sm,
@@ -187,6 +199,5 @@ const styles = StyleSheet.create({
   queueCount: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
-    color: colors.primary,
   } as TextStyle,
 });

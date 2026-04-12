@@ -33,14 +33,14 @@ interface ZoneEdge {
 }
 
 const NODES: ZoneNode[] = [
-  { id: 0, x: 28,  y: 65,  label: 'A' },
-  { id: 1, x: 80,  y: 25,  label: 'B' },
-  { id: 2, x: 80,  y: 105, label: 'C' },
-  { id: 3, x: 140, y: 65,  label: 'D' },
-  { id: 4, x: 190, y: 25,  label: 'E' },
+  { id: 0, x: 28, y: 65, label: 'A' },
+  { id: 1, x: 80, y: 25, label: 'B' },
+  { id: 2, x: 80, y: 105, label: 'C' },
+  { id: 3, x: 140, y: 65, label: 'D' },
+  { id: 4, x: 190, y: 25, label: 'E' },
   { id: 5, x: 190, y: 105, label: 'F' },
-  { id: 6, x: 245, y: 45,  label: 'G' },
-  { id: 7, x: 245, y: 90,  label: 'H' },
+  { id: 6, x: 245, y: 45, label: 'G' },
+  { id: 7, x: 245, y: 90, label: 'H' },
 ];
 
 const EDGES: ZoneEdge[] = [
@@ -192,13 +192,7 @@ function AnimNode({
       />
       {/* Inner bright dot */}
       {(isActive || isNew) && (
-        <Circle
-          cx={node.x}
-          cy={node.y}
-          r={3}
-          fill="#fff"
-          fillOpacity={0.9}
-        />
+        <Circle cx={node.x} cy={node.y} r={3} fill="#fff" fillOpacity={0.9} />
       )}
     </>
   );
@@ -207,11 +201,14 @@ function AnimNode({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface ZoneMapAnimationProps {
-  zonesOnline: number;  // how many nodes are "lit" (including the new one)
+  zonesOnline: number; // how many nodes are "lit" (including the new one)
   totalZones?: number;
 }
 
-export function ZoneMapAnimation({ zonesOnline, totalZones = 12 }: ZoneMapAnimationProps) {
+export function ZoneMapAnimation({
+  zonesOnline,
+  totalZones = 12,
+}: ZoneMapAnimationProps) {
   // Map zonesOnline (1–12+) to node indices — clamp to NODES.length
   const litCount = Math.min(zonesOnline, NODES.length);
   const newNodeIdx = litCount - 1; // the newest node is the last lit one

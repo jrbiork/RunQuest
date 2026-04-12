@@ -3,13 +3,10 @@ import { calcDistanceKm } from '../utils/haversine';
 
 const ORS_DIRECTIONS = 'https://api.openrouteservice.org/v2/directions';
 const ORS_SNAP = 'https://api.openrouteservice.org/v2/snap';
-const GOOGLE_SNAP_ROADS = 'https://roads.googleapis.com/v1/snapToRoads';
 
 /** ORS public directions API waypoint ceiling. */
 const MAX_WAYPOINTS = 50;
 const MAX_POINTS_SNAP_FALLBACK = 80;
-/** Google Roads API point ceiling per request. */
-const GOOGLE_SNAP_MAX = 100;
 const SNAP_RADIUS_M = 65;
 /** Drop near-duplicate waypoints so ORS accepts the request. */
 const MIN_WAYPOINT_GAP_KM = 0.002;
@@ -85,36 +82,6 @@ function extractDirectionsCoordinates(data: unknown): [number, number][] | null 
     }
   }
   return all.length >= 2 ? all : null;
-}
-
-/**
- * Primary map-matching strategy: Google Roads snapToRoads with interpolate=true.
- *
- * Unlike ORS Directions (which re-routes between waypoints), this API matches the
- * GPS trace to the actual road geometry the runner followed, filling in corners and
- * turn segments between recorded points.
- */
-async function snapToRoadsGoogle(
-  points: GpsPoint[],
-  apiKey: string,
-  signal?: AbortSignal,
-): Promise<MapCoordinate[] | null> {
-  if (points.length < 2 || !apiKey.trim()) return null;
-  const sampled = sampleEvenly(points, GOOGLE_SNAP_MAX);
-  const pathParam = sampled.map((p) => `${p.latitude},${p.longitude}`).join('|');
-  const url = `${GOOGLE_SNAP_ROADS}?path=${pathParam}&interpolate=true&key=${apiKey.trim()}`;
-  let res: Response;
-  try {
-    res = await fetch(url, { signal });
-  } catch {
-    return null;
-  }
-  if (!res.ok) return null;
-  const data = (await res.json()) as {
-    snappedPoints?: { location: { latitude: number; longitude: number } }[];
-  };
-  if (!data.snappedPoints?.length) return null;
-  return data.snappedPoints.map((p) => p.location);
 }
 
 async function fetchRoadGeometryFromDirections(
@@ -195,36 +162,24 @@ async function snapPointsChord(
  * Builds a road-following polyline for map display.
  *
  * Priority order:
- *  1. Google Roads snapToRoads (map matching — preserves actual corners)
- *  2. ORS Directions (routing fallback — may cut corners at intersections)
- *  3. ORS Snap chord (per-point snap, straight lines between snapped points)
- *  4. Raw GPS
+ *  1. ORS Directions (routing between waypoints — may cut corners at intersections)
+ *  2. ORS Snap chord (per-point snap, straight lines between snapped points)
+ *  3. Raw GPS
  */
 export async function snapPathForMapDisplay(
   points: GpsPoint[],
   activityMode: ActivityMode,
   orsApiKey: string,
   signal?: AbortSignal,
-  googleRoadsApiKey?: string,
 ): Promise<MapCoordinate[]> {
   const raw = points.map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
   if (points.length < 2) return raw;
-
-  // 1. Google Roads map matching (best — fills in actual road geometry at corners)
-  if (googleRoadsApiKey?.trim()) {
-    try {
-      const matched = await snapToRoadsGoogle(points, googleRoadsApiKey, signal);
-      if (matched && matched.length >= 2) return matched;
-    } catch {
-      // fall through
-    }
-  }
 
   if (!orsApiKey.trim()) return raw;
 
   const profile = activityMode === 'cycle' ? 'cycling-regular' : 'foot-walking';
 
-  // 2. ORS Directions (routing between sampled waypoints)
+  // 1. ORS Directions (routing between sampled waypoints)
   try {
     const sampled = sampleEvenly(points, MAX_WAYPOINTS);
     const waypoints = spaceWaypoints(sampled);
@@ -234,7 +189,7 @@ export async function snapPathForMapDisplay(
     // fall through
   }
 
-  // 3. ORS Snap chord (per-point, no inter-point road geometry)
+  // 2. ORS Snap chord (per-point, no inter-point road geometry)
   try {
     return await snapPointsChord(points, profile, orsApiKey, signal);
   } catch {

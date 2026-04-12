@@ -17,6 +17,7 @@ import { GPS_MICRO_JITTER_MAX_ACCURACY_M } from '../constants/gpsTrackingConfig'
 import { applyMicroJitterToDistanceDelta } from '../utils/gpsMicroJitterDistance';
 import { speakRunCue } from '../services/audioService';
 import { pickCue } from '../constants/missions';
+import { logEvent, Events } from '../services/analytics';
 
 // ─── Background task name ─────────────────────────────────────────────────────
 
@@ -219,7 +220,10 @@ export function stopBackgroundCueTracking(): void {
 // ─── Register background task (must be at module top-level, outside any component) ─
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
-  if (error) return;
+  if (error) {
+    void logEvent(Events.GPS_INTERRUPTED);
+    return;
+  }
   const { locations } = data as { locations: Location.LocationObject[] };
   for (const loc of locations) {
     const point: GpsPoint = {
@@ -574,6 +578,7 @@ export function useGpsTracking(): GpsTrackingState {
       await Location.requestForegroundPermissionsAsync();
     if (fgStatus !== 'granted') {
       setHasPermission(false);
+      void logEvent(Events.GPS_TRACKING_FAILED, { reason: 'permission_denied' });
       return false;
     }
 
@@ -657,6 +662,7 @@ export function useGpsTracking(): GpsTrackingState {
 
     await _startForegroundWatcher();
     await _startBackgroundTask();
+    void logEvent(Events.GPS_TRACKING_STARTED);
 
     if (pathRef.current.length === 0) {
       Location.getCurrentPositionAsync({

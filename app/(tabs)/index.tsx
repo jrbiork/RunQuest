@@ -17,11 +17,9 @@ import { useUserStore } from '../../src/store/userStore';
 import {
   getLevelInfo,
   getOverallLevelRingProgress,
-  getXpRemainingToNextLevel,
   getDisplayXpWithStartingLevelOffset,
   formatDistance,
   formatDuration,
-  LEVEL_CLASS_TITLES,
   SCAVENGER_LEVEL_COUNT,
 } from '../../src/utils/xpCalculator';
 import { getDisplayXpTotal } from '../../src/utils/displayXp';
@@ -35,7 +33,6 @@ import { Button } from '../../src/components/ui/Button';
 import {
   colors,
   spacing,
-  radii,
   fontSizes,
   fontWeights,
 } from '../../src/constants/theme';
@@ -133,15 +130,6 @@ export default function HomeScreen() {
     () => getLevelInfo(displayLevelXp),
     [displayLevelXp],
   );
-  const levelProgressLabel = useMemo(() => {
-    const li = levelInfo;
-    if (li.level >= SCAVENGER_LEVEL_COUNT) {
-      return 'Max level';
-    }
-    const xpRemaining = getXpRemainingToNextLevel(displayLevelXp);
-    const nextName = LEVEL_CLASS_TITLES[li.level] ?? `Level ${li.level + 1}`;
-    return `+${xpRemaining} XP to ${nextName}`;
-  }, [levelInfo, displayLevelXp]);
 
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const generateMissionsFromProfile = useMissionsStore(
@@ -230,51 +218,39 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* ─── Header ─────────────────────────────────────────────────── */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.wordmark}>RUNQUEST</Text>
-            <TouchableOpacity
+        {/* ─── Level + wordmark row (matches Journey header) ─────────── */}
+        <View style={styles.homeTop}>
+          <View style={styles.classBadge}>
+            <View
               style={[
-                styles.levelBadge,
-                {
-                  borderColor: levelInfo.accentColor,
-                  backgroundColor: `${levelInfo.accentColor}22`,
-                },
+                styles.classDot,
+                { backgroundColor: levelInfo.accentColor },
               ]}
-              onPress={() => setStatModal('level')}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Open levels"
+            />
+            <Text
+              style={[
+                styles.classBadgeText,
+                { color: levelInfo.accentColor },
+              ]}
             >
+              {levelInfo.title}
+            </Text>
+          </View>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.wordmark}>RUNQUEST</Text>
+            </View>
+            <TouchableOpacity onPress={handleSettings} style={styles.settingsBtn}>
               <MaterialIcons
-                name="military-tech"
-                size={12}
-                color={levelInfo.accentColor}
+                name="settings"
+                size={22}
+                color={colors.textSecondary}
               />
-              <View style={styles.levelBadgeTextRow}>
-                <Text
-                  style={[
-                    styles.levelBadgeLabel,
-                    { color: levelInfo.accentColor },
-                  ]}
-                >
-                  {levelInfo.title}
-                </Text>
-                <Text style={styles.levelBadgeMeta}> {levelProgressLabel}</Text>
-              </View>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={handleSettings} style={styles.settingsBtn}>
-            <MaterialIcons
-              name="settings"
-              size={22}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
         </View>
 
-        {/* ─── Current Mission (below title + level) ───────────────────── */}
+        {/* ─── Current Mission ───────────────────────────────────────── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.accentBar} />
@@ -284,6 +260,7 @@ export default function HomeScreen() {
             <DailyMissionCard
               mission={nextMission}
               onStartRun={handleStartRun}
+              levelAccentColor={levelInfo.accentColor}
             />
           ) : (
             <RestDayCard onViewJourney={handleViewJourney} />
@@ -423,7 +400,7 @@ export default function HomeScreen() {
               value={missionCount}
               label="Missions"
               icon="directions-run"
-              ringColor={colors.primary}
+              ringColor={colors.earthGreen}
               progress={Math.min(missionCount / 50, 1)}
               size={84}
             />
@@ -437,7 +414,7 @@ export default function HomeScreen() {
               value={streak}
               label="Day Streak"
               icon="local-fire-department"
-              ringColor={colors.orange}
+              ringColor={colors.earthGreen}
               progress={Math.min(streak / 30, 1)}
               size={84}
             />
@@ -451,7 +428,7 @@ export default function HomeScreen() {
               value={levelInfo.level}
               label="Level"
               icon="military-tech"
-              ringColor={colors.ochre}
+              ringColor={colors.earthGreen}
               progress={getOverallLevelRingProgress(levelInfo)}
               size={84}
             />
@@ -472,7 +449,7 @@ function RestDayCard({ onViewJourney }: { onViewJourney: () => void }) {
       />
       <Text style={styles.restTitle}>{getRestMessage()}</Text>
       <Text style={styles.restSub}>
-        No missions left in your current deployment, or open Journey to review
+        No missions left to start in this set, or open Journey to review
         progress.
       </Text>
       <Button
@@ -496,7 +473,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   content: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.huge,
     gap: spacing.sm,
   } as ViewStyle,
@@ -509,13 +486,33 @@ const styles = StyleSheet.create({
     minHeight: 0,
   } as ViewStyle,
 
+  /** Matches Journey `header` + `headerBlock` vertical rhythm. */
+  homeTop: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+  } as ViewStyle,
+  classBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  classDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  } as ViewStyle,
+  classBadgeText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  } as TextStyle,
+
   // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: spacing.lg,
-    paddingTop: spacing.sm,
   } as ViewStyle,
   headerLeft: {
     flex: 1,
@@ -528,37 +525,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     letterSpacing: 3,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  levelBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    alignSelf: 'stretch',
-    maxWidth: '100%',
-  } as ViewStyle,
-  levelBadgeTextRow: {
-    flex: 1,
-    flexShrink: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  } as ViewStyle,
-  levelBadgeLabel: {
-    fontSize: 9,
-    fontWeight: fontWeights.extrabold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  levelBadgeMeta: {
-    fontSize: 9,
-    fontWeight: fontWeights.semibold,
-    color: colors.textSecondary,
-    letterSpacing: 0.4,
     textTransform: 'uppercase',
   } as TextStyle,
   settingsBtn: {
@@ -664,7 +630,8 @@ const styles = StyleSheet.create({
   // Section layout
   section: {
     gap: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingTop: 0,
+    paddingBottom: spacing.sm,
   } as ViewStyle,
   sectionHeader: {
     flexDirection: 'row',
@@ -674,7 +641,7 @@ const styles = StyleSheet.create({
   accentBar: {
     width: 3,
     height: 16,
-    backgroundColor: colors.ochre,
+    backgroundColor: colors.earthGreen,
     borderRadius: 2,
   } as ViewStyle,
   sectionTitle: {

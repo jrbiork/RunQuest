@@ -25,8 +25,8 @@ interface BuildingDef {
 }
 
 interface WindowDef {
-  wx: number;  // relative to building x
-  wy: number;  // from top
+  wx: number; // relative to building x
+  wy: number; // from top
   ww: number;
   wh: number;
   delay: number;
@@ -37,9 +37,23 @@ const SVG_W = 340;
 const SVG_H = 160;
 const GROUND_Y = SVG_H - 10;
 
-const W_COLORS = [colors.orange, colors.primary, colors.orange, colors.primary, colors.orange, colors.primary];
+const W_COLORS = [
+  colors.orange,
+  colors.primary,
+  colors.orange,
+  colors.primary,
+  colors.orange,
+  colors.primary,
+];
 
-function makeWindows(x: number, bw: number, bh: number, cols: number, rows: number, baseDelay: number): WindowDef[] {
+function makeWindows(
+  x: number,
+  bw: number,
+  bh: number,
+  cols: number,
+  rows: number,
+  baseDelay: number,
+): WindowDef[] {
   const wins: WindowDef[] = [];
   const ww = Math.max(4, Math.floor((bw - 6) / cols) - 2);
   const wh = 4;
@@ -61,16 +75,56 @@ function makeWindows(x: number, bw: number, bh: number, cols: number, rows: numb
 }
 
 const BUILDINGS: BuildingDef[] = [
-  { x: 0,   width: 32, height: 90,  windows: makeWindows(0,   32, 90,  2, 7, 0)   },
-  { x: 36,  width: 24, height: 60,  windows: makeWindows(36,  24, 60,  2, 5, 150) },
-  { x: 64,  width: 44, height: 120, windows: makeWindows(64,  44, 120, 3, 9, 300) },
-  { x: 112, width: 28, height: 72,  windows: makeWindows(112, 28, 72,  2, 6, 100) },
-  { x: 144, width: 20, height: 48,  windows: makeWindows(144, 20, 48,  1, 4, 500) },
-  { x: 168, width: 38, height: 100, windows: makeWindows(168, 38, 100, 3, 8, 200) },
-  { x: 210, width: 26, height: 80,  windows: makeWindows(210, 26, 80,  2, 6, 400) },
-  { x: 240, width: 34, height: 110, windows: makeWindows(240, 34, 110, 2, 8, 50)  },
-  { x: 278, width: 22, height: 65,  windows: makeWindows(278, 22, 65,  1, 5, 350) },
-  { x: 304, width: 36, height: 88,  windows: makeWindows(304, 36, 88,  2, 7, 600) },
+  { x: 0, width: 32, height: 90, windows: makeWindows(0, 32, 90, 2, 7, 0) },
+  { x: 36, width: 24, height: 60, windows: makeWindows(36, 24, 60, 2, 5, 150) },
+  {
+    x: 64,
+    width: 44,
+    height: 120,
+    windows: makeWindows(64, 44, 120, 3, 9, 300),
+  },
+  {
+    x: 112,
+    width: 28,
+    height: 72,
+    windows: makeWindows(112, 28, 72, 2, 6, 100),
+  },
+  {
+    x: 144,
+    width: 20,
+    height: 48,
+    windows: makeWindows(144, 20, 48, 1, 4, 500),
+  },
+  {
+    x: 168,
+    width: 38,
+    height: 100,
+    windows: makeWindows(168, 38, 100, 3, 8, 200),
+  },
+  {
+    x: 210,
+    width: 26,
+    height: 80,
+    windows: makeWindows(210, 26, 80, 2, 6, 400),
+  },
+  {
+    x: 240,
+    width: 34,
+    height: 110,
+    windows: makeWindows(240, 34, 110, 2, 8, 50),
+  },
+  {
+    x: 278,
+    width: 22,
+    height: 65,
+    windows: makeWindows(278, 22, 65, 1, 5, 350),
+  },
+  {
+    x: 304,
+    width: 36,
+    height: 88,
+    windows: makeWindows(304, 36, 88, 2, 7, 600),
+  },
 ];
 
 // ─── Animated window ─────────────────────────────────────────────────────────
@@ -108,11 +162,17 @@ function GlowSweep() {
   const opacity = useSharedValue(0);
 
   useEffect(() => {
-    opacity.value = withDelay(200, withSequence(
-      withTiming(0.5, { duration: 100 }),
-      withDelay(1200, withTiming(0, { duration: 400 })),
-    ));
-    y.value = withDelay(200, withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) }));
+    opacity.value = withDelay(
+      200,
+      withSequence(
+        withTiming(0.5, { duration: 100 }),
+        withDelay(1200, withTiming(0, { duration: 400 })),
+      ),
+    );
+    y.value = withDelay(
+      200,
+      withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
+    );
   }, [y, opacity]);
 
   const glowProps = useAnimatedProps(() => ({
@@ -139,7 +199,13 @@ export function CityRestoreAnimation() {
     <View style={styles.container}>
       <Svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`}>
         {/* Ground line */}
-        <Rect x={0} y={GROUND_Y} width={SVG_W} height={2} fill={colors.border} />
+        <Rect
+          x={0}
+          y={GROUND_Y}
+          width={SVG_W}
+          height={2}
+          fill={colors.border}
+        />
 
         {/* Buildings */}
         {BUILDINGS.map((b, bi) => (

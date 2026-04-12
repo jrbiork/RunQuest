@@ -9,9 +9,16 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors, spacing, radii, fontSizes, fontWeights, shadows } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+  shadows,
+} from '../../constants/theme';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
@@ -40,11 +47,11 @@ export function Button({
   const isDisabled = disabled || loading;
 
   const iconColor =
-    variant === 'primary' || variant === 'danger'
+    variant === 'primary' || variant === 'danger' || variant === 'accent'
       ? colors.textInverse
       : variant === 'secondary'
-      ? colors.orange
-      : colors.primary;
+        ? colors.orange
+        : colors.primary;
   const iconSize = size === 'sm' ? 16 : size === 'md' ? 18 : 20;
 
   return (
@@ -63,15 +70,26 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.textInverse : colors.orange}
+          color={variant === 'primary' || variant === 'accent' ? colors.textInverse : colors.orange}
           size="small"
         />
       ) : (
         <View style={styles.inner}>
           {icon && (
-            <MaterialIcons name={icon as any} size={iconSize} color={iconColor} style={styles.iconLeft} />
+            <MaterialIcons
+              name={icon as any}
+              size={iconSize}
+              color={iconColor}
+              style={styles.iconLeft}
+            />
           )}
-          <Text style={[styles.label, styles[`label_${variant}`], styles[`labelSize_${size}`]]}>
+          <Text
+            style={[
+              styles.label,
+              styles[`label_${variant}`],
+              styles[`labelSize_${size}`],
+            ]}
+          >
             {label}
           </Text>
         </View>
@@ -119,11 +137,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#A33028',
   } as ViewStyle,
+  accent: {
+    backgroundColor: colors.earthGreen,
+    borderWidth: 1,
+    borderColor: '#5cb800',
+  } as ViewStyle,
 
   // Sizes
-  size_sm: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.sm } as ViewStyle,
-  size_md: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl } as ViewStyle,
-  size_lg: { paddingVertical: spacing.lg, paddingHorizontal: spacing.xxl } as ViewStyle,
+  size_sm: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.sm,
+  } as ViewStyle,
+  size_md: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+  } as ViewStyle,
+  size_lg: {
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xxl,
+  } as ViewStyle,
 
   fullWidth: { width: '100%' } as ViewStyle,
   disabled: { opacity: 0.45 } as ViewStyle,
@@ -135,6 +168,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   } as TextStyle,
   label_primary: { color: colors.textInverse } as TextStyle,
+  label_accent: { color: colors.textInverse } as TextStyle,
   label_secondary: { color: colors.orange } as TextStyle,
   label_ghost: { color: colors.textSecondary } as TextStyle,
   label_danger: { color: colors.textInverse } as TextStyle,

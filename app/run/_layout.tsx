@@ -13,6 +13,7 @@ export default function RunLayout() {
         options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
       />
       <Stack.Screen name="history" />
+      <Stack.Screen name="mission-runs" />
     </Stack>
   );
 }

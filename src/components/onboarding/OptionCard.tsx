@@ -1,12 +1,26 @@
 import React from 'react';
-import { TouchableOpacity, Text, View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  View,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, spacing, radii, fontSizes, fontWeights, shadows } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+  shadows,
+} from '../../constants/theme';
 
 interface OptionCardProps {
   label: string;
@@ -46,16 +60,14 @@ export function OptionCard({
       <TouchableOpacity
         onPress={handlePress}
         activeOpacity={0.85}
-        style={[
-          styles.card,
-          selected && styles.selected,
-          style,
-        ]}
+        style={[styles.card, selected && styles.selected, style]}
       >
         {/* Left: icon block + text */}
         <View style={styles.left}>
           {icon && (
-            <View style={[styles.iconBlock, selected && styles.iconBlockSelected]}>
+            <View
+              style={[styles.iconBlock, selected && styles.iconBlockSelected]}
+            >
               <MaterialIcons
                 name={icon as any}
                 size={20}
@@ -64,9 +76,16 @@ export function OptionCard({
             </View>
           )}
           <View style={styles.textGroup}>
-            <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
+            <Text style={[styles.label, selected && styles.labelSelected]}>
+              {label}
+            </Text>
             {description && (
-              <Text style={[styles.description, selected && styles.descriptionSelected]}>
+              <Text
+                style={[
+                  styles.description,
+                  selected && styles.descriptionSelected,
+                ]}
+              >
                 {description}
               </Text>
             )}
@@ -75,7 +94,9 @@ export function OptionCard({
 
         {/* Right: square checkmark badge */}
         <View style={[styles.check, selected && styles.checkSelected]}>
-          {selected && <MaterialIcons name="check" size={14} color={colors.textInverse} />}
+          {selected && (
+            <MaterialIcons name="check" size={14} color={colors.textInverse} />
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -96,8 +117,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   } as ViewStyle,
   selected: {
-    borderColor: colors.orange,
-    backgroundColor: colors.orangeLight,
+    borderColor: colors.earthGreen,
+    backgroundColor: colors.earthGreenLight,
   } as ViewStyle,
 
   left: {
@@ -120,8 +141,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   } as ViewStyle,
   iconBlockSelected: {
-    backgroundColor: colors.orange,
-    borderColor: colors.orange,
+    backgroundColor: colors.earthGreen,
+    borderColor: colors.earthGreen,
   } as ViewStyle,
 
   textGroup: {
@@ -160,7 +181,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   checkSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.earthGreen,
+    borderColor: colors.earthGreen,
   } as ViewStyle,
 });

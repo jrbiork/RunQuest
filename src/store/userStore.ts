@@ -17,6 +17,13 @@ import {
 import { levelTierForClassLevel } from '../constants/missionProgression';
 import { RECRUIT_TARGET_DISTANCES_KM } from '../utils/missionGenerator';
 import { setAudioMutedFlag, syncOnboardingAmbientWithMute } from '../services/audioService';
+import { logEvent, setUserProperty, Events } from '../services/analytics';
+import { didLevelUp, getNewLevel } from '../utils/xpCalculator';
+import { getDisplayXpTotal } from '../utils/displayXp';
+import {
+  migrateRunHistoryXpTagAccents,
+  snapshotXpTagAccentColor,
+} from '../utils/runXpAccent';
 import { getTodayISO, getNowISOString, isStreakAlive } from '../utils/dateUtils';
 import type { MissionType } from '../types';
 
@@ -185,7 +192,7 @@ export const useUserStore = create<UserStore>()(
         const durMin =
           actualDurationMin ?? getMissionTargetDuration(missionType, level, classLevel);
 
-        const completedRun: CompletedRun = {
+        const completedRunBase: CompletedRun = {
           missionId,
           completedAt: getNowISOString(),
           distanceKm: distKm,
@@ -197,22 +204,55 @@ export const useUserStore = create<UserStore>()(
           ...(activityMode ? { activityMode } : {}),
           ...(path && path.length > 0 ? { path } : {}),
         };
+        const nextHistory = [...state.runHistory, completedRunBase];
+        const xpTagAccentColor = snapshotXpTagAccentColor({
+          totalXpAfterRun: newXp,
+          runHistoryIncludingThisRun: nextHistory,
+          startingClassLevel: state.profile?.startingClassLevel,
+        });
+        const completedRun: CompletedRun = {
+          ...completedRunBase,
+          xpTagAccentColor,
+        };
 
+        const newTotalRuns = state.totalRuns + (countsAsMission ? 1 : 0);
         set({
           xp: newXp,
-          totalRuns: state.totalRuns + (countsAsMission ? 1 : 0),
+          totalRuns: newTotalRuns,
           totalDistanceKm: state.totalDistanceKm + distKm,
           runHistory: [...state.runHistory, completedRun],
         });
+
+        if (didLevelUp(state.xp, newXp)) {
+          const newLevel = getNewLevel(newXp);
+          void logEvent(Events.LEVEL_PROGRESSED, { level_number: newLevel });
+          void setUserProperty('current_level', String(newLevel));
+        }
+        void setUserProperty('total_missions_completed', String(newTotalRuns));
 
         return completedRun;
       },
 
       appendRunHistoryEntry: (run) => {
-        set((state) => ({
-          runHistory: [...state.runHistory, run],
-          totalDistanceKm: state.totalDistanceKm + run.distanceKm,
-        }));
+        set((state) => {
+          const newXp = state.xp + run.xpEarned;
+          const nextHistory = [...state.runHistory, run];
+          const enriched: CompletedRun =
+            run.xpTagAccentColor != null && run.xpTagAccentColor !== ''
+              ? run
+              : {
+                  ...run,
+                  xpTagAccentColor: snapshotXpTagAccentColor({
+                    totalXpAfterRun: newXp,
+                    runHistoryIncludingThisRun: nextHistory,
+                    startingClassLevel: state.profile?.startingClassLevel,
+                  }),
+                };
+          return {
+            runHistory: [...state.runHistory, enriched],
+            totalDistanceKm: state.totalDistanceKm + run.distanceKm,
+          };
+        });
       },
 
       recordStreakOnMissionStart: () => {
@@ -281,7 +321,7 @@ export const useUserStore = create<UserStore>()(
       name: 'runquest-user',
       storage: createJSONStorage(() => AsyncStorage),
       merge: mergeUserPersist,
-      version: 4,
+      version: 5,
       migrate: (persisted: unknown, version: number) => {
         const s = persisted as Record<string, unknown> & {
           totalCampaignsCompleted?: number;
@@ -290,6 +330,13 @@ export const useUserStore = create<UserStore>()(
         const { totalCampaignsCompleted: _c, weeklyProgress: _w, ...rest } = s;
         if (version < 4 && rest.iosAlwaysLocationPromptCompleted === undefined) {
           rest.iosAlwaysLocationPromptCompleted = true;
+        }
+        if (version < 5 && Array.isArray(rest.runHistory)) {
+          const profile = rest.profile as UserProfile | null | undefined;
+          rest.runHistory = migrateRunHistoryXpTagAccents(
+            rest.runHistory as CompletedRun[],
+            profile?.startingClassLevel,
+          );
         }
         return rest;
       },

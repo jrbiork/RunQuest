@@ -1,9 +1,24 @@
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, ViewStyle, TextStyle } from 'react-native';
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CompletedRun, Mission } from '../../types';
-import { colors, spacing, radii, fontSizes, fontWeights } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+} from '../../constants/theme';
 import { formatDistance } from '../../utils/xpCalculator';
 import { resolveMissionDisplayTitle } from '../../utils/missionLookup';
 import { resolveOutcome } from '../../utils/runOutcome';
@@ -17,7 +32,13 @@ type Props = {
   personaId: import('../../types').PersonaId | null | undefined;
 };
 
-export function RunDetailsModal({ visible, onClose, run, mission, personaId }: Props) {
+export function RunDetailsModal({
+  visible,
+  onClose,
+  run,
+  mission,
+  personaId,
+}: Props) {
   const insets = useSafeAreaInsets();
   if (!run) return null;
 
@@ -36,7 +57,8 @@ export function RunDetailsModal({ visible, onClose, run, mission, personaId }: P
   });
 
   const coords =
-    run.path?.map((p) => ({ latitude: p.latitude, longitude: p.longitude })) ?? [];
+    run.path?.map((p) => ({ latitude: p.latitude, longitude: p.longitude })) ??
+    [];
   const hasMap = coords.length >= 2;
 
   let lat = 48.8566;
@@ -47,14 +69,28 @@ export function RunDetailsModal({ visible, onClose, run, mission, personaId }: P
   }
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <View style={styles.safe}>
         <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {title}
           </Text>
-          <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-            <MaterialIcons name="close" size={24} color={colors.textSecondary} />
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <MaterialIcons
+              name="close"
+              size={24}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
 
@@ -76,11 +112,15 @@ export function RunDetailsModal({ visible, onClose, run, mission, personaId }: P
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Distance</Text>
-              <Text style={styles.statValue}>{formatDistance(run.distanceKm)}</Text>
+              <Text style={styles.statValue}>
+                {formatDistance(run.distanceKm)}
+              </Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Time</Text>
-              <Text style={styles.statValue}>{Math.round(run.durationMin)} min</Text>
+              <Text style={styles.statValue}>
+                {Math.round(run.durationMin)} min
+              </Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>XP</Text>

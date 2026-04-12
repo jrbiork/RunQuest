@@ -7,6 +7,7 @@ import {
   stopOnboardingAmbient,
   syncOnboardingAmbientWithMute,
 } from '../../src/services/audioService';
+import { logEvent, Events } from '../../src/services/analytics';
 
 interface OnboardingContextValue {
   draft: React.MutableRefObject<OnboardingDraft>;
@@ -26,6 +27,7 @@ export default function OnboardingLayout() {
   const audioMuted = useUserStore((s) => s.audioMuted);
 
   useEffect(() => {
+    void logEvent(Events.ONBOARDING_STARTED);
     startOnboardingAmbient();
     return () => stopOnboardingAmbient();
   }, []);
@@ -39,7 +41,7 @@ export default function OnboardingLayout() {
       <Stack
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
       >
-        <Stack.Screen name="index" />
+        <Stack.Screen name="index" options={{ gestureEnabled: false }} />
         <Stack.Screen name="volume" options={{ gestureEnabled: false }} />
         <Stack.Screen name="goal" options={{ gestureEnabled: false }} />
         <Stack.Screen name="tailoring" options={{ gestureEnabled: false }} />

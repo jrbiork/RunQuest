@@ -142,6 +142,11 @@ export interface CompletedRun {
   path?: GpsPoint[];
   /** When set, overrides inference from goalMet for stats. */
   outcome?: MissionOutcome;
+  /**
+   * Level-ladder accent for +XP UI at completion time (display XP + startingClassLevel).
+   * Preserved if the user later changes level or onboarding class offset.
+   */
+  xpTagAccentColor?: string;
 }
 
 // ─── XP / Levels ─────────────────────────────────────────────────────────────

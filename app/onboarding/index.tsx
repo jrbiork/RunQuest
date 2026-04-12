@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
@@ -6,8 +6,14 @@ import { OptionCard } from '../../src/components/onboarding/OptionCard';
 import { useOnboardingDraft } from './_layout';
 import type { ActivityMode } from '../../src/types';
 import { spacing } from '../../src/constants/theme';
+import { logEvent, Events } from '../../src/services/analytics';
 
-const OPTIONS: { value: ActivityMode; label: string; description: string; icon: string }[] = [
+const OPTIONS: {
+  value: ActivityMode;
+  label: string;
+  description: string;
+  icon: string;
+}[] = [
   {
     value: 'run',
     label: 'RUNNING',
@@ -28,6 +34,12 @@ export default function OnboardingFocusScreen() {
     draft.current.defaultActivityMode ?? 'run',
   );
 
+  useEffect(() => {
+    void logEvent(Events.ONBOARDING_STEP_VIEWED, {
+      step_name: 'activity_mode',
+    });
+  }, []);
+
   const handleNext = () => {
     draft.current.defaultActivityMode = selected;
     router.push('/onboarding/volume' as any);
@@ -37,7 +49,7 @@ export default function OnboardingFocusScreen() {
     <OnboardingLayout
       step={1}
       totalSteps={3}
-      title="What do you want to focus on?"
+      title="What's your main focus?"
       subtitle="Training focus"
       onNext={handleNext}
       nextLabel="Continue"

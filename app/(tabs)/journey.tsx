@@ -32,6 +32,7 @@ export default function JourneyScreen() {
     [displayXp, profile?.startingClassLevel],
   );
   const levelInfo = useMemo(() => getLevelInfo(displayLevelXp), [displayLevelXp]);
+  const missionAccent = levelInfo.accentColor;
 
   const missions = weekMissions;
   const allComplete = missions.length > 0 && missions.every((m) => m.status === 'completed');
@@ -62,26 +63,28 @@ export default function JourneyScreen() {
               {levelInfo.title}
             </Text>
           </View>
-          <Text style={styles.title}>MISSION PATH</Text>
-          <Text style={styles.subtitle}>
-            {allComplete
-              ? 'ALL MISSIONS COMPLETE IN THIS SET'
-              : totalMissions === 0
-                ? 'Complete onboarding to receive missions'
-                : `${completedCount} / ${totalMissions} MISSIONS COMPLETED`}
-          </Text>
+
+          <View style={styles.headerBlock}>
+            <Text style={styles.screenTitle}>Journey</Text>
+            <View style={styles.scopeRow}>
+              <View style={styles.scopeAccentBar} />
+              <Text style={styles.scopeSubtitle}>Mission path</Text>
+            </View>
+            <Text style={styles.statusSubtitle}>
+              {allComplete
+                ? 'ALL MISSIONS COMPLETE IN THIS SET'
+                : totalMissions === 0
+                  ? 'Complete onboarding to receive missions'
+                  : `${completedCount} / ${totalMissions} MISSIONS COMPLETED`}
+            </Text>
+          </View>
         </View>
 
-        {totalMissions > 0 && (
-          <View style={styles.missionsSection}>
-            <View style={styles.missionsSectionHeader}>
-              <View style={styles.accentBar} />
-              <Text style={styles.missionsSectionTitle}>Missions</Text>
-            </View>
-          </View>
-        )}
-
-        <JourneyPath missions={missions} allComplete={allComplete} />
+        <JourneyPath
+          missions={missions}
+          allComplete={allComplete}
+          levelAccent={missionAccent}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -102,13 +105,48 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   } as ViewStyle,
   header: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   } as ViewStyle,
+  headerBlock: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+  } as ViewStyle,
+  screenTitle: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+    textAlign: 'left',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+  } as TextStyle,
+  scopeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  scopeAccentBar: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: colors.earthGreen,
+  } as ViewStyle,
+  scopeSubtitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+  } as TextStyle,
+  statusSubtitle: {
+    fontSize: fontSizes.sm,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
   classBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.xs,
   } as ViewStyle,
   classDot: {
     width: 8,
@@ -120,39 +158,5 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-  } as TextStyle,
-  title: {
-    fontSize: fontSizes.xxxl,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-  } as TextStyle,
-  subtitle: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
-  missionsSection: {
-    gap: spacing.sm,
-  } as ViewStyle,
-  missionsSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  } as ViewStyle,
-  accentBar: {
-    width: 3,
-    height: 16,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-  } as ViewStyle,
-  missionsSectionTitle: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 2,
   } as TextStyle,
 });

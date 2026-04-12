@@ -35,6 +35,7 @@ import { useMissionsStore } from '../../src/store/missionsStore';
 import { useRunSessionStore } from '../../src/store/runSessionStore';
 import { useUserStore } from '../../src/store/userStore';
 import { getNowISOString } from '../../src/utils/dateUtils';
+import { darkenHex } from '../../src/utils/hexColor';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import {
   colors,
@@ -79,6 +80,7 @@ import {
   normalizeRouteParam,
 } from '../../src/utils/missionLookup';
 import type { ActivityMode } from '../../src/types';
+import { logEvent, Events } from '../../src/services/analytics';
 import * as Location from 'expo-location';
 
 /** Min time between map recenter animations (GPS updates faster; stacking causes flicker). */
@@ -578,6 +580,12 @@ export default function ActiveRunScreen() {
                 activityMode,
                 ...(sampledPath.length >= 2 ? { path: sampledPath } : {}),
               });
+              void logEvent(Events.MISSION_ABORTED, {
+                type: activityMode,
+                duration_sec: elapsedSec,
+                distance_km: parseFloat(distanceKm.toFixed(2)),
+                reason: 'user_abort',
+              });
             }
             router.replace('/(tabs)/journey');
           },
@@ -615,18 +623,34 @@ export default function ActiveRunScreen() {
   const hasWarmupStableAccuracy = useMemo(() => {
     const tail = acceptedPath.slice(-3);
     if (tail.length < 3) return false;
-    return tail.every((p) => p.accuracy == null || p.accuracy <= GPS_MAX_ACCURACY_M);
+    return tail.every(
+      (p) => p.accuracy == null || p.accuracy <= GPS_MAX_ACCURACY_M,
+    );
   }, [acceptedPath]);
 
   const shouldShowPolyline = useMemo(() => {
     if (acceptedPath.length < 2) return false;
-    if (acceptedPath.length >= POLYLINE_WARMUP_MIN_POINTS && gpsDebug.warmupStable) {
+    if (
+      acceptedPath.length >= POLYLINE_WARMUP_MIN_POINTS &&
+      gpsDebug.warmupStable
+    ) {
       return true;
     }
     const recentAccOk =
-      gpsDebug.lastAccuracyM == null || gpsDebug.lastAccuracyM <= GPS_MAX_ACCURACY_M;
-    return elapsedSec >= POLYLINE_WARMUP_MIN_SECONDS && hasWarmupStableAccuracy && recentAccOk;
-  }, [acceptedPath.length, elapsedSec, gpsDebug.lastAccuracyM, gpsDebug.warmupStable, hasWarmupStableAccuracy]);
+      gpsDebug.lastAccuracyM == null ||
+      gpsDebug.lastAccuracyM <= GPS_MAX_ACCURACY_M;
+    return (
+      elapsedSec >= POLYLINE_WARMUP_MIN_SECONDS &&
+      hasWarmupStableAccuracy &&
+      recentAccOk
+    );
+  }, [
+    acceptedPath.length,
+    elapsedSec,
+    gpsDebug.lastAccuracyM,
+    gpsDebug.warmupStable,
+    hasWarmupStableAccuracy,
+  ]);
 
   const displayPath = useMemo(() => {
     if (!shouldShowPolyline) return [];
@@ -735,11 +759,6 @@ export default function ActiveRunScreen() {
   const activityIcon =
     activityMode === 'cycle' ? 'directions-bike' : 'directions-run';
 
-  const showStatTargetsRow =
-    !isFreeRun && targetDurationMin > 0 && targetDistanceKm > 0;
-  /** Single rule below stats+targets; no rule between the two rows. */
-  const statsTargetsClusterBordered = !isFreeRun && showStatTargetsRow;
-
   return (
     <View style={styles.safeOuter}>
       {/* ─── Mission header — explicit top inset (modal + notch safe) ─ */}
@@ -768,18 +787,14 @@ export default function ActiveRunScreen() {
             />
           </TouchableOpacity>
         ) : (
-          <View style={[styles.typePill, { borderColor: config.color }]}>
-            <MaterialIcons name={activityIcon} size={12} color={config.color} />
-            <Text style={[styles.typeLabel, { color: config.color }]}>
-              {activityMode === 'cycle' ? 'CYCLE' : config.label}
-            </Text>
-          </View>
+          <View style={styles.headerSideSpacer} />
         )}
 
-        {/* Center: mission title */}
-        <Text style={styles.missionTitle} numberOfLines={1}>
-          {stripEmojis(mission.title)}
-        </Text>
+        <View style={styles.missionTitleWrap}>
+          <Text style={styles.missionTitle} numberOfLines={1}>
+            {stripEmojis(mission.title)}
+          </Text>
+        </View>
 
         {/* Right: elapsed time badge */}
         <View
@@ -837,7 +852,7 @@ export default function ActiveRunScreen() {
           {displayPath.length > 1 && (
             <Polyline
               coordinates={displayPath}
-              strokeColor={config.color}
+              strokeColor={colors.earthGreen}
               strokeWidth={5}
               lineCap="round"
               lineJoin="round"
@@ -854,7 +869,10 @@ export default function ActiveRunScreen() {
                   <View style={styles.mapTargetCol}>
                     <Text style={styles.mapTargetLabel}>TARGET DISTANCE</Text>
                     <Text
-                      style={[styles.mapTargetValue, { color: colors.primary }]}
+                      style={[
+                        styles.mapTargetValue,
+                        { color: colors.earthGreen },
+                      ]}
                     >
                       {formatDistance(targetDistanceKm)}
                     </Text>
@@ -863,25 +881,15 @@ export default function ActiveRunScreen() {
                   <View style={styles.mapTargetCol}>
                     <Text style={styles.mapTargetLabel}>TIME LIMIT</Text>
                     <Text
-                      style={[styles.mapTargetValue, { color: colors.orange }]}
+                      style={[
+                        styles.mapTargetValue,
+                        { color: colors.textPrimary },
+                      ]}
                     >
                       ~{formatDuration(targetDurationMin)}
                     </Text>
                   </View>
                 </View>
-              </View>
-            )}
-            {__DEV__ && (
-              <View style={styles.gpsDebugOverlay} pointerEvents="none">
-                <Text style={styles.gpsDebugText}>
-                  {`acc:${gpsDebug.lastAccuracyM?.toFixed(1) ?? '--'}m  sp:${gpsDebug.lastSpeedMps?.toFixed(2) ?? '--'}m/s`}
-                </Text>
-                <Text style={styles.gpsDebugText}>
-                  {`+d:${gpsDebug.lastDistanceDeltaM.toFixed(2)}m  A:${gpsDebug.acceptedPoints}  R:${gpsDebug.rejectedPoints}`}
-                </Text>
-                <Text style={styles.gpsDebugText}>
-                  {`warmup:${shouldShowPolyline ? 'ready' : 'holding'}`}
-                </Text>
               </View>
             )}
           </>
@@ -898,7 +906,12 @@ export default function ActiveRunScreen() {
                     <View style={styles.preStartTargets}>
                       <View style={styles.preStartTargetBlock}>
                         <Text style={styles.preStartTargetLabel}>DISTANCE</Text>
-                        <Text style={styles.preStartTargetBig}>
+                        <Text
+                          style={[
+                            styles.preStartTargetBig,
+                            { color: colors.earthGreen },
+                          ]}
+                        >
                           {formatDistance(targetDistanceKm)}
                         </Text>
                       </View>
@@ -985,31 +998,22 @@ export default function ActiveRunScreen() {
       {sessionStarted && (
         <SafeAreaView style={styles.hudOuter} edges={['bottom']}>
           <View style={styles.hud}>
-            <View
-              style={[
-                styles.statsTargetsCluster,
-                statsTargetsClusterBordered &&
-                  styles.statsTargetsClusterBordered,
-              ]}
-            >
-              <View
-                style={[
-                  styles.statsRow,
-                  !showStatTargetsRow && styles.statsRowWithBorderBelow,
-                ]}
-              >
+            <View style={styles.statsTargetsCluster}>
+              <View style={[styles.statsRow, styles.statsRowWithBorderBelow]}>
                 <StatTile
                   label="TIME"
                   value={formatElapsed(elapsedSec)}
                   icon="timer"
                   accent={colors.textSecondary}
+                  iconAccent={colors.earthGreen}
+                  large
                 />
                 <View style={styles.statDivider} />
                 <StatTile
                   label="DISTANCE"
                   value={formatDistance(distanceKm)}
                   icon={activityIcon}
-                  accent={colors.primary}
+                  accent={colors.earthGreen}
                   large
                 />
                 <View style={styles.statDivider} />
@@ -1018,22 +1022,9 @@ export default function ActiveRunScreen() {
                   value={paceDisplay}
                   icon="speed"
                   accent={colors.textSecondary}
+                  iconAccent={colors.earthGreen}
                 />
               </View>
-
-              {showStatTargetsRow && (
-                <View style={styles.statTargetsRow}>
-                  <Text
-                    style={styles.statTargetsRowHint}
-                    numberOfLines={1}
-                  >{`~${targetDurationMin} min`}</Text>
-                  <Text
-                    style={styles.statTargetsRowHint}
-                    numberOfLines={1}
-                  >{formatDistance(targetDistanceKm)}</Text>
-                  <View style={styles.statTargetsRowSpacer} />
-                </View>
-              )}
             </View>
 
             {/* Progress — hidden for free run */}
@@ -1054,7 +1045,7 @@ export default function ActiveRunScreen() {
                 </View>
                 <ProgressBar
                   progress={overallProgress}
-                  color={goalHit ? colors.primary : config.color}
+                  color={colors.earthGreen}
                   backgroundColor={colors.border}
                   height={5}
                 />
@@ -1140,17 +1131,24 @@ function StatTile({
   value,
   icon,
   accent,
+  iconAccent,
   large,
 }: {
   label: string;
   value: string;
   icon: string;
   accent: string;
+  /** When set, icon uses this color; value still uses `accent`. */
+  iconAccent?: string;
   large?: boolean;
 }) {
   return (
     <View style={styles.statTile}>
-      <MaterialIcons name={icon as any} size={15} color={accent} />
+      <MaterialIcons
+        name={icon as any}
+        size={15}
+        color={iconAccent ?? accent}
+      />
       <Text style={styles.statLabel}>{label}</Text>
       <Text
         style={[
@@ -1249,27 +1247,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   } as ViewStyle,
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+  /** Keeps title centered vs. elapsed badge when the back button is hidden. */
+  headerSideSpacer: {
+    width: 40,
+    height: 36,
     flexShrink: 0,
   } as ViewStyle,
-  typeLabel: {
-    fontSize: 10,
-    fontWeight: fontWeights.extrabold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  } as TextStyle,
-  missionTitle: {
+  missionTitleWrap: {
     flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  } as ViewStyle,
+  missionTitle: {
+    width: '100%',
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textAlign: 'left',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   } as TextStyle,
@@ -1348,25 +1342,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     fontVariant: ['tabular-nums'],
   } as TextStyle,
-  gpsDebugOverlay: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    zIndex: 16,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    gap: 2,
-  } as ViewStyle,
-  gpsDebugText: {
-    color: colors.textInverse,
-    fontSize: 10,
-    fontWeight: fontWeights.medium,
-    fontVariant: ['tabular-nums'],
-  } as TextStyle,
 
   preStartOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1429,12 +1404,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-    backgroundColor: colors.orange,
+    backgroundColor: colors.earthGreen,
     borderRadius: radii.lg,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.xl,
     borderWidth: 2,
-    borderColor: colors.background,
+    borderColor: darkenHex(colors.earthGreen, 0.74),
     ...shadows.lg,
   } as ViewStyle,
   startMissionBtnDisabled: {
@@ -1563,11 +1538,6 @@ const styles = StyleSheet.create({
   statsTargetsCluster: {
     gap: 0,
   } as ViewStyle,
-  statsTargetsClusterBordered: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: spacing.sm,
-  } as ViewStyle,
   statsRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1607,22 +1577,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   } as TextStyle,
-  statTargetsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 2,
-    paddingBottom: 0,
-  } as ViewStyle,
-  statTargetsRowHint: {
-    flex: 1,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  } as TextStyle,
-  statTargetsRowSpacer: {
-    flex: 1,
-  } as ViewStyle,
 
   // Progress
   progressSection: {
@@ -1635,13 +1589,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   } as ViewStyle,
   progressHudTitle: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.lg,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     letterSpacing: 0.5,
   } as TextStyle,
   progressPercent: {
-    fontSize: fontSizes.xs,
+    fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
     color: colors.textTertiary,
     letterSpacing: 1,

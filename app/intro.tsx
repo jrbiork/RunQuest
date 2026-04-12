@@ -31,7 +31,13 @@ import {
   syncOnboardingAmbientWithMute,
 } from '../src/services/audioService';
 import { Button } from '../src/components/ui/Button';
-import { colors, fontSizes, fontWeights, spacing, radii } from '../src/constants/theme';
+import {
+  colors,
+  fontSizes,
+  fontWeights,
+  spacing,
+  radii,
+} from '../src/constants/theme';
 
 const WORLD_BG = require('../assets/world_dark.png');
 const RUNNERS_BG = require('../assets/runners.png');
@@ -55,37 +61,37 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     icon: 'power-off',
-    iconColor: colors.red,
+    iconColor: colors.earthGreen,
     headline: 'The world went dark.',
     body: 'Cities abandoned.\nSystems down.\nEverything silent.',
-    accentColor: colors.red,
+    accentColor: colors.earthGreen,
     bg: WORLD_BG,
     bgOverlay: 'rgba(8, 12, 8, 0.58)',
   },
   {
     icon: 'directions-run',
-    iconColor: colors.orange,
+    iconColor: colors.earthGreen,
     headline: 'Survivors kept it alive.',
     body: 'Moving between zones.\nCarrying what the world needs.\nOne run at a time.',
-    accentColor: colors.orange,
+    accentColor: colors.earthGreen,
     bg: RUNNERS_BG,
     bgOverlay: 'rgba(6, 8, 12, 0.52)',
   },
   {
     icon: 'bolt',
-    iconColor: colors.yellow,
+    iconColor: colors.earthGreen,
     headline: 'Every mission helps the community.',
     body: 'Deliver messages.\nCarry medication.\nAvoid being caught.',
-    accentColor: colors.yellow,
+    accentColor: colors.earthGreen,
     bg: EVERY_RUN_BG,
     bgOverlay: 'rgba(10, 8, 6, 0.54)',
   },
   {
     icon: 'public',
-    iconColor: colors.primary,
+    iconColor: colors.earthGreen,
     headline: 'You are a Survivor.',
     body: 'Your first mission awaits.\nThe world is counting on you.',
-    accentColor: colors.primary,
+    accentColor: colors.earthGreen,
     bg: FINAL_ONBOARD_BG,
     bgOverlay: 'rgba(4, 8, 6, 0.5)',
   },
@@ -103,11 +109,17 @@ function ScanLine({ delay, top }: { delay: number; top: number }) {
   }));
 
   // animate on mount
-  opacity.value = withDelay(delay, withSequence(
-    withTiming(0.18, { duration: 100 }),
-    withDelay(600, withTiming(0, { duration: 300 })),
-  ));
-  x.value = withDelay(delay, withTiming(SCREEN_W * 2, { duration: 1200, easing: Easing.linear }));
+  opacity.value = withDelay(
+    delay,
+    withSequence(
+      withTiming(0.18, { duration: 100 }),
+      withDelay(600, withTiming(0, { duration: 300 })),
+    ),
+  );
+  x.value = withDelay(
+    delay,
+    withTiming(SCREEN_W * 2, { duration: 1200, easing: Easing.linear }),
+  );
 
   return (
     <Animated.View
@@ -123,7 +135,7 @@ const scanStyles = StyleSheet.create({
     left: 0,
     width: SCREEN_W * 0.6,
     height: 1,
-    backgroundColor: colors.orange,
+    backgroundColor: colors.earthGreen,
   } as ViewStyle,
 });
 
@@ -152,7 +164,7 @@ function SwipeFingerCue() {
   return (
     <View style={fingerCue.track} pointerEvents="none">
       <Animated.View style={[fingerCue.fingerWrap, fingerStyle]}>
-        <MaterialIcons name="touch-app" size={30} color={colors.orange} />
+        <MaterialIcons name="touch-app" size={30} color={colors.earthGreen} />
       </Animated.View>
     </View>
   );
@@ -174,7 +186,11 @@ const fingerCue = StyleSheet.create({
 
 // ─── Single Slide ─────────────────────────────────────────────────────────────
 
-function SlideView({ slide, isLast, onBegin }: {
+function SlideView({
+  slide,
+  isLast,
+  onBegin,
+}: {
   slide: Slide;
   isLast: boolean;
   onBegin: () => void;
@@ -191,7 +207,12 @@ function SlideView({ slide, isLast, onBegin }: {
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
       >
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: slide.bgOverlay }]} />
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: slide.bgOverlay },
+          ]}
+        />
       </ImageBackground>
 
       {/* Scan lines */}
@@ -200,9 +221,23 @@ function SlideView({ slide, isLast, onBegin }: {
       ))}
 
       {/* Icon ring */}
-      <View style={[slideStyles.iconRing, { borderColor: slide.accentColor + '40' }]}>
-        <View style={[slideStyles.iconInner, { backgroundColor: slide.accentColor + '18' }]}>
-          <MaterialIcons name={slide.icon as any} size={56} color={slide.iconColor} />
+      <View
+        style={[
+          slideStyles.iconRing,
+          { borderColor: slide.accentColor + '40' },
+        ]}
+      >
+        <View
+          style={[
+            slideStyles.iconInner,
+            { backgroundColor: slide.accentColor + '18' },
+          ]}
+        >
+          <MaterialIcons
+            name={slide.icon as any}
+            size={56}
+            color={slide.iconColor}
+          />
         </View>
       </View>
 
@@ -217,6 +252,7 @@ function SlideView({ slide, isLast, onBegin }: {
         <Button
           label="Begin your journey"
           onPress={onBegin}
+          variant="accent"
           fullWidth
           style={slideStyles.beginBtn}
         />
@@ -227,8 +263,14 @@ function SlideView({ slide, isLast, onBegin }: {
         >
           <SwipeFingerCue />
           <View style={slideStyles.swipeHintRow}>
-            <MaterialIcons name="arrow-back" size={18} color={colors.textTertiary} />
-            <Text style={slideStyles.swipeHintText}>Swipe left to continue</Text>
+            <MaterialIcons
+              name="arrow-back"
+              size={18}
+              color={colors.textTertiary}
+            />
+            <Text style={slideStyles.swipeHintText}>
+              Swipe left to continue
+            </Text>
           </View>
         </View>
       )}
@@ -304,10 +346,7 @@ function Dots({ count, active }: { count: number; active: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <View
           key={i}
-          style={[
-            dotStyles.dot,
-            i === active && dotStyles.dotActive,
-          ]}
+          style={[dotStyles.dot, i === active && dotStyles.dotActive]}
         />
       ))}
     </View>
@@ -327,7 +366,7 @@ const dotStyles = StyleSheet.create({
   } as ViewStyle,
   dotActive: {
     width: 20,
-    backgroundColor: colors.orange,
+    backgroundColor: colors.earthGreen,
   } as ViewStyle,
 });
 
@@ -385,42 +424,44 @@ export default function IntroScreen() {
     <View style={styles.gestureHost} {...panResponder.panHandlers}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.gestureFill}>
+          {/* Background grid lines */}
+          <View style={styles.gridOverlay} pointerEvents="none">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <View
+                key={i}
+                style={[styles.gridLine, { top: (SCREEN_H / 8) * i }]}
+              />
+            ))}
+          </View>
 
-        {/* Background grid lines */}
-        <View style={styles.gridOverlay} pointerEvents="none">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <View
-              key={i}
-              style={[styles.gridLine, { top: (SCREEN_H / 8) * i }]}
-            />
-          ))}
-        </View>
+          {/* Corner brackets — cinematic frame */}
+          <View style={styles.cornerTL} pointerEvents="none" />
+          <View style={styles.cornerTR} pointerEvents="none" />
+          <View style={styles.cornerBL} pointerEvents="none" />
+          <View style={styles.cornerBR} pointerEvents="none" />
 
-        {/* Corner brackets — cinematic frame */}
-        <View style={styles.cornerTL} pointerEvents="none" />
-        <View style={styles.cornerTR} pointerEvents="none" />
-        <View style={styles.cornerBL} pointerEvents="none" />
-        <View style={styles.cornerBR} pointerEvents="none" />
+          {/* Slide content */}
+          <SlideView
+            key={slideIndex}
+            slide={slide}
+            isLast={slideIndex === SLIDES.length - 1}
+            onBegin={handleBegin}
+          />
 
-        {/* RUNQUEST wordmark */}
-        <Animated.View entering={FadeIn.duration(800)} style={styles.wordmark}>
-          <Text style={styles.wordmarkText}>RUNQUEST</Text>
-          <Text style={styles.wordmarkSub}>REBUILD THE WORLD</Text>
-        </Animated.View>
+          {/* RUNQUEST wordmark — rendered after SlideView so it sits above the image background */}
+          <Animated.View
+            entering={FadeIn.duration(800)}
+            style={styles.wordmark}
+            pointerEvents="none"
+          >
+            <Text style={styles.wordmarkText}>RUNQUEST</Text>
+            <Text style={styles.wordmarkSub}>REBUILD THE WORLD</Text>
+          </Animated.View>
 
-        {/* Slide content */}
-        <SlideView
-          key={slideIndex}
-          slide={slide}
-          isLast={slideIndex === SLIDES.length - 1}
-          onBegin={handleBegin}
-        />
-
-        {/* Dot indicators */}
-        <View style={styles.dotsWrapper}>
-          <Dots count={SLIDES.length} active={slideIndex} />
-        </View>
-
+          {/* Dot indicators */}
+          <View style={styles.dotsWrapper}>
+            <Dots count={SLIDES.length} active={slideIndex} />
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -468,7 +509,7 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderTopWidth: cornerThickness,
     borderLeftWidth: cornerThickness,
-    borderColor: colors.orange,
+    borderColor: colors.earthGreen,
     opacity: 0.7,
   } as ViewStyle,
   cornerTR: {
@@ -479,7 +520,7 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderTopWidth: cornerThickness,
     borderRightWidth: cornerThickness,
-    borderColor: colors.orange,
+    borderColor: colors.earthGreen,
     opacity: 0.7,
   } as ViewStyle,
   cornerBL: {
@@ -490,7 +531,7 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderBottomWidth: cornerThickness,
     borderLeftWidth: cornerThickness,
-    borderColor: colors.orange,
+    borderColor: colors.earthGreen,
     opacity: 0.7,
   } as ViewStyle,
   cornerBR: {
@@ -501,34 +542,42 @@ const styles = StyleSheet.create({
     height: cornerSize,
     borderBottomWidth: cornerThickness,
     borderRightWidth: cornerThickness,
-    borderColor: colors.orange,
+    borderColor: colors.earthGreen,
     opacity: 0.7,
   } as ViewStyle,
 
-  // Wordmark at top
+  // Wordmark — floats above slide image backgrounds
   wordmark: {
+    position: 'absolute',
+    top: spacing.lg,
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    paddingTop: spacing.lg,
     gap: 2,
+    zIndex: 10,
   } as ViewStyle,
   wordmarkText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.earthGreen,
     letterSpacing: 6,
     textTransform: 'uppercase',
   } as TextStyle,
   wordmarkSub: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
-    color: colors.ochre,
+    color: colors.earthGreen,
     letterSpacing: 3,
     textTransform: 'uppercase',
   } as TextStyle,
 
   // Dots
   dotsWrapper: {
+    position: 'absolute',
+    bottom: spacing.xl,
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    paddingBottom: spacing.xl,
+    zIndex: 10,
   } as ViewStyle,
 });

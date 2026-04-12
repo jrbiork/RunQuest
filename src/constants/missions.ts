@@ -86,7 +86,7 @@ export const MISSION_COPY_POOL: readonly MissionCopyRow[] = [
     title: 'Fence Survey',
     subtitle: 'Mark breach points along the perimeter.',
     description:
-      'Jog the perimeter fence and mark every breach point before the repair crew deploys. Keep effort low: light jog or shuffle; complete the full distance or time.',
+      'Jog the perimeter fence and mark every breach point before the repair crew heads out. Keep effort low: light jog or shuffle; complete the full distance or time.',
   },
   {
     title: 'All-Clear Sweep',
@@ -282,9 +282,9 @@ export const MISSION_COPY_POOL: readonly MissionCopyRow[] = [
   },
   {
     title: 'Rescue Beacon',
-    subtitle: 'Deploy beacon for extraction.',
+    subtitle: 'Start beacon for extraction.',
     description:
-      'Deploy rescue beacon before extraction window closes. Hold steady effort.',
+      'Start rescue beacon before extraction window closes. Hold steady effort.',
   },
   {
     title: 'Cold Storage Run',

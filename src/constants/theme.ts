@@ -21,6 +21,9 @@ export const colors = {
   // Named semantic aliases
   ochre: '#B95C37',               // Burnt ochre (same as purple token)
   tacticalGreen: '#679058',       // Tactical green (same as primary token)
+  /** Accent lime — home stat rings, START FAB, onboarding accent */
+  earthGreen: '#7eff00',
+  earthGreenLight: 'rgba(126,255,0,0.15)',
 
   // Mission type colors (limited palette: green / orange / red)
   missionEasy: '#679058',
@@ -42,7 +45,7 @@ export const colors = {
   textTertiary: '#5C5850',
   textInverse: '#0E1210',
 
-  // Tab bar — active is muted bone (not brand green); Deploy FAB stays orange in _layout
+  // Tab bar — active is muted bone (not brand green); Start FAB stays orange in _layout
   tabActive: '#9A968E',
   tabInactive: '#5C5850',
 } as const;

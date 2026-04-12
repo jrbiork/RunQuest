@@ -33,12 +33,23 @@ import {
   fontWeights,
   missionConfig,
 } from '../../src/constants/theme';
-import { calculateTimedMissionXp, formatDistance } from '../../src/utils/xpCalculator';
-import { MISSION_IMPACT_MESSAGES, FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
+import {
+  calculateTimedMissionXp,
+  formatDistance,
+} from '../../src/utils/xpCalculator';
+import {
+  MISSION_IMPACT_MESSAGES,
+  FUN_RUN_ID,
+  FUN_RUN_MISSION,
+} from '../../src/constants/missions';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
 import type { GpsPoint, Mission } from '../../src/types';
-import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
+import {
+  findMissionById,
+  normalizeRouteParam,
+} from '../../src/utils/missionLookup';
+import { logEvent, Events } from '../../src/services/analytics';
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { getStreakDayIndex0 } from '../../src/utils/streakDisplay';
 import { getNextIncompleteMission } from '../../src/utils/missionGenerator';
@@ -47,7 +58,17 @@ import ViewShot from 'react-native-view-shot';
 
 // ─── GPS stat tile ────────────────────────────────────────────────────────────
 
-function GpsStat({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+function GpsStat({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  color: string;
+}) {
   return (
     <View style={gpsStyles.tile}>
       <MaterialIcons name={icon as any} size={16} color={color} />
@@ -59,8 +80,18 @@ function GpsStat({ icon, label, value, color }: { icon: string; label: string; v
 
 const gpsStyles = StyleSheet.create({
   tile: { flex: 1, alignItems: 'center', gap: 4 } as ViewStyle,
-  value: { fontSize: fontSizes.lg, fontWeight: fontWeights.extrabold, color: colors.textPrimary } as TextStyle,
-  label: { fontSize: fontSizes.xs, color: colors.textSecondary, fontWeight: fontWeights.medium, textTransform: 'uppercase', letterSpacing: 0.5 } as TextStyle,
+  value: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textPrimary,
+  } as TextStyle,
+  label: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    fontWeight: fontWeights.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
 });
 
 function shortenTitle(title: string, max = 32): string {
@@ -76,7 +107,10 @@ function LootSparkles({ visible }: { visible: boolean }) {
   useEffect(() => {
     if (!visible) return;
     a.value = withRepeat(
-      withSequence(withTiming(1, { duration: 700 }), withTiming(0.35, { duration: 900 })),
+      withSequence(
+        withTiming(1, { duration: 700 }),
+        withTiming(0.35, { duration: 900 }),
+      ),
       -1,
       true,
     );
@@ -87,9 +121,15 @@ function LootSparkles({ visible }: { visible: boolean }) {
   if (!visible) return null;
   return (
     <View style={sparkleStyles.row}>
-      <Animated.View style={[sparkleStyles.dot, { backgroundColor: colors.orange }, s1]} />
-      <Animated.View style={[sparkleStyles.dot, { backgroundColor: colors.primary }, s2]} />
-      <Animated.View style={[sparkleStyles.dot, { backgroundColor: colors.purple }, s3]} />
+      <Animated.View
+        style={[sparkleStyles.dot, { backgroundColor: colors.orange }, s1]}
+      />
+      <Animated.View
+        style={[sparkleStyles.dot, { backgroundColor: colors.primary }, s2]}
+      />
+      <Animated.View
+        style={[sparkleStyles.dot, { backgroundColor: colors.purple }, s3]}
+      />
     </View>
   );
 }
@@ -137,10 +177,16 @@ function XpRewardBlock({
     return (
       <Card style={styles.xpCard}>
         <View style={styles.xpRow}>
-          <MaterialIcons name="self-improvement" size={28} color={colors.textSecondary} />
+          <MaterialIcons
+            name="self-improvement"
+            size={28}
+            color={colors.textSecondary}
+          />
           <View style={styles.xpLeft}>
             <Text style={styles.xpLabel}>Free run</Text>
-            <Text style={[styles.xpValue, styles.xpValueMuted]}>No XP this time</Text>
+            <Text style={[styles.xpValue, styles.xpValueMuted]}>
+              No XP this time
+            </Text>
           </View>
         </View>
         <Text style={styles.xpMissionMessage}>
@@ -157,12 +203,14 @@ function XpRewardBlock({
           <MaterialIcons name="block" size={28} color={colors.textTertiary} />
           <View style={styles.xpLeft}>
             <Text style={styles.xpLabel}>XP</Text>
-            <Text style={[styles.xpValue, { color: colors.textSecondary }]}>+0</Text>
+            <Text style={[styles.xpValue, { color: colors.textSecondary }]}>
+              +0
+            </Text>
           </View>
         </View>
         <Text style={styles.xpMissionMessage}>
-          Hit the distance target to earn XP — on time for full base XP; go 30%+ over distance on
-          time for +30% XP.
+          Hit the distance target to earn XP — on time for full base XP; go 30%+
+          over distance on time for +30% XP.
         </Text>
       </Card>
     );
@@ -174,15 +222,19 @@ function XpRewardBlock({
         <Animated.View style={[styles.xpRow, popStyle]}>
           <View style={styles.xpLeft}>
             <Text style={styles.xpLabel}>Partial XP</Text>
-            <Text style={[styles.xpValue, { color: colors.orange }]}>+{xpEarned}</Text>
+            <Text style={[styles.xpValue, { color: colors.orange }]}>
+              +{xpEarned}
+            </Text>
           </View>
           <View style={[styles.xpCircle, { borderColor: colors.orange }]}>
-            <Text style={[styles.xpCircleText, { color: colors.orange }]}>+{xpEarned}</Text>
+            <Text style={[styles.xpCircleText, { color: colors.orange }]}>
+              +{xpEarned}
+            </Text>
           </View>
         </Animated.View>
         <Text style={styles.xpMissionMessage}>
-          Distance met after the time window — half XP. Beat the clock next time for full base XP (and
-          30%+ over distance on time for +30% XP).
+          Distance met after the time window — half XP. Beat the clock next time
+          for full base XP (and 30%+ over distance on time for +30% XP).
         </Text>
       </Card>
     );
@@ -194,15 +246,17 @@ function XpRewardBlock({
       <Animated.View style={[styles.xpRow, popStyle]}>
         <View style={styles.xpLeft}>
           <Text style={styles.xpLabel}>XP earned</Text>
-          <Text style={[styles.xpValue, styles.xpValueDisplay]}>+{xpEarned}</Text>
+          <Text style={[styles.xpValue, styles.xpValueDisplay]}>
+            +{xpEarned}
+          </Text>
         </View>
         <View style={styles.xpCircle}>
           <Text style={styles.xpCircleText}>+{xpEarned}</Text>
         </View>
       </Animated.View>
       <Text style={styles.xpMissionMessage}>
-        Added to your runner profile — keep the streak alive for more. On-time with ≥30% distance over
-        target earns +30% XP.
+        Added to your runner profile — keep the streak alive for more. On-time
+        with ≥30% distance over target earns +30% XP.
       </Text>
     </Card>
   );
@@ -211,25 +265,38 @@ function XpRewardBlock({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function RunCompleteScreen() {
-  const rawParams =
-    useLocalSearchParams<{
-      id: string;
-      distanceKm?: string;
-      durationMin?: string;
-      elapsedSec?: string;
-      pathJson?: string;
-      goalMet?: string;
-      onTime?: string;
-      activityMode?: string;
-    }>();
+  const rawParams = useLocalSearchParams<{
+    id: string;
+    distanceKm?: string;
+    durationMin?: string;
+    elapsedSec?: string;
+    pathJson?: string;
+    goalMet?: string;
+    onTime?: string;
+    activityMode?: string;
+  }>();
   const id = normalizeRouteParam(rawParams.id);
-  const distKmParam = normalizeRouteParam(rawParams.distanceKm as string | string[] | undefined);
-  const durMinParam = normalizeRouteParam(rawParams.durationMin as string | string[] | undefined);
-  const elapsedSecParam = normalizeRouteParam(rawParams.elapsedSec as string | string[] | undefined);
-  const pathJson = normalizeRouteParam(rawParams.pathJson as string | string[] | undefined);
-  const goalMetParam = normalizeRouteParam(rawParams.goalMet as string | string[] | undefined);
-  const onTimeParam = normalizeRouteParam(rawParams.onTime as string | string[] | undefined);
-  const activityModeParam = normalizeRouteParam(rawParams.activityMode as string | string[] | undefined);
+  const distKmParam = normalizeRouteParam(
+    rawParams.distanceKm as string | string[] | undefined,
+  );
+  const durMinParam = normalizeRouteParam(
+    rawParams.durationMin as string | string[] | undefined,
+  );
+  const elapsedSecParam = normalizeRouteParam(
+    rawParams.elapsedSec as string | string[] | undefined,
+  );
+  const pathJson = normalizeRouteParam(
+    rawParams.pathJson as string | string[] | undefined,
+  );
+  const goalMetParam = normalizeRouteParam(
+    rawParams.goalMet as string | string[] | undefined,
+  );
+  const onTimeParam = normalizeRouteParam(
+    rawParams.onTime as string | string[] | undefined,
+  );
+  const activityModeParam = normalizeRouteParam(
+    rawParams.activityMode as string | string[] | undefined,
+  );
 
   const actualDistanceKm = distKmParam ? parseFloat(distKmParam) : undefined;
   const actualDurationMin = durMinParam ? parseFloat(durMinParam) : undefined;
@@ -237,10 +304,15 @@ export default function RunCompleteScreen() {
   const goalMet = goalMetParam === '1';
   const onTime = onTimeParam !== '0';
   const partialTime = goalMet && !onTime;
-  const activityMode = activityModeParam === 'cycle' ? 'cycle' as const : 'run' as const;
+  const activityMode =
+    activityModeParam === 'cycle' ? ('cycle' as const) : ('run' as const);
   const gpsPath = useMemo<GpsPoint[]>(() => {
     if (!pathJson) return [];
-    try { return JSON.parse(pathJson) as GpsPoint[]; } catch { return []; }
+    try {
+      return JSON.parse(pathJson) as GpsPoint[];
+    } catch {
+      return [];
+    }
   }, [pathJson]);
 
   const viewShotRef = useRef<ViewShot>(null);
@@ -263,7 +335,9 @@ export default function RunCompleteScreen() {
   }, [runHistory, streak]);
 
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
+  const mission = isFreeRun
+    ? FUN_RUN_MISSION
+    : findMissionById(weekMissions, id);
   const alreadyCompleted = useRef(false);
 
   const missionList = weekMissions;
@@ -301,7 +375,15 @@ export default function RunCompleteScreen() {
       distanceRatioVsTarget,
       mission.xpReward,
     );
-  }, [mission, isFreeRun, actualDistanceKm, streak, goalMet, onTime, activityMode]);
+  }, [
+    mission,
+    isFreeRun,
+    actualDistanceKm,
+    streak,
+    goalMet,
+    onTime,
+    activityMode,
+  ]);
 
   const nextMissionForCta = useMemo(() => {
     if (!mission) return null;
@@ -323,7 +405,9 @@ export default function RunCompleteScreen() {
             m.id === mission.id ? { ...m, status: 'completed' as const } : m,
           )
         : missionList;
-    return adjusted.length > 0 && adjusted.every((m) => m.status === 'completed');
+    return (
+      adjusted.length > 0 && adjusted.every((m) => m.status === 'completed')
+    );
   }, [missionList, mission, goalMet, isFreeRun]);
 
   const primaryCta = useMemo(() => {
@@ -336,7 +420,8 @@ export default function RunCompleteScreen() {
     if (!isFreeRun && !goalMet) {
       return {
         label: 'Retry mission',
-        onPress: () => router.push({ pathname: '/run/[id]', params: { id: mission.id } }),
+        onPress: () =>
+          router.push({ pathname: '/run/[id]', params: { id: mission.id } }),
       };
     }
     if (allCompleteAfter) {
@@ -350,7 +435,10 @@ export default function RunCompleteScreen() {
       return {
         label: isFreeRun ? `Next mission: ${short}` : `Next: ${short}`,
         onPress: () =>
-          router.push({ pathname: '/run/[id]', params: { id: nextMissionForCta.id } }),
+          router.push({
+            pathname: '/run/[id]',
+            params: { id: nextMissionForCta.id },
+          }),
       };
     }
     return {
@@ -395,6 +483,11 @@ export default function RunCompleteScreen() {
           }
         : undefined,
     );
+    void logEvent(Events.MISSION_COMPLETED, {
+      type: activityMode,
+      duration_sec: elapsedSec ?? 0,
+      distance_km: parseFloat((actualDistanceKm ?? 0).toFixed(2)),
+    });
   }, []);
 
   if (!mission) {
@@ -402,7 +495,11 @@ export default function RunCompleteScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <Text style={styles.errorText}>Mission not found.</Text>
-          <Button label="Go to base" onPress={() => router.replace('/(tabs)')} variant="primary" />
+          <Button
+            label="Go to base"
+            onPress={() => router.replace('/(tabs)')}
+            variant="primary"
+          />
         </View>
       </SafeAreaView>
     );
@@ -424,9 +521,12 @@ export default function RunCompleteScreen() {
   const impactMessages = MISSION_IMPACT_MESSAGES[mission.type];
   const impactMsg = isFreeRun
     ? 'You ran for the joy of it. The world is better for it.'
-    : impactMessages[Math.floor(Math.random() * impactMessages.length)] as string;
+    : (impactMessages[
+        Math.floor(Math.random() * impactMessages.length)
+      ] as string);
 
-  const hasGpsData = actualDistanceKm !== undefined && actualDurationMin !== undefined;
+  const hasGpsData =
+    actualDistanceKm !== undefined && actualDurationMin !== undefined;
 
   const outcomeLabel = isFreeRun
     ? 'Free run complete'
@@ -436,11 +536,12 @@ export default function RunCompleteScreen() {
         : 'Mission cleared'
       : 'Objective incomplete';
 
-  const heroGradientColors = !isFreeRun && !goalMet
-    ? ([colors.textTertiary + '55', colors.background] as const)
-    : !isFreeRun && partialTime
-      ? ([colors.orange + '55', colors.background] as const)
-      : ([colors.primary + '44', colors.orange + '22'] as const);
+  const heroGradientColors =
+    !isFreeRun && !goalMet
+      ? ([colors.textTertiary + '55', colors.background] as const)
+      : !isFreeRun && partialTime
+        ? ([colors.orange + '55', colors.background] as const)
+        : ([colors.primary + '44', colors.orange + '22'] as const);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -449,7 +550,6 @@ export default function RunCompleteScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-
         {/* Hero */}
         <Animated.View entering={FadeIn.duration(600)} style={styles.heroOuter}>
           <LinearGradient
@@ -459,14 +559,32 @@ export default function RunCompleteScreen() {
             style={styles.heroGradient}
           >
             <View style={styles.heroInner}>
-              <View style={[styles.missionTypePill, { backgroundColor: config.bgColor }]}>
-                <MaterialIcons name={config.icon as any} size={12} color={config.color} />
-                <Text style={[styles.missionTypeText, { color: config.color }]}>{config.label}</Text>
+              <View
+                style={[
+                  styles.missionTypePill,
+                  { backgroundColor: config.bgColor },
+                ]}
+              >
+                <MaterialIcons
+                  name={config.icon as any}
+                  size={12}
+                  color={config.color}
+                />
+                <Text style={[styles.missionTypeText, { color: config.color }]}>
+                  {config.label}
+                </Text>
               </View>
-              <Text style={[styles.missionCompleteLabel, !isFreeRun && !goalMet && styles.missionFailLabel]}>
+              <Text
+                style={[
+                  styles.missionCompleteLabel,
+                  !isFreeRun && !goalMet && styles.missionFailLabel,
+                ]}
+              >
                 {outcomeLabel}
               </Text>
-              <Text style={styles.missionTitle}>{stripEmojis(mission.title)}</Text>
+              <Text style={styles.missionTitle}>
+                {stripEmojis(mission.title)}
+              </Text>
               <Text style={styles.heroTagline} numberOfLines={2}>
                 {impactMsg}
               </Text>
@@ -480,14 +598,28 @@ export default function RunCompleteScreen() {
             <Card style={styles.gpsCard}>
               <Text style={styles.progressSectionLabel}>This run</Text>
               <View style={styles.gpsRow}>
-                <GpsStat icon="straighten" label="Distance" value={formatDistance(actualDistanceKm!)} color={colors.textPrimary} />
+                <GpsStat
+                  icon="straighten"
+                  label="Distance"
+                  value={formatDistance(actualDistanceKm!)}
+                  color={colors.textPrimary}
+                />
                 <View style={styles.gpsDivider} />
-                <GpsStat icon="timer" label="Time" value={`${Math.round(actualDurationMin!)} min`} color={colors.orange} />
+                <GpsStat
+                  icon="timer"
+                  label="Time"
+                  value={`${Math.round(actualDurationMin!)} min`}
+                  color={colors.orange}
+                />
                 <View style={styles.gpsDivider} />
                 <GpsStat
                   icon="speed"
                   label="Pace"
-                  value={actualDistanceKm! > 0.01 ? `${(actualDurationMin! / actualDistanceKm!).toFixed(1)} /km` : '–'}
+                  value={
+                    actualDistanceKm! > 0.01
+                      ? `${(actualDurationMin! / actualDistanceKm!).toFixed(1)} /km`
+                      : '–'
+                  }
                   color={colors.purple}
                 />
               </View>
@@ -509,7 +641,11 @@ export default function RunCompleteScreen() {
         {!isFreeRun && goalMet && streak > 0 && (
           <Animated.View entering={FadeInDown.delay(200).duration(400)}>
             <Card style={styles.streakCard} accentTop={colors.orange}>
-              <MaterialIcons name="local-fire-department" size={32} color={colors.orange} />
+              <MaterialIcons
+                name="local-fire-department"
+                size={32}
+                color={colors.orange}
+              />
               <View style={styles.streakInfo}>
                 <Text style={styles.streakTitle}>
                   {streak === 1 ? 'Streak started' : `Day ${streak} streak`}
@@ -527,7 +663,11 @@ export default function RunCompleteScreen() {
         {!isFreeRun && !goalMet && (
           <Animated.View entering={FadeInDown.delay(220).duration(400)}>
             <Card style={styles.streakCard}>
-              <MaterialIcons name="local-fire-department" size={32} color={colors.orange} />
+              <MaterialIcons
+                name="local-fire-department"
+                size={32}
+                color={colors.orange}
+              />
               <View style={styles.streakInfo}>
                 <Text style={styles.streakTitle}>
                   {streak === 0
@@ -537,10 +677,14 @@ export default function RunCompleteScreen() {
                       : `Day ${streak} streak`}
                 </Text>
                 <Text style={styles.streakSub}>
-                  {streak <= 1 ? 'The world starts healing today.' : 'Keep running. Keep rebuilding.'}
+                  {streak <= 1
+                    ? 'The world starts healing today.'
+                    : 'Keep running. Keep rebuilding.'}
                 </Text>
               </View>
-              <Text style={styles.streakCount}>{streak > 0 ? streak : '—'}</Text>
+              <Text style={styles.streakCount}>
+                {streak > 0 ? streak : '—'}
+              </Text>
             </Card>
           </Animated.View>
         )}
@@ -550,7 +694,10 @@ export default function RunCompleteScreen() {
         </Animated.View>
 
         {/* What’s next */}
-        <Animated.View entering={FadeInDown.delay(360).duration(400)} style={styles.nextSection}>
+        <Animated.View
+          entering={FadeInDown.delay(360).duration(400)}
+          style={styles.nextSection}
+        >
           <Text style={styles.nextSectionLabel}>What&apos;s next</Text>
           <Text style={styles.nextSectionHint}>
             {!isFreeRun && !goalMet
@@ -570,7 +717,10 @@ export default function RunCompleteScreen() {
         </Animated.View>
 
         {/* Secondary actions */}
-        <Animated.View entering={FadeInDown.delay(420).duration(400)} style={styles.ctaGroup}>
+        <Animated.View
+          entering={FadeInDown.delay(420).duration(400)}
+          style={styles.ctaGroup}
+        >
           <Button
             label={isSharing ? 'Preparing…' : 'Share run'}
             icon={isSharing ? undefined : 'ios-share'}
@@ -620,10 +770,16 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   } as ViewStyle,
   center: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    gap: spacing.lg, padding: spacing.xl,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+    padding: spacing.xl,
   } as ViewStyle,
-  errorText: { fontSize: fontSizes.md, color: colors.textSecondary } as TextStyle,
+  errorText: {
+    fontSize: fontSizes.md,
+    color: colors.textSecondary,
+  } as TextStyle,
 
   heroOuter: {
     borderRadius: radii.xl,
@@ -690,32 +846,81 @@ const styles = StyleSheet.create({
   } as TextStyle,
 
   gpsCard: { gap: spacing.md } as ViewStyle,
-  gpsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' } as ViewStyle,
-  gpsDivider: { width: 1, height: 36, backgroundColor: colors.border } as ViewStyle,
+  gpsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  } as ViewStyle,
+  gpsDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: colors.border,
+  } as ViewStyle,
 
   xpCard: { gap: spacing.md } as ViewStyle,
-  xpRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' } as ViewStyle,
-  xpLeft: { gap: spacing.xs } as ViewStyle,
-  xpLabel: { fontSize: fontSizes.sm, color: colors.textSecondary, fontWeight: fontWeights.medium } as TextStyle,
-  xpValue: { fontSize: fontSizes.xxl, fontWeight: fontWeights.extrabold, color: colors.purple } as TextStyle,
-  xpValueDisplay: { fontSize: fontSizes.display, fontWeight: fontWeights.extrabold } as TextStyle,
-  xpValueMuted: { fontSize: fontSizes.xl, color: colors.textSecondary } as TextStyle,
-  xpCircle: {
-    width: 56, height: 56, borderRadius: radii.full,
-    backgroundColor: colors.purpleLight, alignItems: 'center', justifyContent: 'center',
+  xpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   } as ViewStyle,
-  xpCircleText: { fontSize: fontSizes.sm, fontWeight: fontWeights.extrabold, color: colors.purple } as TextStyle,
+  xpLeft: { gap: spacing.xs } as ViewStyle,
+  xpLabel: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    fontWeight: fontWeights.medium,
+  } as TextStyle,
+  xpValue: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    color: colors.purple,
+  } as TextStyle,
+  xpValueDisplay: {
+    fontSize: fontSizes.display,
+    fontWeight: fontWeights.extrabold,
+  } as TextStyle,
+  xpValueMuted: {
+    fontSize: fontSizes.xl,
+    color: colors.textSecondary,
+  } as TextStyle,
+  xpCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: radii.full,
+    backgroundColor: colors.purpleLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  xpCircleText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    color: colors.purple,
+  } as TextStyle,
   xpMissionMessage: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
     lineHeight: 20,
   } as TextStyle,
 
-  streakCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md } as ViewStyle,
+  streakCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  } as ViewStyle,
   streakInfo: { flex: 1, gap: spacing.xs } as ViewStyle,
-  streakTitle: { fontSize: fontSizes.md, fontWeight: fontWeights.bold, color: colors.textPrimary } as TextStyle,
-  streakSub: { fontSize: fontSizes.sm, color: colors.textSecondary } as TextStyle,
-  streakCount: { fontSize: fontSizes.xxl, fontWeight: fontWeights.extrabold, color: colors.orange } as TextStyle,
+  streakTitle: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
+  streakSub: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+  } as TextStyle,
+  streakCount: {
+    fontSize: fontSizes.xxl,
+    fontWeight: fontWeights.extrabold,
+    color: colors.orange,
+  } as TextStyle,
 
   nextSection: { gap: spacing.md } as ViewStyle,
   nextSectionLabel: {
@@ -733,5 +938,10 @@ const styles = StyleSheet.create({
 
   ctaGroup: { gap: spacing.md } as ViewStyle,
 
-  offscreen: { position: 'absolute', left: -9999, top: -9999, opacity: 0 } as ViewStyle,
+  offscreen: {
+    position: 'absolute',
+    left: -9999,
+    top: -9999,
+    opacity: 0,
+  } as ViewStyle,
 });

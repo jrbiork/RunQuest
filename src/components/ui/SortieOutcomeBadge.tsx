@@ -1,6 +1,12 @@
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import type { MissionOutcome } from '../../types';
-import { colors, radii, spacing, fontSizes, fontWeights } from '../../constants/theme';
+import {
+  colors,
+  radii,
+  spacing,
+  fontSizes,
+  fontWeights,
+} from '../../constants/theme';
 
 const LABELS: Record<MissionOutcome, string> = {
   success: 'COMPLETED',
@@ -15,10 +21,10 @@ const BADGE_STYLES: Record<
 > = {
   success: {
     wrap: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
+      borderColor: colors.earthGreen,
+      backgroundColor: colors.earthGreenLight,
     },
-    text: { color: colors.primary },
+    text: { color: colors.earthGreen },
   },
   partial_time: {
     wrap: {

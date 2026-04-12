@@ -1,63 +1,125 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { Mission } from '../../types';
-import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+  shadows,
+} from '../../constants/theme';
 import { XPBadge } from '../ui/XPBadge';
-import { formatDistance, formatDuration } from '../../utils/xpCalculator';
+import { formatDuration } from '../../utils/xpCalculator';
+import { formatMissionTargetDistance } from '../../utils/missionTargetPace';
 import { stripEmojis } from '../../utils/stripEmojis';
+
+const MISSION_TARGET_ICON_SIZE = 28;
 
 interface DailyMissionCardProps {
   mission: Mission;
   onStartRun: () => void;
+  /** Current scavenger level accent — XP pill uses lighter fill + darker label. */
+  levelAccentColor: string;
 }
 
-export function DailyMissionCard({ mission, onStartRun }: DailyMissionCardProps) {
-  const config = missionConfig[mission.type];
+export function DailyMissionCard({
+  mission,
+  onStartRun,
+  levelAccentColor,
+}: DailyMissionCardProps) {
+  const desc = stripEmojis(mission.description).trim();
 
   return (
-    <View style={styles.wrapper}>
-      <LinearGradient
-        colors={[config.color, config.color + 'CC']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.typePill}>
-            <MaterialIcons name={config.icon as any} size={14} color={config.color} />
-            <Text style={[styles.typeLabel, { color: config.color }]}>{config.label}</Text>
-          </View>
-          <XPBadge xp={mission.xpReward} size="sm" variant="onVivid" />
-        </View>
+    <TouchableOpacity
+      style={[styles.wrapper, styles.card]}
+      onPress={onStartRun}
+      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel={`Open mission briefing: ${stripEmojis(mission.title)}`}
+    >
+      <Text style={styles.title}>{stripEmojis(mission.title)}</Text>
+      <Text style={styles.subtitle}>{stripEmojis(mission.subtitle)}</Text>
 
-        {/* Mission name */}
-        <Text style={styles.title}>{stripEmojis(mission.title)}</Text>
-        <Text style={styles.subtitle}>{stripEmojis(mission.subtitle)}</Text>
-
-        {/* Stats row — run left, cycle right */}
+      <View style={styles.statsBlock}>
         <View style={styles.statsRow}>
-          <View style={[styles.activityGroup, styles.activityGroupLeft]}>
-            <MaterialIcons name="directions-run" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.statValue}>{formatDistance(mission.targetDistanceKm)}</Text>
-            <Text style={styles.statDim}>~{formatDuration(mission.targetDurationMin)}</Text>
+          <View style={styles.activityColumn}>
+            <Text style={styles.targetLabel}>Run target</Text>
+            <View style={styles.targetMetricBlock}>
+              <View style={styles.runTargetRow}>
+                <MaterialIcons
+                  name="directions-run"
+                  size={MISSION_TARGET_ICON_SIZE}
+                  color={colors.textSecondary}
+                />
+                <View style={styles.runTargetTextCol}>
+                  <Text style={styles.targetLinePrimary}>
+                    {formatMissionTargetDistance(mission.targetDistanceKm)}
+                  </Text>
+                  <Text style={styles.targetLinePrimary}>
+                    {mission.targetDurationMin <= 0
+                      ? '–'
+                      : formatDuration(mission.targetDurationMin)}
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
-          <View style={[styles.activityGroup, styles.activityGroupRight]}>
-            <MaterialIcons name="directions-bike" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.statValue}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
-            <Text style={styles.statDim}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
+          <View style={styles.activityColumnRight}>
+            <Text style={[styles.targetLabel, styles.targetLabelRight]}>
+              Cycle target
+            </Text>
+            <View style={styles.targetMetricBlock}>
+              <View style={styles.cycleTargetRow}>
+                <MaterialIcons
+                  name="directions-bike"
+                  size={MISSION_TARGET_ICON_SIZE}
+                  color={colors.textSecondary}
+                />
+                <View style={styles.cycleTargetTextCol}>
+                  <Text style={styles.targetLinePrimary}>
+                    {formatMissionTargetDistance(
+                      mission.targetCyclingDistanceKm,
+                    )}
+                  </Text>
+                  <Text style={styles.targetLinePrimary}>
+                    {mission.targetCyclingDurationMin <= 0
+                      ? '–'
+                      : formatDuration(mission.targetCyclingDurationMin)}
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
         </View>
+      </View>
 
-        {/* CTA */}
-        <TouchableOpacity style={styles.startButton} onPress={onStartRun} activeOpacity={0.9}>
-          <MaterialIcons name="play-arrow" size={22} color={config.color} />
-          <Text style={[styles.startLabel, { color: config.color }]}>Deploy Mission</Text>
-        </TouchableOpacity>
-      </LinearGradient>
-    </View>
+      {desc.length > 0 && (
+        <View style={styles.briefingBlock}>
+          <Text style={styles.briefingLabel}>Mission briefing</Text>
+          <Text style={styles.briefingBody} numberOfLines={10}>
+            {desc}
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.xpFooter}>
+        <XPBadge
+          xp={mission.xpReward}
+          size="sm"
+          compact
+          accentColor={levelAccentColor}
+        />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -67,91 +129,111 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadows.md,
   } as ViewStyle,
-  gradient: {
+  card: {
     padding: spacing.xl,
     borderRadius: radii.xl,
     gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   } as ViewStyle,
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  } as ViewStyle,
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    gap: 4,
-  } as ViewStyle,
-  typeLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  } as TextStyle,
   title: {
     fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
-    color: '#fff',
-    marginTop: spacing.xs,
+    color: colors.textPrimary,
   } as TextStyle,
   subtitle: {
     fontSize: fontSizes.sm,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.textSecondary,
     fontWeight: fontWeights.medium,
     lineHeight: 20,
   } as TextStyle,
+  statsBlock: {
+    marginTop: spacing.md,
+    width: '100%',
+  } as ViewStyle,
   statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: spacing.md,
     gap: spacing.md,
   } as ViewStyle,
-  activityGroup: {
+  activityColumn: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    gap: 4,
+  } as ViewStyle,
+  activityColumnRight: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-end',
+    gap: 4,
+  } as ViewStyle,
+  targetLabel: {
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
+    color: colors.textSecondary,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  targetLabelRight: {
+    alignSelf: 'flex-end',
+    textAlign: 'right',
+  } as TextStyle,
+  targetMetricBlock: {
+    alignSelf: 'stretch',
+    width: '100%',
+    gap: 4,
+  } as ViewStyle,
+  runTargetRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    flexShrink: 1,
+    alignSelf: 'flex-start',
+    gap: spacing.sm,
   } as ViewStyle,
-  activityGroupLeft: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    minWidth: 0,
+  runTargetTextCol: {
+    gap: 2,
+    alignItems: 'flex-start',
   } as ViewStyle,
-  activityGroupRight: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    minWidth: 0,
+  cycleTargetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: spacing.sm,
   } as ViewStyle,
-  statValue: {
+  cycleTargetTextCol: {
+    gap: 2,
+    alignItems: 'flex-start',
+  } as ViewStyle,
+  targetLinePrimary: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
-    color: '#fff',
+    color: colors.textPrimary,
+    textAlign: 'left',
   } as TextStyle,
-  statDim: {
+  briefingBlock: {
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  } as ViewStyle,
+  briefingLabel: {
     fontSize: fontSizes.xs,
-    color: 'rgba(255,255,255,0.65)',
+    fontWeight: fontWeights.extrabold,
+    color: colors.textTertiary,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  briefingBody: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: 22,
     fontWeight: fontWeights.medium,
   } as TextStyle,
-  startButton: {
+  xpFooter: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.xs,
-    ...shadows.sm,
+    marginTop: spacing.md,
   } as ViewStyle,
-  startLabel: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.bold,
-  } as TextStyle,
 });

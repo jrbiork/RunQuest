@@ -13,7 +13,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { colors, spacing, fontSizes, fontWeights, radii } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  fontSizes,
+  fontWeights,
+  radii,
+} from '../../constants/theme';
 import { Button } from '../ui/Button';
 
 interface OnboardingLayoutProps {
@@ -44,10 +50,17 @@ export function OnboardingLayout({
   transparent = false,
 }: OnboardingLayoutProps) {
   return (
-    <SafeAreaView style={[styles.safe, transparent && styles.safeTransparent]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.safe, transparent && styles.safeTransparent]}
+      edges={['top', 'bottom']}
+    >
       {/* Subtle horizontal grid lines — distressed texture */}
       {[0.15, 0.35, 0.55, 0.75].map((frac) => (
-        <View key={frac} style={[styles.gridLine, { top: `${frac * 100}%` as any }]} pointerEvents="none" />
+        <View
+          key={frac}
+          style={[styles.gridLine, { top: `${frac * 100}%` as any }]}
+          pointerEvents="none"
+        />
       ))}
 
       <KeyboardAvoidingView
@@ -57,8 +70,15 @@ export function OnboardingLayout({
         {/* Top bar */}
         <View style={styles.topBar}>
           {showBack ? (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <MaterialIcons name="arrow-back" size={20} color={colors.textSecondary} />
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+            >
+              <MaterialIcons
+                name="arrow-back"
+                size={20}
+                color={colors.textSecondary}
+              />
             </TouchableOpacity>
           ) : (
             <View style={styles.backBtn} />
@@ -66,26 +86,13 @@ export function OnboardingLayout({
 
           {/* TRANSMISSION badge */}
           <View style={styles.transmissionBadge}>
-            <MaterialIcons name="wifi" size={11} color={colors.orange} />
+            <MaterialIcons name="wifi" size={11} color={colors.earthGreen} />
             <Text style={styles.transmissionText}>
               TRANSMISSION {step} / {totalSteps}
             </Text>
           </View>
 
           <View style={styles.backBtn} />
-        </View>
-
-        {/* Progress dots */}
-        <View style={styles.dotsRow}>
-          {Array.from({ length: totalSteps }, (_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                i < step - 1 ? styles.dotDone : i === step - 1 ? styles.dotActive : styles.dotEmpty,
-              ]}
-            />
-          ))}
         </View>
 
         {/* Scrollable content */}
@@ -108,10 +115,27 @@ export function OnboardingLayout({
 
         {/* Footer CTA */}
         <View style={styles.footer}>
+          {/* Progress dots */}
+          <View style={styles.dotsRow}>
+            {Array.from({ length: totalSteps }, (_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  i < step - 1
+                    ? styles.dotDone
+                    : i === step - 1
+                      ? styles.dotActive
+                      : styles.dotEmpty,
+                ]}
+              />
+            ))}
+          </View>
           <Button
             label={nextLabel}
             onPress={onNext}
             disabled={nextDisabled}
+            variant="accent"
             fullWidth
           />
         </View>
@@ -161,17 +185,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.purpleLight,
+    backgroundColor: colors.earthGreenLight,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: colors.orange,
+    borderColor: colors.earthGreen,
   } as ViewStyle,
   transmissionText: {
     fontSize: 10,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.earthGreen,
     letterSpacing: 1,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -181,7 +205,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
   } as ViewStyle,
   dot: {
     height: 4,
@@ -189,7 +213,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   dotActive: {
     width: 20,
-    backgroundColor: colors.orange,
+    backgroundColor: colors.earthGreen,
   } as ViewStyle,
   dotDone: {
     width: 8,
@@ -216,7 +240,7 @@ const styles = StyleSheet.create({
   classificationLabel: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.earthGreen,
     textTransform: 'uppercase',
     letterSpacing: 2,
   } as TextStyle,

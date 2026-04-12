@@ -21,7 +21,16 @@ import {
   getMonthName,
   getRunsForMonth,
 } from '../../src/utils/statsUtils';
-import { formatDistance } from '../../src/utils/xpCalculator';
+import {
+  formatDistance,
+  getDisplayXpWithStartingLevelOffset,
+  getLevelInfo,
+} from '../../src/utils/xpCalculator';
+import { getDisplayXpTotal } from '../../src/utils/displayXp';
+import {
+  buildXpTagAccentByRunKey,
+  runHistoryEntryKey,
+} from '../../src/utils/runXpAccent';
 import {
   colors,
   spacing,
@@ -29,7 +38,6 @@ import {
   fontSizes,
   fontWeights,
   shadows,
-  missionConfig,
 } from '../../src/constants/theme';
 import type {
   ActivityMode,
@@ -44,9 +52,7 @@ import {
 import {
   isAbortedRun,
   isMissionCompletedOrPartial,
-  resolveOutcome,
 } from '../../src/utils/runOutcome';
-import { SortieOutcomeBadge } from '../../src/components/ui/SortieOutcomeBadge';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
 import ViewShot from 'react-native-view-shot';
@@ -171,23 +177,24 @@ function MonthSummaryRow({
         value={formatDistance(totalDistanceKm)}
         unit="total"
         icon="straighten"
-        color={colors.primary}
         compact={compact}
       />
-      <View style={[styles.summaryDivider, compact && styles.summaryDividerCompact]} />
+      <View
+        style={[styles.summaryDivider, compact && styles.summaryDividerCompact]}
+      />
       <SummaryStat
         value={`${totalMissions}`}
         unit="missions"
         icon="directions-run"
-        color={colors.primary}
         compact={compact}
       />
-      <View style={[styles.summaryDivider, compact && styles.summaryDividerCompact]} />
+      <View
+        style={[styles.summaryDivider, compact && styles.summaryDividerCompact]}
+      />
       <SummaryStat
         value={`${totalXp}`}
         unit="XP"
         icon="star"
-        color={colors.purple}
         compact={compact}
       />
     </View>
@@ -198,24 +205,26 @@ function SummaryStat({
   value,
   unit,
   icon,
-  color,
+  valueColor = colors.textPrimary,
+  iconColor = colors.earthGreen,
   compact = false,
 }: {
   value: string;
   unit: string;
   icon: string;
-  color: string;
+  valueColor?: string;
+  iconColor?: string;
   compact?: boolean;
 }) {
   const iconSize = compact ? 15 : 18;
   return (
     <View style={[styles.summaryStat, compact && styles.summaryStatCompact]}>
-      <MaterialIcons name={icon as any} size={iconSize} color={color} />
+      <MaterialIcons name={icon as any} size={iconSize} color={iconColor} />
       <Text
         style={[
           styles.summaryValue,
           compact && styles.summaryValueCompact,
-          { color },
+          { color: valueColor },
         ]}
       >
         {value}
@@ -235,6 +244,7 @@ function MonthRunRow({
   onPress,
   canShare,
   onSharePress,
+  xpTagAccentColor,
 }: {
   run: CompletedRun;
   mission: Mission | undefined;
@@ -243,12 +253,9 @@ function MonthRunRow({
   onPress: () => void;
   canShare: boolean;
   onSharePress: () => void;
+  xpTagAccentColor: string;
 }) {
-  const title = resolveMissionDisplayTitle(
-    run.missionId,
-    mission,
-    personaId,
-  );
+  const title = resolveMissionDisplayTitle(run.missionId, mission, personaId);
   const mode = run.activityMode ?? defaultActivityMode;
   const { distKm: targetKm, durMin: targetMin } = targetsForMission(
     mission,
@@ -259,9 +266,6 @@ function MonthRunRow({
     hour: 'numeric',
     minute: '2-digit',
   });
-  const outcome = resolveOutcome(run);
-  const mType = mission?.type ?? 'easy';
-  const config = missionConfig[mType];
   const modeLabel = mode === 'cycle' ? 'Cycle' : 'Run';
 
   return (
@@ -272,22 +276,9 @@ function MonthRunRow({
     >
       <View style={styles.runRowTop}>
         <View style={styles.runRowTitleWrap}>
-          <View style={[styles.typePill, { backgroundColor: config.bgColor }]}>
-            <MaterialIcons
-              name={config.icon as any}
-              size={12}
-              color={config.color}
-            />
-            <Text style={[styles.typePillText, { color: config.color }]}>
-              {config.label}
-            </Text>
-          </View>
           <Text style={styles.runRowTitle} numberOfLines={2}>
             {title}
           </Text>
-        </View>
-        <View style={styles.runRowRight}>
-          <SortieOutcomeBadge outcome={outcome} />
         </View>
       </View>
       <Text style={styles.runRowDate}>
@@ -319,11 +310,17 @@ function MonthRunRow({
             accessibilityRole="button"
             accessibilityLabel="Share this mission"
           >
-            <MaterialIcons name="ios-share" size={18} color={colors.primary} />
+            <MaterialIcons
+              name="ios-share"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         ) : null}
         <View style={styles.runRowBottomSpacer} />
-        <Text style={styles.runRowXpInline}>+{run.xpEarned} XP</Text>
+        <Text style={[styles.runRowXpInline, { color: xpTagAccentColor }]}>
+          +{run.xpEarned} XP
+        </Text>
         <MaterialIcons
           name="chevron-right"
           size={18}
@@ -348,7 +345,26 @@ export default function StatsScreen() {
   const [showAbortedInMonthList, setShowAbortedInMonthList] = useState(false);
 
   const runHistory = useUserStore((s) => s.runHistory);
-  const profilePersona = useUserStore((s) => s.profile?.personaId ?? s.personaId);
+  const profile = useUserStore((s) => s.profile);
+  const xp = useUserStore((s) => s.xp);
+
+  const levelInfo = useMemo(() => {
+    const displayXp = getDisplayXpTotal({ xp, runHistory });
+    const displayLevelXp = getDisplayXpWithStartingLevelOffset(
+      displayXp,
+      profile?.startingClassLevel,
+    );
+    return getLevelInfo(displayLevelXp);
+  }, [xp, runHistory, profile?.startingClassLevel]);
+
+  const xpAccentByRunKey = useMemo(
+    () => buildXpTagAccentByRunKey(runHistory, profile?.startingClassLevel),
+    [runHistory, profile?.startingClassLevel],
+  );
+
+  const profilePersona = useUserStore(
+    (s) => s.profile?.personaId ?? s.personaId,
+  );
   const defaultActivityMode = useUserStore(
     (s) => s.profile?.defaultActivityMode ?? 'run',
   );
@@ -466,8 +482,30 @@ export default function StatsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeIn.duration(300)} style={styles.titleRow}>
-          <Text style={styles.screenTitle}>Monthly Stats</Text>
+        <Animated.View entering={FadeIn.duration(300)} style={styles.statsTop}>
+          <View style={styles.classBadge}>
+            <View
+              style={[
+                styles.classDot,
+                { backgroundColor: levelInfo.accentColor },
+              ]}
+            />
+            <Text
+              style={[
+                styles.classBadgeText,
+                { color: levelInfo.accentColor },
+              ]}
+            >
+              {levelInfo.title}
+            </Text>
+          </View>
+          <View style={styles.statsHeaderBlock}>
+            <Text style={styles.screenTitle}>Stats</Text>
+            <View style={styles.statsScopeRow}>
+              <View style={styles.statsAccentBar} />
+              <Text style={styles.statsScopeSubtitle}>Monthly</Text>
+            </View>
+          </View>
         </Animated.View>
 
         {/* Monthly summary */}
@@ -507,7 +545,8 @@ export default function StatsScreen() {
             <>
               {visibleRunsMonth.length === 0 ? (
                 <Text style={styles.emptyText}>
-                  Aborted missions are hidden by default. Tap below to show them.
+                  Aborted missions are hidden by default. Tap below to show
+                  them.
                 </Text>
               ) : (
                 <View style={styles.runList}>
@@ -531,6 +570,10 @@ export default function StatsScreen() {
                             onPress={() => openRunDetail(run)}
                             canShare={isMissionCompletedOrPartial(run)}
                             onSharePress={() => handleShareRun(run)}
+                            xpTagAccentColor={
+                              xpAccentByRunKey.get(runHistoryEntryKey(run)) ??
+                              levelInfo.accentColor
+                            }
                           />
                         ))}
                       </View>
@@ -551,9 +594,11 @@ export default function StatsScreen() {
                   }
                 >
                   <MaterialIcons
-                    name={showAbortedInMonthList ? 'expand-less' : 'expand-more'}
+                    name={
+                      showAbortedInMonthList ? 'expand-less' : 'expand-more'
+                    }
                     size={22}
-                    color={colors.primary}
+                    color={colors.textSecondary}
                   />
                   <Text style={styles.abortedToggleText}>
                     {showAbortedInMonthList
@@ -565,7 +610,6 @@ export default function StatsScreen() {
             </>
           )}
         </Animated.View>
-
       </ScrollView>
 
       {sharingRun && (
@@ -608,13 +652,52 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   } as ViewStyle,
 
-  titleRow: {
+  statsTop: {
+    gap: spacing.sm,
+  } as ViewStyle,
+  classBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  classDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  } as ViewStyle,
+  classBadgeText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  statsHeaderBlock: {
+    gap: spacing.sm,
     paddingBottom: spacing.xs,
   } as ViewStyle,
+  statsScopeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  statsAccentBar: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: colors.earthGreen,
+  } as ViewStyle,
+  statsScopeSubtitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+  } as TextStyle,
   screenTitle: {
     fontSize: fontSizes.xxl,
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
+    textAlign: 'left',
     textTransform: 'uppercase',
     letterSpacing: 2,
   } as TextStyle,
@@ -649,14 +732,14 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   } as TextStyle,
   currentPill: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   } as ViewStyle,
   currentPillText: {
     fontSize: fontSizes.xs,
-    color: colors.primaryDark,
+    color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
   } as TextStyle,
 
@@ -702,32 +785,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   } as ViewStyle,
-  runRowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 0,
-  } as ViewStyle,
   runRowTitleWrap: {
     flex: 1,
     gap: spacing.xs,
     minWidth: 0,
   } as ViewStyle,
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radii.full,
-  } as ViewStyle,
-  typePillText: {
-    fontSize: 10,
-    fontWeight: fontWeights.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
   runRowTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
@@ -761,7 +823,6 @@ const styles = StyleSheet.create({
   runRowXpInline: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
-    color: colors.purple,
   } as TextStyle,
   runRowBottom: {
     flexDirection: 'row',
@@ -778,7 +839,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   runRowChevron: {
     marginTop: 1,
-  } as ViewStyle,
+  } as TextStyle,
   dayGroup: {
     gap: spacing.sm,
   } as ViewStyle,
@@ -854,6 +915,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
-    color: colors.primary,
+    color: colors.textSecondary,
   } as TextStyle,
 });

@@ -2,6 +2,12 @@ import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useMemo } from 'react';
+import {
+  buildXpTagAccentByRunKey,
+  runHistoryEntryKey,
+} from '../../src/utils/runXpAccent';
+import { getDisplayXpWithStartingLevelOffset, getLevelInfo } from '../../src/utils/xpCalculator';
+import { getDisplayXpTotal } from '../../src/utils/displayXp';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
 import { RunHistoryDetailView } from '../../src/components/run/RunHistoryDetailView';
@@ -22,11 +28,27 @@ export default function RunHistoryScreen() {
     : '';
 
   const runHistory = useUserStore((s) => s.runHistory);
+  const profile = useUserStore((s) => s.profile);
+  const xp = useUserStore((s) => s.xp);
   const profilePersona = useUserStore((s) => s.profile?.personaId ?? s.personaId);
   const defaultActivity = useUserStore(
     (s) => s.profile?.defaultActivityMode ?? 'run',
   );
   const weekMissions = useMissionsStore((s) => s.weekMissions);
+
+  const xpAccentByRunKey = useMemo(
+    () => buildXpTagAccentByRunKey(runHistory, profile?.startingClassLevel),
+    [runHistory, profile?.startingClassLevel],
+  );
+
+  const levelAccentFallback = useMemo(() => {
+    const displayXp = getDisplayXpTotal({ xp, runHistory });
+    const displayLevelXp = getDisplayXpWithStartingLevelOffset(
+      displayXp,
+      profile?.startingClassLevel,
+    );
+    return getLevelInfo(displayLevelXp).accentColor;
+  }, [xp, runHistory, profile?.startingClassLevel]);
 
   const run = useMemo((): CompletedRun | null => {
     if (!missionId || !completedAt) return null;
@@ -56,6 +78,9 @@ export default function RunHistoryScreen() {
     );
   }
 
+  const xpTagAccentColor =
+    xpAccentByRunKey.get(runHistoryEntryKey(run)) ?? levelAccentFallback;
+
   return (
     <View style={styles.safe}>
       <RunHistoryDetailView
@@ -64,6 +89,7 @@ export default function RunHistoryScreen() {
         personaId={profilePersona}
         activityMode={activityMode}
         onClose={() => router.back()}
+        xpTagAccentColor={xpTagAccentColor}
       />
     </View>
   );

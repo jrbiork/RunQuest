@@ -1,66 +1,83 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
+import Animated, {
+  FadeInDown,
+  FadeOutDown,
+  FadeInUp,
+  FadeOutUp,
+  LinearTransition,
+} from 'react-native-reanimated';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { Mission, CompletedRun } from '../../types';
-import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../constants/theme';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+  missionConfig,
+  shadows,
+} from '../../constants/theme';
 import { XPBadge } from '../ui/XPBadge';
-import { formatDistance } from '../../utils/xpCalculator';
+import { formatDistance, formatDuration } from '../../utils/xpCalculator';
 import { stripEmojis } from '../../utils/stripEmojis';
 import { useUserStore } from '../../store/userStore';
 import { getStreakDayIndex0 } from '../../utils/streakDisplay';
 import { resolveOutcome } from '../../utils/runOutcome';
+import {
+  formatMissionTargetDistance,
+  formatPace,
+} from '../../utils/missionTargetPace';
+import { darkenHex } from '../../utils/hexColor';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+/** Run/cycle mission target icons — sized to sit centered against distance + time lines. */
+const MISSION_TARGET_ICON_SIZE = 28;
 
-function formatDuration(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = Math.round(min % 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}min`;
+function safeLevelAccent(hex: string): string {
+  return hex.length === 7 ? hex : '#9A968E';
 }
 
-function formatPace(distKm: number, durMin: number): string {
-  if (distKm < 0.01) return '–';
-  const secPerKm = (durMin * 60) / distKm;
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.floor(secPerKm % 60);
-  return `${m}:${String(s).padStart(2, '0')} /km`;
-}
+/** Completed mission row ↔ full card: spring layout + directional fades. */
+const missionExpandLayout = LinearTransition.springify()
+  .damping(17)
+  .stiffness(210)
+  .mass(0.72);
 
-/** Target pace from mission distance + time (running). */
-function formatApproxRunPace(distanceKm: number, durationMin: number): string {
-  if (distanceKm < 0.01 || durationMin <= 0) return '–';
-  return `~${formatPace(distanceKm, durationMin)}`;
-}
-
-/** Approximate cycling speed from target distance + duration. */
-function formatApproxCycleSpeed(distanceKm: number, durationMin: number): string {
-  if (distanceKm < 0.01 || durationMin <= 0) return '–';
-  const kmh = distanceKm / (durationMin / 60);
-  if (!Number.isFinite(kmh)) return '–';
-  return `~${kmh.toFixed(1)} km/h`;
-}
+const collapsedMissionEntering = FadeInUp.springify().damping(17).stiffness(200);
+const collapsedMissionExiting = FadeOutUp.duration(200);
+const expandedMissionEntering = FadeInDown.springify().damping(16).stiffness(195);
+const expandedMissionExiting = FadeOutDown.duration(220);
 
 // ─── Completed result card ────────────────────────────────────────────────────
 
 function CompletedResultCard({
   mission,
   run,
-  onShare,
   onCollapse,
   onPress,
+  onViewRuns,
+  levelAccent,
 }: {
   mission: Mission;
   run: CompletedRun;
-  onShare: () => void;
   /** When set, shows a collapse strip at the top of the card (expanded completed mission). */
   onCollapse?: () => void;
   /** Open mission briefing / detail. */
   onPress: () => void;
+  /** List all run/cycle attempts for this mission (any outcome). */
+  onViewRuns: () => void;
+  /** Scavenger level accent — XP line matches level palette. */
+  levelAccent: string;
 }) {
   const runHistory = useUserStore((s) => s.runHistory);
   const streakDayIndex = getStreakDayIndex0(run, runHistory);
-  const config = missionConfig[mission.type];
   const outcome = resolveOutcome(run);
   const isSuccess = outcome === 'success';
   const isPartial = outcome === 'partial_time';
@@ -77,7 +94,11 @@ function CompletedResultCard({
             accessibilityLabel="Collapse"
             accessibilityRole="button"
           >
-            <MaterialIcons name="keyboard-arrow-up" size={20} color={colors.textTertiary} />
+            <MaterialIcons
+              name="keyboard-arrow-up"
+              size={20}
+              color={colors.textTertiary}
+            />
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -85,66 +106,113 @@ function CompletedResultCard({
           onPress={onPress}
           activeOpacity={0.9}
         >
-          <MaterialIcons
-            name={isSuccess ? 'emoji-events' : isPartial ? 'schedule' : 'close'}
-            size={14}
-            color={isSuccess ? colors.primary : colors.textTertiary}
-          />
-          <Text
-            style={[
-              rc.bannerText,
-              isSuccess && rc.bannerTextEmphasis,
-            ]}
-          >
-            {isSuccess ? 'MISSION COMPLETE' : isPartial ? 'PARTIAL CREDIT' : 'INCOMPLETE'}
+          {!isSuccess && (
+            <MaterialIcons
+              name={isPartial ? 'schedule' : 'close'}
+              size={14}
+              color={
+                isPartial ? colors.orange : colors.textTertiary
+              }
+            />
+          )}
+          <Text style={[rc.bannerText, isSuccess && rc.bannerTextEmphasis]}>
+            {isSuccess
+              ? 'MISSION COMPLETE'
+              : isPartial
+                ? 'PARTIAL CREDIT'
+                : 'INCOMPLETE'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onShare} style={rc.shareBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <View style={rc.bannerXp}>
+          <MaterialIcons name="star" size={14} color={levelAccent} />
+          <Text
+            style={[
+              rc.bannerXpText,
+              { color: darkenHex(levelAccent, 0.62) },
+            ]}
+          >
+            +{run.xpEarned} XP
+          </Text>
+        </View>
+      </View>
+
+      <View style={rc.bodyWrap}>
+        <TouchableOpacity style={rc.body} onPress={onPress} activeOpacity={0.9}>
+          <View style={rc.bodyTopRow}>
+            <View style={rc.bodyTopLeft}>
+              <Text style={rc.missionTitle}>{stripEmojis(mission.title)}</Text>
+            </View>
+            <View style={rc.bodyTopRight}>
+              <View style={rc.streakPill}>
+                <MaterialIcons
+                  name="local-fire-department"
+                  size={11}
+                  color={colors.textPrimary}
+                />
+                <Text style={rc.streakText}>DAY {streakDayIndex}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={rc.statsGrid}>
+            <StatChip
+              icon="straighten"
+              value={formatDistance(run.distanceKm)}
+              label="Distance"
+              color={colors.textPrimary}
+            />
+            <View style={rc.divider} />
+            <StatChip
+              icon="timer"
+              value={formatDuration(run.durationMin)}
+              label="Time"
+              color={colors.textPrimary}
+            />
+            <View style={rc.divider} />
+            <StatChip
+              icon="speed"
+              value={formatPace(run.distanceKm, run.durationMin)}
+              label="Pace"
+              color={colors.textPrimary}
+            />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={rc.runsLink}
+          onPress={onViewRuns}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Open full mission details"
+        >
           <MaterialIcons
-            name="ios-share"
+            name="insights"
             size={16}
+            color={colors.textPrimary}
+          />
+          <Text style={rc.runsLinkText}>Activity & stats</Text>
+          <MaterialIcons
+            name="chevron-right"
+            size={18}
             color={colors.textSecondary}
           />
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={rc.body} onPress={onPress} activeOpacity={0.9}>
-        <View style={rc.bodyTopRow}>
-          <View style={rc.bodyTopLeft}>
-            <View style={rc.headerRow}>
-              <View style={rc.typePill}>
-                <MaterialIcons name={config.icon as any} size={11} color={colors.textSecondary} />
-                <Text style={rc.typeText}>{config.label}</Text>
-              </View>
-            </View>
-            <Text style={rc.missionTitle}>{stripEmojis(mission.title)}</Text>
-          </View>
-          <View style={rc.bodyTopRight}>
-            <View style={rc.xpCornerRow}>
-              <MaterialIcons name="star" size={13} color={colors.textTertiary} />
-              <Text style={rc.xpCornerText}>+{run.xpEarned} XP</Text>
-            </View>
-            <View style={rc.streakPill}>
-              <MaterialIcons name="local-fire-department" size={11} color={colors.textTertiary} />
-              <Text style={rc.streakText}>DAY {streakDayIndex}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Actual stats grid */}
-        <View style={rc.statsGrid}>
-          <StatChip icon="straighten" value={formatDistance(run.distanceKm)} label="Distance" color={colors.textPrimary} />
-          <View style={rc.divider} />
-          <StatChip icon="timer" value={formatDuration(run.durationMin)} label="Time" color={colors.textPrimary} />
-          <View style={rc.divider} />
-          <StatChip icon="speed" value={formatPace(run.distanceKm, run.durationMin)} label="Pace" color={colors.textPrimary} />
-        </View>
-      </TouchableOpacity>
     </View>
   );
 }
 
-function StatChip({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+function StatChip({
+  icon,
+  value,
+  label,
+  color,
+}: {
+  icon: string;
+  value: string;
+  label: string;
+  color: string;
+}) {
   return (
     <View style={rc.chip}>
       <MaterialIcons name={icon as any} size={13} color={color} />
@@ -159,7 +227,15 @@ function StatChip({ icon, value, label, color }: { icon: string; value: string; 
 function ProgressBar({ progress, color }: { progress: number; color: string }) {
   return (
     <View style={pb.track}>
-      <View style={[pb.fill, { width: `${Math.min(progress, 1) * 100}%` as any, backgroundColor: color }]} />
+      <View
+        style={[
+          pb.fill,
+          {
+            width: `${Math.min(progress, 1) * 100}%` as any,
+            backgroundColor: color,
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -183,14 +259,27 @@ const pb = StyleSheet.create({
 interface MissionNodeProps {
   mission: Mission;
   completedRun?: CompletedRun;
+  /** At least one logged attempt for this mission (any outcome). */
+  hasMissionAttempts: boolean;
   onPress: () => void;
-  onShare?: () => void;
   onRetry?: () => void;
   isLast?: boolean;
+  levelAccent: string;
+  onViewMissionRuns: () => void;
 }
 
-export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, isLast = false }: MissionNodeProps) {
+export function MissionNode({
+  mission,
+  completedRun,
+  hasMissionAttempts,
+  onPress,
+  onRetry,
+  isLast = false,
+  levelAccent,
+  onViewMissionRuns,
+}: MissionNodeProps) {
   const config = missionConfig[mission.type];
+  const accent = safeLevelAccent(levelAccent);
   const isCompleted = mission.status === 'completed';
   const isLocked = mission.status === 'locked';
   const isAborted = mission.status === 'aborted';
@@ -227,23 +316,47 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
 
       {/* Completed — collapsed summary by default; expand for full card */}
       {isCompleted && completedRun ? (
-        <View style={styles.touchable}>
+        <Animated.View
+          style={styles.touchable}
+          layout={missionExpandLayout}
+        >
           {!completedExpanded ? (
-            <View style={styles.collapsedCompleted}>
+            <Animated.View
+              key="mission-collapsed"
+              entering={collapsedMissionEntering}
+              exiting={collapsedMissionExiting}
+              style={styles.collapsedCompleted}
+            >
               <TouchableOpacity
                 style={styles.collapsedCompletedMain}
                 onPress={() => setCompletedExpanded(true)}
                 activeOpacity={0.85}
               >
-                <View style={styles.collapsedTypeIcon}>
-                  <MaterialIcons name={config.icon as any} size={16} color={colors.textSecondary} />
+                <View
+                  style={[
+                    styles.collapsedTypeIcon,
+                    {
+                      borderColor: accent,
+                      backgroundColor: `${accent}18`,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={config.icon as any}
+                    size={16}
+                    color={accent}
+                  />
                 </View>
                 <View style={styles.collapsedCompletedText}>
-                  <Text style={styles.collapsedCompletedTitle} numberOfLines={1}>
+                  <Text
+                    style={styles.collapsedCompletedTitle}
+                    numberOfLines={1}
+                  >
                     {stripEmojis(mission.title)}
                   </Text>
                   <Text style={styles.collapsedCompletedMeta}>
-                    {completedOutcomeWord} · {formatDistance(completedRun.distanceKm)}
+                    {completedOutcomeWord} ·{' '}
+                    {formatDistance(completedRun.distanceKm)}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -254,39 +367,33 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                 accessibilityLabel="Expand mission details"
                 accessibilityRole="button"
               >
-                <MaterialIcons name="keyboard-arrow-down" size={22} color={colors.textTertiary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => onShare?.()}
-                style={styles.collapsedShareBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
                 <MaterialIcons
-                  name="ios-share"
-                  size={18}
-                  color={colors.textSecondary}
+                  name="keyboard-arrow-down"
+                  size={22}
+                  color={colors.textTertiary}
                 />
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           ) : (
-            <CompletedResultCard
-              mission={mission}
-              run={completedRun}
-              onShare={onShare ?? (() => {})}
-              onCollapse={() => setCompletedExpanded(false)}
-              onPress={onPress}
-            />
+            <Animated.View
+              key="mission-expanded"
+              entering={expandedMissionEntering}
+              exiting={expandedMissionExiting}
+            >
+              <CompletedResultCard
+                mission={mission}
+                run={completedRun}
+                onCollapse={() => setCompletedExpanded(false)}
+                onPress={onPress}
+                onViewRuns={onViewMissionRuns}
+                levelAccent={accent}
+              />
+            </Animated.View>
           )}
-        </View>
+        </Animated.View>
       ) : isAborted ? (
         <View style={styles.touchable}>
           <View style={[styles.node, styles.nodeAborted]}>
-            <View style={styles.abortedTagCorner} pointerEvents="none">
-              <View style={styles.abortedTag}>
-                <Text style={styles.abortedTagText}>ABORTED</Text>
-              </View>
-            </View>
             <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
               <View style={styles.nodeBody}>
                 <View style={styles.cardTopRow}>
@@ -294,56 +401,116 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                     <View
                       style={[
                         styles.typeIconBlock,
-                        { backgroundColor: config.bgColor, borderColor: config.color },
+                        {
+                          backgroundColor: `${accent}22`,
+                          borderColor: accent,
+                        },
                       ]}
                     >
-                      <MaterialIcons name={config.icon as any} size={18} color={config.color} />
+                      <MaterialIcons
+                        name={config.icon as any}
+                        size={18}
+                        color={accent}
+                      />
                     </View>
                     <View style={styles.nodeTitleBlock}>
-                      <View style={styles.typeTagRow}>
-                        <View style={[styles.missionTypePill, { borderColor: config.color }]}>
-                          <MaterialIcons name={config.icon as any} size={10} color={config.color} />
-                          <Text style={[styles.missionTypePillText, { color: config.color }]}>
-                            {config.label}
-                          </Text>
-                        </View>
-                      </View>
                       <Text style={styles.missionTitle} numberOfLines={2}>
                         {stripEmojis(mission.title)}
                       </Text>
                     </View>
                   </View>
-                  <XPBadge xp={mission.xpReward} size="sm" />
+                  <XPBadge
+                    xp={mission.xpReward}
+                    size="sm"
+                    accentColor={accent}
+                  />
                 </View>
 
                 <View style={styles.nodeMetaRow}>
                   <View style={styles.distancePills}>
                     <View style={styles.distancePillColumnLeft}>
-                      <View style={styles.distancePill}>
-                        <MaterialIcons name="directions-run" size={12} color={colors.textSecondary} />
-                        <Text style={styles.distanceText}>{formatDistance(mission.targetDistanceKm)}</Text>
-                        <Text style={styles.durationText}>~{formatDuration(mission.targetDurationMin)}</Text>
+                      <View
+                        style={[
+                          styles.distancePill,
+                          styles.distancePillRowWide,
+                          styles.distancePillTargets,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name="directions-run"
+                          size={MISSION_TARGET_ICON_SIZE}
+                          color={colors.textSecondary}
+                        />
+                        <View style={styles.journeyTargetLines}>
+                          <Text style={styles.targetSummaryLine}>
+                            {formatMissionTargetDistance(
+                              mission.targetDistanceKm,
+                            )}
+                          </Text>
+                          <Text style={styles.targetSummaryLine}>
+                            {mission.targetDurationMin <= 0
+                              ? '–'
+                              : formatDuration(mission.targetDurationMin)}
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={styles.paceApprox}>
-                        {formatApproxRunPace(mission.targetDistanceKm, mission.targetDurationMin)}
-                      </Text>
                     </View>
                     <View style={styles.distancePillColumnRight}>
-                      <View style={[styles.distancePill, styles.distancePillEnd]}>
-                        <MaterialIcons name="directions-bike" size={12} color={colors.textSecondary} />
-                        <Text style={styles.distanceText}>{formatDistance(mission.targetCyclingDistanceKm)}</Text>
-                        <Text style={styles.durationText}>~{formatDuration(mission.targetCyclingDurationMin)}</Text>
+                      <View
+                        style={[
+                          styles.distancePill,
+                          styles.distancePillCycle,
+                          styles.distancePillEnd,
+                          styles.distancePillTargets,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name="directions-bike"
+                          size={MISSION_TARGET_ICON_SIZE}
+                          color={colors.textSecondary}
+                        />
+                        <View style={styles.journeyCycleLines}>
+                          <Text style={styles.targetCycleSummaryLine}>
+                            {formatMissionTargetDistance(
+                              mission.targetCyclingDistanceKm,
+                            )}
+                          </Text>
+                          <Text style={styles.targetCycleSummaryLine}>
+                            {mission.targetCyclingDurationMin <= 0
+                              ? '–'
+                              : formatDuration(
+                                  mission.targetCyclingDurationMin,
+                                )}
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={styles.paceApproxRight}>
-                        {formatApproxCycleSpeed(mission.targetCyclingDistanceKm, mission.targetCyclingDurationMin)}
-                      </Text>
                     </View>
                   </View>
                 </View>
 
-                <View style={styles.progressRow}>
-                  <ProgressBar progress={0} color={config.color} />
-                </View>
+                {hasMissionAttempts && (
+                  <TouchableOpacity
+                    style={styles.missionActivityLink}
+                    onPress={onViewMissionRuns}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open full mission details"
+                  >
+                    <MaterialIcons
+                      name="insights"
+                      size={14}
+                      color={colors.textPrimary}
+                    />
+                    <Text style={styles.missionActivityLinkText}>
+                      Activity & stats
+                    </Text>
+                    <MaterialIcons
+                      name="chevron-right"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
             </TouchableOpacity>
 
@@ -352,7 +519,11 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
               activeOpacity={0.85}
               style={styles.retryBtnAbortedLight}
             >
-              <MaterialIcons name="replay" size={18} color={colors.textSecondary} />
+              <MaterialIcons
+                name="replay"
+                size={15}
+                color={colors.textSecondary}
+              />
               <Text style={styles.retryBtnAbortedLightText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -369,7 +540,9 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
             {isLocked && (
               <View style={styles.nodeTopRow}>
                 <View style={styles.questBadgeLocked}>
-                  <Text style={[styles.questBadgeText, styles.textLocked]}>LOCKED</Text>
+                  <Text style={[styles.questBadgeText, styles.textLocked]}>
+                    LOCKED
+                  </Text>
                 </View>
               </View>
             )}
@@ -380,85 +553,164 @@ export function MissionNode({ mission, completedRun, onPress, onShare, onRetry, 
                   <View
                     style={[
                       styles.typeIconBlock,
-                      {
-                        backgroundColor: isLocked ? colors.border : config.bgColor,
-                        borderColor: isLocked ? colors.border : config.color,
-                      },
+                      isLocked
+                        ? {
+                            backgroundColor: colors.surfaceElevated,
+                            borderColor: colors.border,
+                          }
+                        : {
+                            backgroundColor: `${accent}22`,
+                            borderColor: accent,
+                          },
                     ]}
                   >
                     {isLocked ? (
-                      <MaterialIcons name="lock" size={18} color={colors.textTertiary} />
+                      <MaterialIcons
+                        name="lock"
+                        size={18}
+                        color={colors.textTertiary}
+                      />
                     ) : (
-                      <MaterialIcons name={config.icon as any} size={18} color={config.color} />
+                      <MaterialIcons
+                        name={config.icon as any}
+                        size={18}
+                        color={accent}
+                      />
                     )}
                   </View>
                   <View style={styles.nodeTitleBlock}>
                     <Text
-                      style={[styles.missionTitle, isLocked && styles.textLocked]}
+                      style={[
+                        styles.missionTitle,
+                        isLocked && styles.textLocked,
+                      ]}
                       numberOfLines={2}
                     >
                       {stripEmojis(mission.title)}
                     </Text>
                   </View>
                 </View>
-                {!isLocked && <XPBadge xp={mission.xpReward} size="sm" />}
+                {!isLocked && (
+                  <XPBadge
+                    xp={mission.xpReward}
+                    size="sm"
+                    accentColor={accent}
+                  />
+                )}
               </View>
 
               <View style={styles.nodeMetaRow}>
                 <View style={styles.distancePills}>
                   <View style={styles.distancePillColumnLeft}>
-                    <View style={styles.distancePill}>
+                    <View
+                      style={[
+                        styles.distancePill,
+                        styles.distancePillRowWide,
+                        styles.distancePillTargets,
+                      ]}
+                    >
                       <MaterialIcons
                         name="directions-run"
-                        size={12}
-                        color={isLocked ? colors.textTertiary : colors.textSecondary}
+                        size={MISSION_TARGET_ICON_SIZE}
+                        color={
+                          isLocked ? colors.textTertiary : colors.textSecondary
+                        }
                       />
-                      <Text
-                        style={[
-                          styles.distanceText,
-                          isLocked && styles.textLocked,
-                        ]}
-                      >
-                        {formatDistance(mission.targetDistanceKm)}
-                      </Text>
-                      <Text style={[styles.durationText, isLocked && styles.textLocked]}>
-                        ~{formatDuration(mission.targetDurationMin)}
-                      </Text>
+                      <View style={styles.journeyTargetLines}>
+                        <Text
+                          style={[
+                            styles.targetSummaryLine,
+                            isLocked && styles.textLocked,
+                          ]}
+                        >
+                          {formatMissionTargetDistance(
+                            mission.targetDistanceKm,
+                          )}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.targetSummaryLine,
+                            isLocked && styles.textLocked,
+                          ]}
+                        >
+                          {mission.targetDurationMin <= 0
+                            ? '–'
+                            : formatDuration(mission.targetDurationMin)}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={[styles.paceApprox, isLocked && styles.textLocked]}>
-                      {formatApproxRunPace(mission.targetDistanceKm, mission.targetDurationMin)}
-                    </Text>
                   </View>
                   <View style={styles.distancePillColumnRight}>
-                    <View style={[styles.distancePill, styles.distancePillEnd]}>
+                    <View
+                      style={[
+                        styles.distancePill,
+                        styles.distancePillCycle,
+                        styles.distancePillEnd,
+                        styles.distancePillTargets,
+                      ]}
+                    >
                       <MaterialIcons
                         name="directions-bike"
-                        size={12}
-                        color={isLocked ? colors.textTertiary : colors.textSecondary}
+                        size={MISSION_TARGET_ICON_SIZE}
+                        color={
+                          isLocked ? colors.textTertiary : colors.textSecondary
+                        }
                       />
-                      <Text
-                        style={[
-                          styles.distanceText,
-                          isLocked && styles.textLocked,
-                        ]}
-                      >
-                        {formatDistance(mission.targetCyclingDistanceKm)}
-                      </Text>
-                      <Text style={[styles.durationText, isLocked && styles.textLocked]}>
-                        ~{formatDuration(mission.targetCyclingDurationMin)}
-                      </Text>
+                      <View style={styles.journeyCycleLines}>
+                        <Text
+                          style={[
+                            styles.targetCycleSummaryLine,
+                            isLocked && styles.textLocked,
+                          ]}
+                        >
+                          {formatMissionTargetDistance(
+                            mission.targetCyclingDistanceKm,
+                          )}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.targetCycleSummaryLine,
+                            isLocked && styles.textLocked,
+                          ]}
+                        >
+                          {mission.targetCyclingDurationMin <= 0
+                            ? '–'
+                            : formatDuration(mission.targetCyclingDurationMin)}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={[styles.paceApproxRight, isLocked && styles.textLocked]}>
-                      {formatApproxCycleSpeed(mission.targetCyclingDistanceKm, mission.targetCyclingDurationMin)}
-                    </Text>
                   </View>
                 </View>
               </View>
 
               {!isLocked && (
                 <View style={styles.progressRow}>
-                  <ProgressBar progress={isCompleted ? 1 : 0} color={config.color} />
+                  <ProgressBar progress={isCompleted ? 1 : 0} color={accent} />
                 </View>
+              )}
+
+              {!isLocked && hasMissionAttempts && (
+                <TouchableOpacity
+                  style={styles.missionActivityLink}
+                  onPress={onViewMissionRuns}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open full mission details"
+                >
+                  <MaterialIcons
+                    name="insights"
+                    size={14}
+                    color={colors.textPrimary}
+                  />
+                  <Text style={styles.missionActivityLinkText}>
+                    Activity & stats
+                  </Text>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -507,15 +759,26 @@ const rc = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   } as ViewStyle,
-  shareBtn: {
-    paddingHorizontal: spacing.md,
+  bannerXp: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.surfaceElevated,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
   } as ViewStyle,
+  bannerXpText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  } as TextStyle,
   bannerText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extrabold,
@@ -526,10 +789,32 @@ const rc = StyleSheet.create({
   bannerTextEmphasis: {
     color: colors.textPrimary,
   } as TextStyle,
+  bodyWrap: {
+    gap: spacing.sm,
+  } as ViewStyle,
   body: {
     padding: spacing.md,
     gap: spacing.sm,
   } as ViewStyle,
+  runsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  } as ViewStyle,
+  runsLinkText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+  } as TextStyle,
   bodyTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -546,40 +831,6 @@ const rc = StyleSheet.create({
     gap: spacing.xs,
     paddingTop: 1,
   } as ViewStyle,
-  xpCornerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  } as ViewStyle,
-  xpCornerText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  } as TextStyle,
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  } as ViewStyle,
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: colors.border,
-  } as ViewStyle,
-  typeText: {
-    fontSize: 10,
-    fontWeight: fontWeights.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    color: colors.textSecondary,
-  } as TextStyle,
   missionTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
@@ -630,7 +881,7 @@ const rc = StyleSheet.create({
   streakText: {
     fontSize: 9,
     fontWeight: fontWeights.bold,
-    color: colors.textTertiary,
+    color: colors.textPrimary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   } as TextStyle,
@@ -666,12 +917,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     ...shadows.sm,
-  } as ViewStyle,
-  abortedTagCorner: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    zIndex: 4,
   } as ViewStyle,
   nodeLocked: {
     opacity: 0.45,
@@ -754,44 +999,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   } as ViewStyle,
-  typeTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
-    marginBottom: 4,
-    alignSelf: 'flex-start',
-  } as ViewStyle,
-  missionTypePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    backgroundColor: colors.surface,
-  } as ViewStyle,
-  missionTypePillText: {
-    fontSize: 9,
-    fontWeight: fontWeights.extrabold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  } as TextStyle,
-  abortedTag: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-  } as ViewStyle,
-  abortedTagText: {
-    fontSize: 9,
-    fontWeight: fontWeights.extrabold,
-    color: colors.textSecondary,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  } as TextStyle,
   typeIconBlock: {
     width: 40,
     height: 40,
@@ -834,48 +1041,58 @@ const styles = StyleSheet.create({
     gap: 2,
   } as ViewStyle,
   distancePillColumnRight: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 1,
     minWidth: 0,
     alignItems: 'flex-end',
     gap: 2,
   } as ViewStyle,
-  paceApprox: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.medium,
-    color: colors.textTertiary,
-    marginLeft: 16,
-    letterSpacing: 0.2,
-  } as TextStyle,
-  paceApproxRight: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.medium,
-    color: colors.textTertiary,
-    letterSpacing: 0.2,
-    textAlign: 'right',
-    alignSelf: 'flex-end',
-    marginRight: 0,
-  } as TextStyle,
   distancePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   } as ViewStyle,
+  distancePillTargets: {
+    alignItems: 'center',
+    gap: spacing.sm,
+  } as ViewStyle,
+  distancePillRowWide: {
+    alignSelf: 'stretch',
+    width: '100%',
+  } as ViewStyle,
+  /** Cycle block: hug content and sit flush to the card’s trailing edge. */
+  distancePillCycle: {
+    alignSelf: 'flex-end',
+    maxWidth: '100%',
+  } as ViewStyle,
+  journeyTargetLines: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+    alignItems: 'flex-start',
+  } as ViewStyle,
+  journeyCycleLines: {
+    gap: 2,
+    alignItems: 'flex-end',
+    flexShrink: 1,
+    minWidth: 0,
+  } as ViewStyle,
+  targetSummaryLine: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    textAlign: 'left',
+  } as TextStyle,
+  targetCycleSummaryLine: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    textAlign: 'right',
+  } as TextStyle,
   distancePillEnd: {
     justifyContent: 'flex-end',
     width: '100%',
   } as ViewStyle,
-  distanceText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  } as TextStyle,
-  durationText: {
-    fontSize: fontSizes.xs,
-    color: colors.textTertiary,
-    fontWeight: fontWeights.medium,
-  } as TextStyle,
   progressRow: {
     marginTop: 2,
   } as ViewStyle,
@@ -909,18 +1126,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
     backgroundColor: colors.surfaceElevated,
   } as ViewStyle,
   retryBtnAbortedLightText: {
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     color: colors.textSecondary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   } as TextStyle,
   retryBtnText: {
     fontSize: fontSizes.sm,
@@ -966,6 +1181,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
   } as ViewStyle,
+  missionActivityLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'stretch',
+    marginTop: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  } as ViewStyle,
+  missionActivityLinkText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    letterSpacing: 0.3,
+  } as TextStyle,
   collapsedCompletedText: {
     flex: 1,
     minWidth: 0,
@@ -983,10 +1216,4 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
   } as TextStyle,
-  collapsedShareBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  } as ViewStyle,
 });

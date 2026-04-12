@@ -10,13 +10,23 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { colors, fontSizes, fontWeights, shadows } from '../../src/constants/theme';
-import { useMissionsStore, selectNextMission } from '../../src/store/missionsStore';
+import {
+  colors,
+  fontSizes,
+  fontWeights,
+  shadows,
+} from '../../src/constants/theme';
+import {
+  useMissionsStore,
+  selectNextMission,
+} from '../../src/store/missionsStore';
 import { FUN_RUN_ID } from '../../src/constants/missions';
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
-const TAB_SLOTS: Array<{ route: string; label: string; icon: MaterialIconName } | 'run'> = [
+const TAB_SLOTS: Array<
+  { route: string; label: string; icon: MaterialIconName } | 'run'
+> = [
   { route: 'index', label: 'HOME', icon: 'home' },
   { route: 'journey', label: 'MISSIONS', icon: 'map' },
   'run',
@@ -62,11 +72,17 @@ function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
                 <TouchableOpacity
                   onPress={handleRunPress}
                   activeOpacity={0.8}
-                  style={[styles.runBtn, isFreeRun && styles.runBtnFreeRun]}
+                  style={styles.runBtn}
                 >
-                  <MaterialIcons name="directions-run" size={34} color={colors.textInverse} />
+                  <MaterialIcons
+                    name="directions-run"
+                    size={34}
+                    color={colors.textInverse}
+                  />
                 </TouchableOpacity>
-                <Text style={styles.runLabel}>{isFreeRun ? 'FREE RUN' : 'DEPLOY'}</Text>
+                <Text style={styles.runLabel}>
+                  {isFreeRun ? 'FREE RUN' : 'START'}
+                </Text>
               </View>
             );
           }
@@ -85,7 +101,7 @@ function WastelandTabBar({ state, navigation }: BottomTabBarProps) {
               <MaterialIcons
                 name={icon}
                 size={22}
-                color={focused ? colors.tabActive : colors.tabInactive}
+                color={focused ? colors.textPrimary : colors.tabInactive}
               />
               <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
                 {label}
@@ -147,7 +163,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   } as TextStyle,
   tabLabelActive: {
-    color: colors.tabActive,
+    color: colors.textPrimary,
   } as TextStyle,
 
   // Center RUN button slot
@@ -163,7 +179,7 @@ const styles = StyleSheet.create({
     width: RUN_BTN_SIZE,
     height: RUN_BTN_SIZE,
     borderRadius: RUN_BTN_SIZE / 2,
-    backgroundColor: colors.orange,
+    backgroundColor: colors.earthGreen,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
@@ -171,13 +187,10 @@ const styles = StyleSheet.create({
     borderColor: colors.background,
     ...shadows.md,
   } as ViewStyle,
-  runBtnFreeRun: {
-    backgroundColor: colors.primary,
-  } as ViewStyle,
   runLabel: {
     fontSize: 10,
     fontWeight: fontWeights.extrabold,
-    color: colors.orange,
+    color: colors.earthGreen,
     letterSpacing: 1,
   } as TextStyle,
 });

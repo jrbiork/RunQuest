@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { OnboardingLayout } from '../../src/components/onboarding/OnboardingLayout';
@@ -6,13 +6,22 @@ import { OptionCard } from '../../src/components/onboarding/OptionCard';
 import { useOnboardingDraft } from './_layout';
 import { useUserStore } from '../../src/store/userStore';
 import { useMissionsStore } from '../../src/store/missionsStore';
-import type { ActivityMode, SustainablePaceAnswer, UserProfile } from '../../src/types';
+import type {
+  ActivityMode,
+  SustainablePaceAnswer,
+  UserProfile,
+} from '../../src/types';
 import {
   computePersonaId,
   preferredDaysFromScheduleDays,
   startingClassLevelFromDistanceAndPace,
   type PersonaSurveyAnswers,
 } from '../../src/utils/personaScoring';
+import {
+  logEvent,
+  setUserProperty,
+  Events,
+} from '../../src/services/analytics';
 
 const OPTIONS: {
   value: SustainablePaceAnswer;
@@ -20,11 +29,36 @@ const OPTIONS: {
   description: string;
   icon: string;
 }[] = [
-  { value: 'unknown', label: "I don't know my pace yet", description: 'No pace benchmark yet', icon: 'help-outline' },
-  { value: 'slower_than_7', label: 'Slower than 7:00/km', description: 'Easy conversational pace', icon: 'speed' },
-  { value: '6_to_7', label: '6:00-7:00/km', description: 'Steady sustainable pace', icon: 'speed' },
-  { value: '5_to_6', label: '5:00-6:00/km', description: 'Strong endurance pace', icon: 'speed' },
-  { value: 'faster_than_5', label: 'Faster than 5:00/km', description: 'High performance pace', icon: 'bolt' },
+  {
+    value: 'unknown',
+    label: "I don't know my pace yet",
+    description: 'No pace benchmark yet',
+    icon: 'help-outline',
+  },
+  {
+    value: 'slower_than_7',
+    label: 'Slower than 7:00/km',
+    description: 'Easy conversational pace',
+    icon: 'speed',
+  },
+  {
+    value: '6_to_7',
+    label: '6:00-7:00/km',
+    description: 'Steady sustainable pace',
+    icon: 'speed',
+  },
+  {
+    value: '5_to_6',
+    label: '5:00-6:00/km',
+    description: 'Strong endurance pace',
+    icon: 'speed',
+  },
+  {
+    value: 'faster_than_5',
+    label: 'Faster than 5:00/km',
+    description: 'High performance pace',
+    icon: 'bolt',
+  },
 ];
 
 const CYCLE_OPTIONS: {
@@ -33,11 +67,36 @@ const CYCLE_OPTIONS: {
   description: string;
   icon: string;
 }[] = [
-  { value: 'unknown', label: "I don't know my ride pace yet", description: 'No pace benchmark yet', icon: 'help-outline' },
-  { value: 'slower_than_7', label: 'Slower than 3:00/km', description: 'Easy spinning pace', icon: 'speed' },
-  { value: '6_to_7', label: '2:30-3:00/km', description: 'Steady endurance pace', icon: 'speed' },
-  { value: '5_to_6', label: '2:00-2:30/km', description: 'Strong sustained pace', icon: 'speed' },
-  { value: 'faster_than_5', label: 'Faster than 2:00/km', description: 'High performance pace', icon: 'bolt' },
+  {
+    value: 'unknown',
+    label: "I don't know my ride pace yet",
+    description: 'No pace benchmark yet',
+    icon: 'help-outline',
+  },
+  {
+    value: 'slower_than_7',
+    label: 'Slower than 3:00/km',
+    description: 'Easy spinning pace',
+    icon: 'speed',
+  },
+  {
+    value: '6_to_7',
+    label: '2:30-3:00/km',
+    description: 'Steady endurance pace',
+    icon: 'speed',
+  },
+  {
+    value: '5_to_6',
+    label: '2:00-2:30/km',
+    description: 'Strong sustained pace',
+    icon: 'speed',
+  },
+  {
+    value: 'faster_than_5',
+    label: 'Faster than 2:00/km',
+    description: 'High performance pace',
+    icon: 'bolt',
+  },
 ];
 
 export default function OnboardingGoalScreen() {
@@ -47,12 +106,21 @@ export default function OnboardingGoalScreen() {
     draft.current.sustainablePace ?? null,
   );
   const completeOnboarding = useUserStore((s) => s.completeOnboarding);
-  const generateMissionsFromProfile = useMissionsStore((s) => s.generateMissionsFromProfile);
+  const generateMissionsFromProfile = useMissionsStore(
+    (s) => s.generateMissionsFromProfile,
+  );
 
-  const handleDeploy = () => {
+  useEffect(() => {
+    void logEvent(Events.ONBOARDING_STEP_VIEWED, { step_name: 'goal' });
+  }, []);
+
+  const handleStart = () => {
     if (!selected) return;
     const d = draft.current;
-    const days = Math.max(1, Math.min(7, Math.round(d.trainingDaysPerWeek ?? 3)));
+    const days = Math.max(
+      1,
+      Math.min(7, Math.round(d.trainingDaysPerWeek ?? 3)),
+    );
     if (!d.distanceCapacity) return;
     draft.current.sustainablePace = selected;
 
@@ -83,7 +151,13 @@ export default function OnboardingGoalScreen() {
     };
 
     completeOnboarding(profile);
-    generateMissionsFromProfile(profile, useUserStore.getState().xp, startingClassLevel);
+    generateMissionsFromProfile(
+      profile,
+      useUserStore.getState().xp,
+      startingClassLevel,
+    );
+    void logEvent(Events.ONBOARDING_COMPLETED);
+    void setUserProperty('preferred_activity', mode);
     router.replace('/onboarding/tailoring');
   };
 
@@ -93,11 +167,11 @@ export default function OnboardingGoalScreen() {
       totalSteps={3}
       title={
         mode === 'run'
-          ? 'What pace feels sustainable for you right now?'
-          : 'What ride pace feels sustainable for you right now?'
+          ? 'What pace feels normal for you?'
+          : 'What ride pace feels normal for you?'
       }
       subtitle="Sustainable pace"
-      onNext={handleDeploy}
+      onNext={handleStart}
       nextLabel="Continue"
       nextDisabled={!selected}
     >

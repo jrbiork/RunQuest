@@ -54,7 +54,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         {/* Avoid native back-swipe competing with intro’s left swipe */}
         <Stack.Screen name="intro" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="run"

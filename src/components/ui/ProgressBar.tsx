@@ -9,7 +9,7 @@ import Animated, {
 import { colors, radii } from '../../constants/theme';
 
 interface ProgressBarProps {
-  progress: number;       // 0–1
+  progress: number; // 0–1
   color?: string;
   backgroundColor?: string;
   height?: number;

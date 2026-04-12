@@ -1,5 +1,13 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ViewStyle, TextStyle } from 'react-native';
+import { useState, useMemo } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,13 +15,30 @@ import { useMissionsStore } from '../../src/store/missionsStore';
 import { XPBadge } from '../../src/components/ui/XPBadge';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
-import { colors, spacing, radii, fontSizes, fontWeights, missionConfig, shadows } from '../../src/constants/theme';
-import { formatDistance, formatDuration } from '../../src/utils/xpCalculator';
+import {
+  colors,
+  spacing,
+  radii,
+  fontSizes,
+  fontWeights,
+  shadows,
+} from '../../src/constants/theme';
+import {
+  formatDistance,
+  formatDuration,
+  getDisplayXpWithStartingLevelOffset,
+  getLevelInfo,
+} from '../../src/utils/xpCalculator';
+import { getDisplayXpTotal } from '../../src/utils/displayXp';
 import { FUN_RUN_ID, FUN_RUN_MISSION } from '../../src/constants/missions';
-import { findMissionById, normalizeRouteParam } from '../../src/utils/missionLookup';
+import {
+  findMissionById,
+  normalizeRouteParam,
+} from '../../src/utils/missionLookup';
 import { stripEmojis } from '../../src/utils/stripEmojis';
 import { useUserStore } from '../../src/store/userStore';
 import type { ActivityMode } from '../../src/types';
+import { logEvent, Events } from '../../src/services/analytics';
 
 /** Darken a #RRGGBB hex for button borders on colored fills. */
 function darkenHex(hex: string, factor = 0.74): string {
@@ -30,9 +55,39 @@ export default function RunDetailScreen() {
   const id = normalizeRouteParam(params.id);
   const weekMissions = useMissionsStore((s) => s.weekMissions);
   const isFreeRun = id === FUN_RUN_ID;
-  const mission = isFreeRun ? FUN_RUN_MISSION : findMissionById(weekMissions, id);
-  const defaultActivityMode = useUserStore((s) => s.profile?.defaultActivityMode ?? 'cycle');
-  const [activityMode, setActivityMode] = useState<ActivityMode>(defaultActivityMode);
+  const mission = isFreeRun
+    ? FUN_RUN_MISSION
+    : findMissionById(weekMissions, id);
+  const defaultActivityMode = useUserStore(
+    (s) => s.profile?.defaultActivityMode ?? 'cycle',
+  );
+  const profile = useUserStore((s) => s.profile);
+  const xp = useUserStore((s) => s.xp);
+  const runHistory = useUserStore((s) => s.runHistory);
+
+  const levelAccentColor = useMemo(() => {
+    const displayXp = getDisplayXpTotal({ xp, runHistory });
+    const displayLevelXp = getDisplayXpWithStartingLevelOffset(
+      displayXp,
+      profile?.startingClassLevel,
+    );
+    return getLevelInfo(displayLevelXp).accentColor;
+  }, [xp, runHistory, profile?.startingClassLevel]);
+
+  const ctaNeonBg = colors.earthGreen;
+  const ctaNeonBorder = darkenHex(ctaNeonBg);
+
+  const [activityMode, setActivityMode] =
+    useState<ActivityMode>(defaultActivityMode);
+
+  const resolvedActivityMode = useMemo((): ActivityMode => {
+    if (!mission || isFreeRun) return activityMode;
+    if (mission.status !== 'completed') return activityMode;
+    const latest = [...runHistory]
+      .filter((r) => r.missionId === mission.id)
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt))[0];
+    return latest?.activityMode ?? defaultActivityMode;
+  }, [mission, isFreeRun, runHistory, activityMode, defaultActivityMode]);
 
   if (!mission) {
     return (
@@ -47,76 +102,123 @@ export default function RunDetailScreen() {
     );
   }
 
-  const config = missionConfig[mission.type];
-  const accent = config.color;
-  const accentBtnBorder = darkenHex(accent);
-
   const isCompleted = mission.status === 'completed';
 
-  const targetDistance = activityMode === 'cycle'
-    ? mission.targetCyclingDistanceKm
-    : mission.targetDistanceKm;
-  const targetDuration = activityMode === 'cycle'
-    ? mission.targetCyclingDurationMin
-    : mission.targetDurationMin;
+  const targetDistance =
+    resolvedActivityMode === 'cycle'
+      ? mission.targetCyclingDistanceKm
+      : mission.targetDistanceKm;
+  const targetDuration =
+    resolvedActivityMode === 'cycle'
+      ? mission.targetCyclingDurationMin
+      : mission.targetDurationMin;
 
   const handleStartMission = () => {
-    router.push({ pathname: '/run/active', params: { id: mission.id, activityMode } });
+    void logEvent(Events.MISSION_STARTED, { type: activityMode });
+    router.push({
+      pathname: '/run/active',
+      params: { id: mission.id, activityMode },
+    });
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* ─── Dark industrial header ────────────────────────────────── */}
       <View style={styles.hero}>
-        {/* Close + type pill row */}
         <View style={styles.heroTopRow}>
-          <View style={styles.typePill}>
-            <MaterialIcons name={config.icon as any} size={12} color={colors.textSecondary} />
-            <Text style={styles.typeLabel}>{config.label}</Text>
-          </View>
-          <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-            <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={() => router.back()}
+          >
+            <MaterialIcons
+              name="close"
+              size={20}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
 
         {/* Hero content */}
         <View style={styles.heroContent}>
           <Text style={styles.heroTitle}>{stripEmojis(mission.title)}</Text>
-          <Text style={styles.heroSubtitle}>{stripEmojis(mission.subtitle)}</Text>
+          <Text style={styles.heroSubtitle}>
+            {stripEmojis(mission.subtitle)}
+          </Text>
         </View>
       </View>
 
       {/* ─── Scrollable body ─────────────────────────────────────────── */}
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Activity mode selector — hidden for free run */}
         {!isFreeRun && (
-          <View style={styles.modeSelector}>
+          <View
+            style={[
+              styles.modeSelector,
+              isCompleted && styles.modeSelectorReadonly,
+            ]}
+            pointerEvents={isCompleted ? 'none' : 'auto'}
+          >
             <TouchableOpacity
-              style={[styles.modeTab, activityMode === 'run' && styles.modeTabActive]}
+              style={[
+                styles.modeTab,
+                resolvedActivityMode === 'run' &&
+                  (isCompleted ? styles.modeTabLockedIn : styles.modeTabActive),
+              ]}
               onPress={() => setActivityMode('run')}
-              activeOpacity={0.8}
+              activeOpacity={isCompleted ? 1 : 0.8}
+              disabled={isCompleted}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isCompleted, selected: resolvedActivityMode === 'run' }}
             >
               <MaterialIcons
                 name="directions-run"
                 size={18}
-                color={activityMode === 'run' ? colors.textPrimary : colors.textTertiary}
+                color={
+                  resolvedActivityMode === 'run'
+                    ? colors.textPrimary
+                    : colors.textTertiary
+                }
               />
-              <Text style={[styles.modeTabLabel, activityMode === 'run' && styles.modeTabLabelActive]}>
+              <Text
+                style={[
+                  styles.modeTabLabel,
+                  resolvedActivityMode === 'run' && styles.modeTabLabelActive,
+                ]}
+              >
                 RUN
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modeTab, activityMode === 'cycle' && styles.modeTabActive]}
+              style={[
+                styles.modeTab,
+                resolvedActivityMode === 'cycle' &&
+                  (isCompleted ? styles.modeTabLockedIn : styles.modeTabActive),
+              ]}
               onPress={() => setActivityMode('cycle')}
-              activeOpacity={0.8}
+              activeOpacity={isCompleted ? 1 : 0.8}
+              disabled={isCompleted}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isCompleted, selected: resolvedActivityMode === 'cycle' }}
             >
               <MaterialIcons
                 name="directions-bike"
                 size={18}
-                color={activityMode === 'cycle' ? colors.textPrimary : colors.textTertiary}
+                color={
+                  resolvedActivityMode === 'cycle'
+                    ? colors.textPrimary
+                    : colors.textTertiary
+                }
               />
-              <Text style={[styles.modeTabLabel, activityMode === 'cycle' && styles.modeTabLabelActive]}>
+              <Text
+                style={[
+                  styles.modeTabLabel,
+                  resolvedActivityMode === 'cycle' && styles.modeTabLabelActive,
+                ]}
+              >
                 CYCLE
               </Text>
             </TouchableOpacity>
@@ -127,7 +229,11 @@ export default function RunDetailScreen() {
         {!isFreeRun && (
           <View style={styles.statsRow}>
             <StatCard
-              icon={activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
+              icon={
+                resolvedActivityMode === 'cycle'
+                  ? 'directions-bike'
+                  : 'directions-run'
+              }
               label="Distance"
               value={formatDistance(targetDistance)}
             />
@@ -147,16 +253,26 @@ export default function RunDetailScreen() {
                 <Text style={styles.xpTitle}>Mission Reward</Text>
                 <Text style={styles.xpSub}>Streak bonus may increase XP</Text>
               </View>
-              <XPBadge xp={mission.xpReward} size="lg" />
+              <XPBadge
+                xp={mission.xpReward}
+                size="lg"
+                accentColor={levelAccentColor}
+              />
             </View>
           </Card>
         ) : (
           <Card accentTop={colors.border} style={styles.xpCard}>
             <View style={styles.xpRow}>
-              <MaterialIcons name="self-improvement" size={24} color={colors.textSecondary} />
+              <MaterialIcons
+                name="self-improvement"
+                size={24}
+                color={colors.textSecondary}
+              />
               <View style={styles.xpLeft}>
                 <Text style={styles.xpTitle}>No XP Reward</Text>
-                <Text style={styles.xpSub}>Run for the joy of it. No targets, no pressure.</Text>
+                <Text style={styles.xpSub}>
+                  Run for the joy of it. No targets, no pressure.
+                </Text>
               </View>
             </View>
           </Card>
@@ -164,23 +280,45 @@ export default function RunDetailScreen() {
 
         {/* Briefing */}
         <Card accentTop={colors.border} style={styles.descCard}>
-          <Text style={styles.descTitle}>{isFreeRun ? 'Field Note' : 'Mission Briefing'}</Text>
+          <Text style={styles.descTitle}>
+            {isFreeRun ? 'Field Note' : 'Mission Briefing'}
+          </Text>
           <Text style={styles.descText}>{mission.description}</Text>
         </Card>
 
         {/* CTA */}
         {isCompleted ? (
           <View style={styles.completedState}>
-            <MaterialIcons name="check-circle" size={24} color={colors.textSecondary} />
+            <MaterialIcons
+              name="check-circle"
+              size={24}
+              color={colors.textSecondary}
+            />
             <Text style={styles.completedText}>Mission Completed</Text>
           </View>
         ) : (
           <Button
-            label={isFreeRun ? 'Start Free Run' : activityMode === 'cycle' ? 'Deploy Cycling' : 'Deploy Mission'}
-            icon={isFreeRun ? 'directions-run' : activityMode === 'cycle' ? 'directions-bike' : 'directions-run'}
+            label={
+              isFreeRun
+                ? 'Start Free Run'
+                : activityMode === 'cycle'
+                  ? 'Start Cycling'
+                  : 'Start Mission'
+            }
+            icon={
+              isFreeRun
+                ? 'directions-run'
+                : activityMode === 'cycle'
+                  ? 'directions-bike'
+                  : 'directions-run'
+            }
             onPress={handleStartMission}
             fullWidth
-            style={{ ...styles.cta, backgroundColor: accent, borderColor: accentBtnBorder }}
+            style={{
+              ...styles.cta,
+              backgroundColor: ctaNeonBg,
+              borderColor: ctaNeonBorder,
+            }}
           />
         )}
       </ScrollView>
@@ -188,11 +326,23 @@ export default function RunDetailScreen() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: string; label: string; value: string }) {
+function StatCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+}) {
   return (
     <View style={styles.statCard}>
       <View style={styles.statIconBlock}>
-        <MaterialIcons name={icon as any} size={20} color={colors.textSecondary} />
+        <MaterialIcons
+          name={icon as any}
+          size={20}
+          color={colors.textSecondary}
+        />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
@@ -218,25 +368,8 @@ const styles = StyleSheet.create({
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
   } as ViewStyle,
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-  } as ViewStyle,
-  typeLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extrabold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: colors.textSecondary,
-  } as TextStyle,
   closeBtn: {
     width: 32,
     height: 32,
@@ -254,6 +387,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     color: colors.textPrimary,
     lineHeight: 36,
+    textAlign: 'left',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   } as TextStyle,
@@ -261,6 +395,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     color: colors.textSecondary,
     lineHeight: 22,
+    textAlign: 'left',
   } as TextStyle,
 
   // Scroll body
@@ -281,6 +416,9 @@ const styles = StyleSheet.create({
     padding: 3,
     gap: 3,
   } as ViewStyle,
+  modeSelectorReadonly: {
+    opacity: 0.92,
+  } as ViewStyle,
   modeTab: {
     flex: 1,
     flexDirection: 'row',
@@ -298,6 +436,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   } as TextStyle,
   modeTabActive: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.earthGreen,
+  } as ViewStyle,
+  /** Completed mission: show chosen mode without neon (not interactive). */
+  modeTabLockedIn: {
     backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
     borderColor: colors.border,
