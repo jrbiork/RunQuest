@@ -852,7 +852,7 @@ export default function ActiveRunScreen() {
           {displayPath.length > 1 && (
             <Polyline
               coordinates={displayPath}
-              strokeColor={colors.earthGreen}
+              strokeColor={colors.primaryDark}
               strokeWidth={5}
               lineCap="round"
               lineJoin="round"

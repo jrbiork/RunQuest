@@ -101,10 +101,10 @@ export const LEVEL_CLASS_ACCENTS = [
   '#F43F5E',
   '#F97316',
   '#EAB308',
-  '#84CC16',
+  '#F59E0B',
   '#10B981',
   '#FBBF24',
-  '#A3E635',
+  '#8B5CF6',
   '#F472B6',
   '#38BDF8',
   '#C084FC',
@@ -119,7 +119,7 @@ export const LEVEL_CLASS_ACCENTS = [
   '#A5B4FC',
   '#FDE68A',
   '#FB7185',
-  '#86EFAC',
+  '#4A0000',
 ] as const;
 
 export function getLevelAccentForIndex(levelIndex0: number): string {

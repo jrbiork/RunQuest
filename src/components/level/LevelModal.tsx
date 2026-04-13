@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Modal,
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   StyleSheet,
   ViewStyle,
   TextStyle,
@@ -31,6 +31,31 @@ type Props = {
  */
 export function LevelModal({ visible, onClose, levelInfo }: Props) {
   const scavengerLevels = useMemo(() => getScavengerLevelRows(), []);
+  const listRef = useRef<FlatList<(typeof scavengerLevels)[number]>>(null);
+  const currentLevelIndex = useMemo(
+    () => Math.max(0, scavengerLevels.findIndex((row) => row.level === levelInfo.level)),
+    [scavengerLevels, levelInfo.level],
+  );
+  const ROW_HEIGHT = 58;
+
+  const scrollCurrentLevelIntoView = useCallback(
+    (animated: boolean) => {
+      listRef.current?.scrollToIndex({
+        index: currentLevelIndex,
+        animated,
+        viewPosition: 0.5,
+      });
+    },
+    [currentLevelIndex],
+  );
+
+  useEffect(() => {
+    if (!visible) return;
+    const timer = setTimeout(() => {
+      scrollCurrentLevelIntoView(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [visible, scrollCurrentLevelIntoView]);
 
   return (
     <Modal
@@ -56,21 +81,14 @@ export function LevelModal({ visible, onClose, levelInfo }: Props) {
               />
             </TouchableOpacity>
           </View>
-          <ScrollView
-            style={styles.modalScroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Text style={styles.modalSub}>
-              Earn XP from missions to promote through each level.
-            </Text>
-            {scavengerLevels.map((row) => {
+          <FlatList
+            ref={listRef}
+            data={scavengerLevels}
+            keyExtractor={(row) => String(row.level)}
+            renderItem={({ item: row }) => {
               const current = row.level === levelInfo.level;
               return (
-                <View
-                  key={row.level}
-                  style={[styles.levelRow, current && styles.levelRowCurrent]}
-                >
+                <View style={[styles.levelRow, current && styles.levelRowCurrent]}>
                   <Text
                     style={[
                       styles.levelRowNum,
@@ -97,13 +115,31 @@ export function LevelModal({ visible, onClose, levelInfo }: Props) {
                     <MaterialIcons
                       name="check-circle"
                       size={20}
-                      color={colors.ochre}
+                      color={colors.earthGreen}
                     />
                   )}
                 </View>
               );
+            }}
+            getItemLayout={(_, index) => ({
+              length: ROW_HEIGHT,
+              offset: ROW_HEIGHT * index,
+              index,
             })}
-          </ScrollView>
+            onScrollToIndexFailed={() => {
+              setTimeout(() => {
+                scrollCurrentLevelIntoView(false);
+              }, 50);
+            }}
+            ListHeaderComponent={
+              <Text style={styles.modalSub}>
+                Earn XP from missions to promote through each level.
+              </Text>
+            }
+            style={styles.modalScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          />
         </View>
       </View>
     </Modal>
@@ -168,8 +204,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   } as ViewStyle,
   levelRowCurrent: {
-    borderColor: colors.ochre,
-    backgroundColor: 'rgba(212, 168, 83, 0.12)',
+    borderColor: colors.earthGreen,
+    backgroundColor: colors.earthGreenLight,
   } as ViewStyle,
   levelRowNum: {
     fontSize: fontSizes.lg,
@@ -178,7 +214,7 @@ const styles = StyleSheet.create({
     width: 28,
   } as TextStyle,
   levelRowNumCurrent: {
-    color: colors.ochre,
+    color: colors.earthGreen,
   } as TextStyle,
   levelRowText: {
     flex: 1,
@@ -190,7 +226,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   } as TextStyle,
   levelRowTitleCurrent: {
-    color: colors.ochre,
+    color: colors.earthGreen,
   } as TextStyle,
   levelRowXp: {
     fontSize: fontSizes.xs,

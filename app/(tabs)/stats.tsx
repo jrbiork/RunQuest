@@ -52,6 +52,7 @@ import {
 import {
   isAbortedRun,
   isMissionCompletedOrPartial,
+  resolveOutcome,
 } from '../../src/utils/runOutcome';
 import RunShareCard from '../../src/components/share/RunShareCard';
 import { shareCard } from '../../src/services/shareService';
@@ -267,6 +268,9 @@ function MonthRunRow({
     minute: '2-digit',
   });
   const modeLabel = mode === 'cycle' ? 'Cycle' : 'Run';
+  const outcome = resolveOutcome(run);
+  const showsCompletedTag = outcome === 'success' || outcome === 'partial_time';
+  const showsAbortedTag = outcome === 'aborted';
 
   return (
     <TouchableOpacity
@@ -280,6 +284,20 @@ function MonthRunRow({
             {title}
           </Text>
         </View>
+        {showsCompletedTag && (
+          <View style={[styles.outcomeTag, styles.outcomeTagCompleted]}>
+            <Text style={[styles.outcomeTagText, styles.outcomeTagTextCompleted]}>
+              COMPLETED
+            </Text>
+          </View>
+        )}
+        {showsAbortedTag && (
+          <View style={[styles.outcomeTag, styles.outcomeTagAborted]}>
+            <Text style={[styles.outcomeTagText, styles.outcomeTagTextAborted]}>
+              ABORTED
+            </Text>
+          </View>
+        )}
       </View>
       <Text style={styles.runRowDate}>
         {timeStr} · {modeLabel}
@@ -543,9 +561,35 @@ export default function StatsScreen() {
             </Text>
           ) : (
             <>
+              {abortedCountThisMonth > 0 && (
+                <TouchableOpacity
+                  style={styles.abortedToggleRow}
+                  onPress={() => setShowAbortedInMonthList((v) => !v)}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showAbortedInMonthList
+                      ? 'Hide aborted missions'
+                      : `Show ${abortedCountThisMonth} aborted missions`
+                  }
+                >
+                  <MaterialIcons
+                    name={
+                      showAbortedInMonthList ? 'expand-less' : 'expand-more'
+                    }
+                    size={22}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.abortedToggleText}>
+                    {showAbortedInMonthList
+                      ? 'Hide aborted missions'
+                      : `Show ${abortedCountThisMonth} aborted`}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {visibleRunsMonth.length === 0 ? (
                 <Text style={styles.emptyText}>
-                  Aborted missions are hidden by default. Tap below to show
+                  Aborted missions are hidden by default. Tap above to show
                   them.
                 </Text>
               ) : (
@@ -580,32 +624,6 @@ export default function StatsScreen() {
                     </View>
                   ))}
                 </View>
-              )}
-              {abortedCountThisMonth > 0 && (
-                <TouchableOpacity
-                  style={styles.abortedToggleRow}
-                  onPress={() => setShowAbortedInMonthList((v) => !v)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showAbortedInMonthList
-                      ? 'Hide aborted missions'
-                      : `Show ${abortedCountThisMonth} aborted missions`
-                  }
-                >
-                  <MaterialIcons
-                    name={
-                      showAbortedInMonthList ? 'expand-less' : 'expand-more'
-                    }
-                    size={22}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={styles.abortedToggleText}>
-                    {showAbortedInMonthList
-                      ? 'Hide aborted missions'
-                      : `Show ${abortedCountThisMonth} aborted`}
-                  </Text>
-                </TouchableOpacity>
               )}
             </>
           )}
@@ -794,6 +812,32 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     color: colors.textPrimary,
+  } as TextStyle,
+  outcomeTag: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    flexShrink: 0,
+  } as ViewStyle,
+  outcomeTagCompleted: {
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.border,
+  } as ViewStyle,
+  outcomeTagAborted: {
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.border,
+  } as ViewStyle,
+  outcomeTagText: {
+    fontSize: 10,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 0.7,
+  } as TextStyle,
+  outcomeTagTextCompleted: {
+    color: colors.textSecondary,
+  } as TextStyle,
+  outcomeTagTextAborted: {
+    color: colors.textSecondary,
   } as TextStyle,
   runRowDate: {
     fontSize: fontSizes.xs,
