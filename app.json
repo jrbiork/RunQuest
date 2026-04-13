@@ -15,6 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.rbiork.runquest",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": ["audio", "location"]
       }
@@ -24,7 +25,8 @@
         "foregroundImage": "./assets/ios_icon.png",
         "backgroundColor": "#0E1210"
       },
-      "package": "com.runquest.app"
+      "package": "com.runquest.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -32,19 +34,6 @@
       "favicon": "./assets/ios_icon.png"
     },
     "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "extraPods": [
-              {
-                "name": "GoogleUtilities",
-                "modular_headers": true
-              }
-            ]
-          }
-        }
-      ],
       [
         "expo-splash-screen",
         {
@@ -59,14 +48,17 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "RunQuest needs your location to track your run distance and path.",
-          "locationWhenInUsePermission": "RunQuest needs your location to track your run distance and path."
+          "locationWhenInUsePermission": "RunQuest needs your location to track your run distance and path.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
         "expo-audio",
         { "enableBackgroundPlayback": true }
       ],
-      "@react-native-firebase/app",
+      "./plugins/withReactNativeFirebaseApp.js",
       "expo-sharing",
       [
         "expo-media-library",
@@ -74,6 +66,19 @@
           "photosPermission": "RunQuest saves your share cards to your photo library.",
           "savePhotosPermission": "RunQuest saves your share cards to your photo library.",
           "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              }
+            ]
+          }
         }
       ]
     ],

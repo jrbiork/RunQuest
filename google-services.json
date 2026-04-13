@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "370336618570",
+    "project_id": "runquest-b65ef",
+    "storage_bucket": "runquest-b65ef.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:370336618570:android:dde0f2fc1382093a74eeb3",
+        "android_client_info": {
+          "package_name": "com.runquest.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVrh_OlrUDIvUj-9AN96ZJkppM_MWrwcY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

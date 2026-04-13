@@ -39,7 +39,10 @@ type FirebaseAnalyticsInstance = {
 // Lazy-load using the modular API (RNFB v22+).
 // Guard with NativeModules check so the app never crashes before native linking.
 function getFirebase(): FirebaseAnalyticsInstance | null {
-  if (!NativeModules.RNFBAppModule) return null;
+  if (!NativeModules.RNFBAppModule) {
+    console.warn('[Analytics] RNFBAppModule not found — Firebase not linked');
+    return null;
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getApp } = require('@react-native-firebase/app') as {
@@ -55,12 +58,15 @@ function getFirebase(): FirebaseAnalyticsInstance | null {
       logEvent: (a: object, name: string, params?: Record<string, unknown>) => Promise<void>;
       setUserProperty: (a: object, name: string, value: string) => Promise<void>;
     };
+    const instance = getAnalytics(getApp());
+    console.log('[Analytics] Firebase initialized OK, instance:', typeof instance);
     return {
-      instance: getAnalytics(getApp()),
+      instance,
       logEvent: fbLogEvent,
       setUserProperty: fbSetUserProperty,
     };
-  } catch {
+  } catch (e) {
+    console.error('[Analytics] Firebase init error:', e);
     return null;
   }
 }
@@ -71,9 +77,15 @@ export async function logEvent(
 ): Promise<void> {
   try {
     const fb = getFirebase();
-    if (fb) await fb.logEvent(fb.instance, name, params);
-  } catch {
-    // never crash the app for analytics
+    if (!fb) {
+      console.warn('[Analytics] logEvent skipped (no Firebase):', name);
+      return;
+    }
+    console.log('[Analytics] logEvent:', name, params);
+    await fb.logEvent(fb.instance, name, params);
+    console.log('[Analytics] logEvent sent OK:', name);
+  } catch (e) {
+    console.error('[Analytics] logEvent error:', name, e);
   }
 }
 
