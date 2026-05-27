@@ -1,12 +1,4 @@
-/**
- * OpenAI API configuration.
- *
- * Replace OPENAI_API_KEY with your key from https://platform.openai.com/api-keys
- *
- * The TTS service will silently skip voice cues if no key is provided,
- * so the app works normally without one.
- */
-export const OPENAI_API_KEY = 'REMOVED';
+export const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
 // Voice used for in-run cues. "onyx" sounds deep and authoritative (field-comms feel).
 // Options: alloy | echo | fable | onyx | nova | shimmer
